@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useDiagnostics } from '@/lib/queries'
 import { mocksEnabled } from '@/api/diagnostics'
+import { probeKind, BUSINESS_DEGRADED_CODES } from '@/api/schemas/diagnostics'
+import type { ProbeKind } from '@/api/schemas/diagnostics'
 import { Card } from '@/shared/ui/Card'
 import { QueryState } from '@/shared/ui/States'
 
@@ -27,6 +29,9 @@ interface ReadResult {
   path: string
   httpStatus: number | null
   envelopeStatus: string | null
+  /** 后端信封 code；用于区分业务降级与接口故障，缺失为 null。 */
+  envelopeCode: string | null
+  kind: ProbeKind
   latencyMs: number | null
   data: unknown
   error: string | null
@@ -44,30 +49,35 @@ async function fetchRead(path: string, timeoutMs = 8000): Promise<ReadResult> {
       method: 'GET', credentials: 'include', headers, signal: controller.signal,
     })
     const latencyMs = Math.round(performance.now() - started)
-    let env: { status?: unknown; data?: unknown; message?: unknown } = {}
+    let env: { status?: unknown; data?: unknown; message?: unknown; code?: unknown } = {}
     try {
       env = (await res.json()) as typeof env
     } catch {
       return {
-        path, httpStatus: res.status, envelopeStatus: null, latencyMs,
+        path, httpStatus: res.status, envelopeStatus: null, envelopeCode: null,
+        kind: 'failure', latencyMs,
         data: null, error: '响应不是合法 JSON 信封',
       }
     }
     const envelopeStatus = typeof env.status === 'string' ? env.status : null
+    const envelopeCode = typeof env.code === 'string' ? env.code : null
     const ok = res.ok && envelopeStatus === 'ok'
+    const kind = probeKind({ ok, httpStatus: res.status, envelopeStatus, envelopeCode })
     return {
-      path, httpStatus: res.status, envelopeStatus, latencyMs,
+      path, httpStatus: res.status, envelopeStatus, envelopeCode, kind, latencyMs,
       data: ok ? (env.data ?? null) : null,
       error: ok
         ? null
-        : !res.ok
-          ? `HTTP ${res.status}${typeof env.message === 'string' ? `：${env.message}` : ''}`
-          : envelopeStatus === null ? '响应缺少信封 status' : `信封 status=${envelopeStatus}`,
+        : kind === 'degraded'
+          ? `业务降级（${BUSINESS_DEGRADED_CODES[envelopeCode ?? '']} / ${envelopeCode}）`
+          : !res.ok
+            ? `HTTP ${res.status}${typeof env.message === 'string' ? `：${env.message}` : ''}`
+            : envelopeStatus === null ? '响应缺少信封 status' : `信封 status=${envelopeStatus}`,
     }
   } catch (err) {
     const aborted = err instanceof DOMException && err.name === 'AbortError'
     return {
-      path, httpStatus: null, envelopeStatus: null,
+      path, httpStatus: null, envelopeStatus: null, envelopeCode: null, kind: 'failure',
       latencyMs: aborted ? timeoutMs : Math.round(performance.now() - started),
       data: null,
       error: aborted ? `超时（>${timeoutMs}ms）` : `请求失败：${err instanceof Error ? err.message : String(err)}`,
@@ -272,12 +282,15 @@ export function DataSourceView({ initialPath = '' }: { initialPath?: string }) {
           title={result.path || '读取结果'}
           right={
             <span className="text-label text-sf-ink-3 tabular-nums">
-              HTTP {result.httpStatus ?? '—'} · 信封 {result.envelopeStatus ?? '—'} · {result.latencyMs === null ? '—' : `${result.latencyMs} ms`}
+              HTTP {result.httpStatus ?? '—'} · 信封 {result.envelopeStatus ?? '—'}
+              {result.envelopeCode ? ` · ${result.envelopeCode}` : ''} · {result.latencyMs === null ? '—' : `${result.latencyMs} ms`}
             </span>
           }
         >
           {result.error ? (
-            <p className="text-body text-sf-warn">读取失败：{result.error}</p>
+            <p className="text-body text-sf-warn">
+              {result.kind === 'degraded' ? '业务降级（非接口故障）' : '读取失败'}：{result.error}
+            </p>
           ) : (
             <DataRenderer data={result.data} />
           )}

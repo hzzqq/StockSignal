@@ -169,6 +169,15 @@ describe('contract-drift A: MSW fixtures satisfy Zod schemas (mock ↔ contract)
 // ───────────── B. 实时后端 JSON ↔ Zod（生产 ↔ 契约，需 SS_BACKEND_URL）─────────────
 const BASE = process.env.SS_BACKEND_URL
 
+/** 诚实降级信封：error 不得偷偷塞 data，必须给非空原因与业务码。
+ *  B 段不再「SKIP 了事」——无数据的端点也要被检查，覆盖才谈得上全量。 */
+const DegradedEnvelope = z.object({
+  status: z.literal('error'),
+  code: z.string().min(1),
+  message: z.string().min(1),
+  data: z.null(),
+})
+
 type LiveCase = { key: string; url: string; schema: z.ZodTypeAny }
 
 const liveCases: LiveCase[] = [
@@ -256,6 +265,7 @@ describe.skipIf(!BASE)('contract-drift B: live backend JSON satisfies Zod (produ
       const results: string[] = []
       let mismatches = 0
       let okCount = 0
+      let checkedCount = 0
 
       for (const c of liveCases) {
         let url = c.url
@@ -277,10 +287,18 @@ describe.skipIf(!BASE)('contract-drift B: live backend JSON satisfies Zod (produ
             status = 'ENVELOPE_INVALID'
             detail = JSON.stringify(env.error.issues)
           } else if (env.data.status !== 'ok') {
-            status = `SKIP(${env.data.code})` // 无网/无权限/无数据：不误报
+            const degraded = DegradedEnvelope.safeParse(json)
+            if (!degraded.success) {
+              status = 'DEGRADED_INVALID'
+              mismatches++
+              detail = JSON.stringify(degraded.error.issues)
+            } else {
+              status = `SKIP(${env.data.code})` // 诚实降级：已校验信封，不算契约漂移
+              checkedCount++
+            }
           } else {
             const parsed = c.schema.safeParse(env.data.data)
-            if (parsed.success) { status = 'OK'; okCount++ }
+            if (parsed.success) { status = 'OK'; okCount++; checkedCount++ }
             else {
               status = 'MISMATCH'
               mismatches++
@@ -306,6 +324,11 @@ describe.skipIf(!BASE)('contract-drift B: live backend JSON satisfies Zod (produ
         okCount,
         `B 段未真正校验到端点（全线 SKIP/FETCH_ERR = 守卫自我静音）。okCount=${okCount}，汇总：\n${summary}`,
       ).toBeGreaterThanOrEqual(2)
+      // 覆盖门禁：OK + 合法降级都算「真检查过」；大面积 FETCH_ERR 却 0 mismatch 属伪绿。
+      expect(
+        checkedCount,
+        `B 段覆盖率不足：${checkedCount}/${liveCases.length} 个端点被真检查。汇总：\n${summary}`,
+      ).toBeGreaterThanOrEqual(Math.floor(liveCases.length * 0.8))
       expect(
         mismatches,
         `发现 ${mismatches} 处生产 JSON ↔ Zod 契约漂移：\n${summary}`,

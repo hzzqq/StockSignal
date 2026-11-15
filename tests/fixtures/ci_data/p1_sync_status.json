@@ -1,0 +1,116 @@
+{
+  "run_at": "2026-11-15T18:15:58",
+  "mode": "scheduler",
+  "interval_minutes": 60,
+  "dry_run": false,
+  "ok": true,
+  "target_dir": "E:\\project\\ks\\StockSignal\\data\\p1_signals",
+  "written": [],
+  "skipped": [
+    "baseline: 内容一致（md5 相同），跳过",
+    "baseline20: 内容一致（md5 相同），跳过",
+    "ens: 内容一致（md5 相同），跳过",
+    "ev: 内容一致（md5 相同），跳过",
+    "fusion: 内容一致（md5 相同），跳过",
+    "gru: 内容一致（md5 相同），跳过",
+    "rotation: 全部候选结构无效（拒绝写入）：缺字段: model,latest_date,horizon,top_short,daily；latest_date 缺失或非法 ISO 日期",
+    "v41blend: 内容一致（md5 相同），跳过"
+  ],
+  "errors": [],
+  "all_invalid": false,
+  "counts": {
+    "copy": 0,
+    "unchanged": 7,
+    "target_newer": 0,
+    "skip": 1
+  },
+  "health": {
+    "status": "warn",
+    "message": "7 个副本结构与新鲜度均达标（最新 2026-11-09）；调度器疑似停摆：上次运行 1745 分钟前（阈值 180 分钟）",
+    "latest": "2026-11-09",
+    "age_days": 6,
+    "models": [
+      "baseline",
+      "baseline20",
+      "ens",
+      "ev",
+      "fusion",
+      "gru",
+      "v41blend"
+    ],
+    "rows": [
+      {
+        "file": "signal_baseline20_h20.json",
+        "model_key": "baseline20",
+        "latest_date": "2026-11-09",
+        "age_days": 6,
+        "structural_ok": true,
+        "freshness_ok": true,
+        "errors": []
+      },
+      {
+        "file": "signal_baseline_h10.json",
+        "model_key": "baseline",
+        "latest_date": "2026-11-09",
+        "age_days": 6,
+        "structural_ok": true,
+        "freshness_ok": true,
+        "errors": []
+      },
+      {
+        "file": "signal_ens_v39gru_w025_h10.json",
+        "model_key": "ens",
+        "latest_date": "2026-11-09",
+        "age_days": 6,
+        "structural_ok": true,
+        "freshness_ok": true,
+        "errors": []
+      },
+      {
+        "file": "signal_ev_h10.json",
+        "model_key": "ev",
+        "latest_date": "2026-11-09",
+        "age_days": 6,
+        "structural_ok": true,
+        "freshness_ok": true,
+        "errors": []
+      },
+      {
+        "file": "signal_fusion_h10.json",
+        "model_key": "fusion",
+        "latest_date": "2026-10-26",
+        "age_days": 20,
+        "structural_ok": true,
+        "freshness_ok": true,
+        "errors": []
+      },
+      {
+        "file": "signal_gru_h10.json",
+        "model_key": "gru",
+        "latest_date": "2026-11-09",
+        "age_days": 6,
+        "structural_ok": true,
+        "freshness_ok": true,
+        "errors": []
+      },
+      {
+        "file": "signal_v41blend_w30_h10.json",
+        "model_key": "v41blend",
+        "latest_date": "2026-11-09",
+        "age_days": 6,
+        "structural_ok": true,
+        "freshness_ok": true,
+        "errors": []
+      }
+    ],
+    "structural_bad": [],
+    "stale": [],
+    "liveness": "调度器疑似停摆：上次运行 1745 分钟前（阈值 180 分钟）",
+    "last_run_at": "2026-11-14T13:10:06",
+    "last_run_ok": true,
+    "signal_dir": "E:\\project\\ks\\StockSignal\\data\\p1_signals",
+    "status_file": "E:\\project\\ks\\StockSignal\\data\\p1_sync_status.json",
+    "today": "2026-11-15"
+  },
+  "prev_run_at": "2026-11-14T13:10:06"
+}

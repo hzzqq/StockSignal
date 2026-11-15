@@ -1,0 +1,189 @@
+{
+  "date": "2026-11-12",
+  "model": "ev",
+  "source": "P1-QuantFactor EV 事件因子",
+  "note": "统计意义上的超额收益概率排序，非买卖指令",
+  "count": 20,
+  "pool": [
+    {
+      "rank": 1,
+      "symbol": "sh600234",
+      "score": 100.0,
+      "raw_rank": 1.0,
+      "raw_pred": 0.09474784880876541,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 2,
+      "symbol": "sh605358",
+      "score": 99.9,
+      "raw_rank": 0.9993275050437121,
+      "raw_pred": 0.08940023928880692,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 3,
+      "symbol": "sz002281",
+      "score": 99.9,
+      "raw_rank": 0.9986550100874243,
+      "raw_pred": 0.08719725161790848,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 4,
+      "symbol": "sh603698",
+      "score": 99.8,
+      "raw_rank": 0.9979825151311366,
+      "raw_pred": 0.08683265000581741,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 5,
+      "symbol": "sz300776",
+      "score": 99.7,
+      "raw_rank": 0.9973100201748487,
+      "raw_pred": 0.08670050650835037,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 6,
+      "symbol": "sh603203",
+      "score": 99.7,
+      "raw_rank": 0.9966375252185609,
+      "raw_pred": 0.08666164427995682,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 7,
+      "symbol": "sh688123",
+      "score": 99.6,
+      "raw_rank": 0.995965030262273,
+      "raw_pred": 0.08660013228654861,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 8,
+      "symbol": "sh688603",
+      "score": 99.5,
+      "raw_rank": 0.9952925353059852,
+      "raw_pred": 0.08626896888017654,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 9,
+      "symbol": "sh688322",
+      "score": 99.5,
+      "raw_rank": 0.9946200403496974,
+      "raw_pred": 0.0862007811665535,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 10,
+      "symbol": "sh688126",
+      "score": 99.4,
+      "raw_rank": 0.9939475453934096,
+      "raw_pred": 0.08566141873598099,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 11,
+      "symbol": "sh600707",
+      "score": 99.3,
+      "raw_rank": 0.9932750504371217,
+      "raw_pred": 0.08556336909532547,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 12,
+      "symbol": "sh600246",
+      "score": 99.3,
+      "raw_rank": 0.9926025554808339,
+      "raw_pred": 0.0849766805768013,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 13,
+      "symbol": "sz300342",
+      "score": 99.2,
+      "raw_rank": 0.991930060524546,
+      "raw_pred": 0.08472717553377151,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 14,
+      "symbol": "sh600520",
+      "score": 99.1,
+      "raw_rank": 0.9912575655682583,
+      "raw_pred": 0.08454764634370804,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 15,
+      "symbol": "sz002290",
+      "score": 99.1,
+      "raw_rank": 0.9905850706119704,
+      "raw_pred": 0.0843890979886055,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 16,
+      "symbol": "sh688820",
+      "score": 99.0,
+      "raw_rank": 0.9899125756556826,
+      "raw_pred": 0.08408469706773758,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 17,
+      "symbol": "sz300088",
+      "score": 98.9,
+      "raw_rank": 0.9892400806993947,
+      "raw_pred": 0.08402777463197708,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 18,
+      "symbol": "sh688017",
+      "score": 98.9,
+      "raw_rank": 0.9885675857431069,
+      "raw_pred": 0.08399689942598343,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 19,
+      "symbol": "sz002203",
+      "score": 98.8,
+      "raw_rank": 0.9878950907868191,
+      "raw_pred": 0.08391500264406204,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    },
+    {
+      "rank": 20,
+      "symbol": "sh688535",
+      "score": 98.7,
+      "raw_rank": 0.9872225958305313,
+      "raw_pred": 0.08386541157960892,
+      "signal": "看多",
+      "source": "P1-ev-top_long"
+    }
+  ]
+}

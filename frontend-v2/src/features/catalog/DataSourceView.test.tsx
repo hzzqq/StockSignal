@@ -71,6 +71,31 @@ describe('DataSourceView · 只读端点数据浏览器 · 诚实红线 + 四态
     await waitFor(() => expect(screen.getByText(/读取失败/)).toBeTruthy())
   })
 
+  it('业务降级 code=unavailable → 单独标注，绝不洗成成功', async () => {
+    mDiag.mockReturnValue({ data: { endpoints: GOOD_ENDPOINTS }, isLoading: false, isError: false, error: null } as never)
+    vi.mocked(fetch).mockResolvedValue({
+      status: 200, ok: true,
+      json: async () => ({ status: 'error', code: 'unavailable', message: '评分源不可用', data: null }),
+    } as never)
+    render(<DataSourceView />)
+    fireEvent.change(screen.getByLabelText('只读端点'), { target: { value: '/read/x' } })
+    await waitFor(() => expect(screen.getByText(/业务降级（非接口故障）/)).toBeTruthy())
+    expect(screen.getByText(/error · unavailable/)).toBeTruthy()
+    expect(screen.getByText(/业务降级（数据源暂不可用/)).toBeTruthy()
+  })
+
+  it('真接口故障 HTTP 500 → 仍显示读取失败，不打业务降级标签', async () => {
+    mDiag.mockReturnValue({ data: { endpoints: GOOD_ENDPOINTS }, isLoading: false, isError: false, error: null } as never)
+    vi.mocked(fetch).mockResolvedValue({
+      status: 500, ok: false,
+      json: async () => ({ status: 'error', code: 'server_error', message: 'boom', data: null }),
+    } as never)
+    render(<DataSourceView />)
+    fireEvent.change(screen.getByLabelText('只读端点'), { target: { value: '/read/x' } })
+    await waitFor(() => expect(screen.getByText(/读取失败/)).toBeTruthy())
+    expect(screen.queryByText(/业务降级（非接口故障）/)).toBeNull()
+  })
+
   it('需参数端点 → 查询框示例占位 + 提示文案', () => {
     mDiag.mockReturnValue({ data: { endpoints: GOOD_ENDPOINTS }, isLoading: false, isError: false, error: null } as never)
     render(<DataSourceView />)

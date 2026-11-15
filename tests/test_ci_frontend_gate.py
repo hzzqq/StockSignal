@@ -6,11 +6,15 @@
 只在本地手动跑。同日补了 frontend-v2 job；但 contract-drift B 段（实时后端
 JSON ↔ Zod）仍因缺 SS_BACKEND_URL 默认跳过，等于跨语言契约无人看守。
 
-本守卫锁死两个 job 的必需步骤 + B 段的防自我静音断言与超时口径，并用反例
-自测防止「保留 job 名但掏空命令」「加 continue-on-error」「删 okCount」式退化。
+本守卫锁死两个 job 的必需步骤 + B 段的防自我静音断言与超时口径、CI 真实归档
+样本夹具的完整性（字节数 / sha256 / 诚实声明），并用反例自测防止
+「保留 job 名但掏空命令」「加 continue-on-error」「删 okCount / 删覆盖门禁」
+「把夹具换成编造数据」式退化。
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from pathlib import Path
 
@@ -18,6 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CI = ROOT / ".github/workflows/ci.yml"
 FE = ROOT / "frontend-v2"
 CD = FE / "tests/unit/contract-drift.test.ts"
+FIX = ROOT / "tests/fixtures/ci_data"
 
 _FE_JOB = "  frontend-v2:"
 _LIVE_JOB = "  contract-drift-live:"
@@ -46,11 +51,16 @@ _LIVE_TOKENS = (
     "STOCKSIGNAL_ENABLE_DATA_REFRESH: \"0\"",
     "STOCKSIGNAL_ENABLE_P1_SYNC_SCHEDULER: \"0\"",
     "trap 'kill",
+    "cp tests/fixtures/ci_data/*.json data/",
+    "cp tests/fixtures/ci_data/snapshots/*.json data/snapshots/",
+    "rm -f data/manifest.json",
 )
 _CD_TOKENS = (
     "okCount",
     "toBeGreaterThanOrEqual(2)",
     "setTimeout(() => ac.abort(), 12000)",
+    "checkedCount",
+    "DegradedEnvelope",
 )
 
 
@@ -150,6 +160,8 @@ def test_ci_guard_is_not_self_silencing():
         "SS_BACKEND_URL: http://127.0.0.1:5050",
         "curl -fsS http://127.0.0.1:5050/api/health",
         'STOCKSIGNAL_ENABLE_P1_SYNC_SCHEDULER: "0"',
+        "cp tests/fixtures/ci_data/*.json data/",
+        "rm -f data/manifest.json",
     ):
         assert _all_errors(ci.replace(token, ""), pkg, cd, lock)
 
@@ -165,8 +177,81 @@ def test_ci_guard_is_not_self_silencing():
         lock,
     )
 
+    # 6b) 删掉 80% 覆盖门禁 / 降级信封校验，也必须被抓（否则「扩覆盖」可被静默撤回）
+    assert _all_errors(ci, pkg, cd.replace("checkedCount", ""), lock)
+    assert _all_errors(ci, pkg, cd.replace("DegradedEnvelope", ""), lock)
+
     # 7) 后端 pytest 被顶掉 / 去 working-directory / 空文本 / 缺 lock
     assert _all_errors(ci.replace('python -m pytest tests/ -m "not live" -q', "python -m pytest -q"), pkg, cd, lock)
     assert _all_errors(ci.replace("working-directory: frontend-v2", ""), pkg, cd, lock)
     assert _all_errors("", pkg, cd, lock)
     assert _all_errors(ci, pkg, cd, False)
+
+
+def _fixture_errors(readme: str, manifest: dict, blobs: dict[str, bytes]) -> list[str]:
+    """纯函数：CI 样本夹具的完整性缺口（空列表 = 健康）。"""
+    errors: list[str] = []
+    for phrase in ("真实归档", "非合成", "字节级", "不代表当前行情"):
+        if phrase not in readme:
+            errors.append(f"夹具 README 缺诚实声明: {phrase}")
+    entries = manifest.get("files", [])
+    if len(entries) < 8:
+        errors.append(f"真实样本数量异常（{len(entries)}），夹具疑似被掏空")
+    for e in entries:
+        name = e.get("name", "")
+        raw = blobs.get(name)
+        if raw is None:
+            errors.append(f"缺样本文件: {name}")
+            continue
+        norm = raw.replace(b"\r\n", b"\n")
+        # Git 会把 CRLF 规范化成 LF：本机工作副本是 CRLF，CI Ubuntu checkout 是 LF。
+        # 完整性一律按「LF 归一化后」的内容断言；manifest.bytes 只记录原始归档
+        # 字节数供溯源，跨平台不参与断言（否则 CI 会因换行差异假红）。
+        if not isinstance(e.get("bytes"), int) or e["bytes"] <= 0:
+            errors.append(f"{name}: manifest 缺原始归档字节数（溯源信息）")
+        if e.get("bytes_lf") != len(norm):
+            errors.append(f"{name}: LF 归一化字节数与 manifest 不符（夹具被改动）")
+        if e.get("sha256_lf") != hashlib.sha256(norm).hexdigest():
+            errors.append(f"{name}: sha256 与 manifest 不符（夹具被改动）")
+        try:
+            json.loads(norm.decode("utf-8"))
+        except Exception as exc:
+            errors.append(f"{name}: 不是合法 JSON（{exc}）")
+    return errors
+
+
+def test_ci_fixture_samples_are_real_and_intact():
+    """真实归档样本必须完整、可解析、带诚实声明；反例必须被抓。"""
+    readme = (FIX / "README.md").read_text(encoding="utf-8")
+    manifest = json.loads((FIX / "manifest.json").read_text(encoding="utf-8"))
+    blobs = {
+        e["name"]: (FIX / e["name"]).read_bytes()
+        for e in manifest["files"]
+        if (FIX / e["name"]).exists()
+    }
+    errors = _fixture_errors(readme, manifest, blobs)
+    assert not errors, "CI 样本夹具异常:\n" + "\n".join(errors)
+
+    # 反例：删诚实声明 / 删文件 / 改 1 字节 / 掏空清单，都必须报错
+    assert _fixture_errors(readme.replace("非合成", ""), manifest, blobs)
+    assert _fixture_errors(readme, manifest, {})
+    first = manifest["files"][0]["name"]
+    tampered = dict(blobs)
+    tampered[first] = blobs[first] + b" "
+    assert _fixture_errors(readme, manifest, tampered)
+    assert _fixture_errors(readme, {**manifest, "files": []}, blobs)
+
+    # 跨平台（2026-11-15 真缺陷）：Git 把 CRLF 规范化为 LF，CI Ubuntu checkout
+    # 的工作副本就是 LF；完整性校验必须仍然全绿，不能因换行口径假红。
+    lf_blobs = {k: v.replace(b"\r\n", b"\n") for k, v in blobs.items()}
+    assert not _fixture_errors(readme, manifest, lf_blobs), (
+        "LF 版夹具被判异常：CI 会因换行规范化假红（守卫跨平台失效）"
+    )
+    # 删 bytes_lf / 抹掉 sha256_lf 都必须被抓，防止完整性门禁被静默掏空
+    stripped = json.loads(json.dumps(manifest))
+    for f in stripped["files"]:
+        f.pop("bytes_lf", None)
+    assert _fixture_errors(readme, stripped, blobs)
+    broken_hash = json.loads(json.dumps(manifest))
+    broken_hash["files"][0]["sha256_lf"] = "0" * 64
+    assert _fixture_errors(readme, broken_hash, blobs)

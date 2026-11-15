@@ -1,0 +1,8 @@
+{
+  "attempts_today": 1,
+  "last_run_date": "2026-11-09",
+  "last_result": "ok",
+  "finished_at": "2026-11-09T17:40:15",
+  "last_csv_date": "2026-11-05",
+  "detail": "exit=0 killed=False since=2026-10-22 末行 2026-11-05 → 2026-11-09（推进）"
+}

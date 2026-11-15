@@ -1,0 +1,157 @@
+{
+  "date": "2026-11-13",
+  "as_of": "2026-11-13",
+  "data_age_days": 0,
+  "generated_at": "2026-11-13T16:31:14",
+  "temperature": 27.4,
+  "cycle": "修复试探",
+  "score": 41.3,
+  "bias": "中性",
+  "confidence": 50,
+  "promo_overall": 15.4,
+  "ladder": {
+    "distribution": [
+      [
+        4,
+        1
+      ],
+      [
+        3,
+        2
+      ],
+      [
+        2,
+        4
+      ],
+      [
+        1,
+        30
+      ]
+    ],
+    "max_boards": 4,
+    "total_connect": 7
+  },
+  "position": {
+    "pct": 24,
+    "band": "偏空",
+    "color": "#00d486",
+    "reasons": [
+      "市场温度 27 作为基准仓位",
+      "次日方向「中性」加仓 0%",
+      "梯队断档（晋级率<20%）：减仓 6%",
+      "事件驱动催化：加仓 2%",
+      "羊群拥挤(绿挤 36)：与超卖试探语义一致，不反向调节",
+      "毕设#1 Transformer 方向命中 0.5130 vs 基线 0.5097（modest +0.33pp）：有界加仓 0.33%",
+      "毕设#2 GNN 方向命中 0.4948（负向）：仅记录不施加",
+      "毕设#3 RL Sharpe -0.741 vs tanh +1.145（负向）：仅记录不施加",
+      "⚠️ 数据陈旧：事件因子截至 2026-11-09（滞后 4 天），仓位已据陈旧程度主动降仓（详见推导明细）"
+    ]
+  },
+  "event_factor": {
+    "available": true,
+    "long_count": 20,
+    "adj": 2,
+    "as_of": "2026-11-09",
+    "macro": {
+      "available": true,
+      "regime_score": 32,
+      "liquidity": "收紧",
+      "components": {
+        "dxy": null,
+        "us_treasury_10y": 5.1,
+        "us_cpi": 3.7,
+        "usd_cny": 7.1771
+      },
+      "sub_scores": {
+        "us_treasury_10y": 22.5,
+        "us_cpi": 36.0,
+        "usd_cny": 46.1,
+        "yield_curve": 56.0,
+        "cn_us_spread": 0
+      },
+      "yield_curve": 0.24,
+      "cn_us_spread": -3.4968,
+      "dates": {
+        "us_treasury_10y": "2026-11-12",
+        "us_cpi": "2026-09-01",
+        "usd_cny": "2023-11-10",
+        "yield_curve": "2026-11-12",
+        "cn_us_spread": "2026-11-12"
+      },
+      "date": "2023-11-10",
+      "source": "akshare-macro_data",
+      "note": "确定性规则合成（非模型生成）；date 取各分项最旧真实数据日，非当前时间"
+    }
+  },
+  "data_freshness": {
+    "status": "warn",
+    "max_lag_days": 4,
+    "sources": {
+      "牧羊人情绪": {
+        "as_of": "2026-11-13",
+        "lag_days": 0,
+        "status": "ok"
+      },
+      "事件因子": {
+        "as_of": "2026-11-09",
+        "lag_days": 4,
+        "status": "warn"
+      },
+      "连板晋级率": {
+        "as_of": "2026-11-13",
+        "lag_days": 0,
+        "status": "ok"
+      },
+      "市场温度缓存": {
+        "as_of": "2026-11-10",
+        "lag_days": 3,
+        "status": "ok"
+      }
+    }
+  },
+  "indicators": {
+    "up_count": 838.0,
+    "down_count": 4320.0,
+    "limit_up": 37.0,
+    "limit_down": 6.0,
+    "red_ratio": 16.246607212097715,
+    "touch_down": 70.0,
+    "zt_fail_count": 21.0,
+    "hb_wave10": 136.0,
+    "median_chg": -2.013,
+    "avg_price": 23.452052064631957,
+    "connect_hl": 4.0,
+    "connect_2b": 7.0,
+    "fc_ratio": 0.4811094146883612,
+    "zt_fail_ratio": 36.206896551724135,
+    "zt_prev_ret": -1.535121496464755,
+    "real_limit_up": 31.0,
+    "real_limit_down": 6.0,
+    "turnover_amt": 16668.97479118,
+    "date": "2026-11-13"
+  },
+  "signals": [],
+  "scenario": [
+    {
+      "name": "修复升级 / 情绪转强",
+      "prob": 27,
+      "color": "#ee2a2a",
+      "desc": "赚钱效应延续，最高板晋级打开空间，指数与情绪共振向上。",
+      "trigger": "观察：最高板从 4 板晋级 + 量能放大 + 炸板率回落"
+    },
+    {
+      "name": "震荡分化 / 高位分歧",
+      "prob": 46,
+      "color": "#f59e0b",
+      "desc": "指数与情绪背离，题材轮动加速，赚钱效应收缩到少数高辨识度标的。",
+      "trigger": "观察：最高板反复炸板或维持不变，量能无法有效放大"
+    },
+    {
+      "name": "退潮 / 二次探底",
+      "prob": 27,
+      "color": "#00d486",
+      "desc": "高度断崖、跌停回升、晋级率低迷，修复半途而废。",
+      "trigger": "观察：最高板断板 + 跌停家数回升 + 缩量"
+    }
+  ]
+}

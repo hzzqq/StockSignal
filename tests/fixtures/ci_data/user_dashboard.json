@@ -1,0 +1,5 @@
+{
+  "default_widgets": ["snapshot", "recommendation", "breadth", "event", "backtest"],
+  "note": "73 自定义看板默认组件种子；用户实际选择由前端 localStorage 持久化，不依赖此文件。",
+  "updated_at": "2026-11-11"
+}

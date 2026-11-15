@@ -150,10 +150,20 @@ jobs:
       - name: Init database (login account for B-segment)
         run: python -m backend.scripts.init_db
 
+      - name: Seed REAL archived samples (contract checks only, never synthetic)
+        # 字节级拷贝的 2026-11-15 归档样本；不含账号/密钥；历史数据不代表当前行情。
+        # data/ 全部 gitignored，CI 全新 checkout 原本没有任何行情数据。
+        run: |
+          mkdir -p data/snapshots
+          cp tests/fixtures/ci_data/*.json data/
+          cp tests/fixtures/ci_data/snapshots/*.json data/snapshots/
+          # manifest.json 是完整性清单（非行情样本），不得混进 data/ 冒充数据文件
+          rm -f data/manifest.json
+
       # 后台服务与测试必须在同一个 step：跨 step 时后台进程可能被回收。
-      # data/ 全部 gitignored，CI 无行情数据 → 多数端点如实 SKIP；
-      # 恒 ok 的端点（nl-screen / diagnostics 等）仍被 Zod 真校验，
-      # B 段的 okCount>=2 断言防止全线 SKIP 伪绿（守卫自我静音）。
+      # seed 后：有样本的端点返回真实 status=ok（Zod 真校验 data）；
+      # 无样本的端点如实 status=error（降级信封也被校验，绝不洗成 ok）。
+      # okCount>=2 防全线 SKIP 伪绿；checkedCount>=80% 防大面积 FETCH_ERR 伪绿。
       - name: Start real backend + run live contract drift
         run: |
           python -m flask --app backend.app:app run --host 127.0.0.1 --port 5050 --no-reload > /tmp/ss_backend.log 2>&1 &

@@ -1,0 +1,66 @@
+{
+  "_comment": "CI 契约校验样本清单：字节级拷贝自本机 data/ 真实归档，非合成。bytes=原始归档字节数（CRLF，溯源用）；bytes_lf/sha256_lf=LF 归一化口径（完整性断言用）。",
+  "captured_at": "2026-11-15",
+  "files": [
+    {
+      "name": "daily_snapshot.json",
+      "bytes": 4384,
+      "sha256_lf": "6ae394fc0acf518995e32d18b2f102cd5eb4b075e4b6dd2aa1604a01afddaafb",
+      "bytes_lf": 4228
+    },
+    {
+      "name": "daily_recommendation.json",
+      "bytes": 366,
+      "sha256_lf": "a62b7fa5f15edf1db8d0ba9a2a1733d372e1250fc91987b2527530edafa9551b",
+      "bytes_lf": 361
+    },
+    {
+      "name": "user_dashboard.json",
+      "bytes": 245,
+      "sha256_lf": "db3e54ca4fb501c76f88237bbc400ec20dacf01a16dbde89c555a6f85a76f4ca",
+      "bytes_lf": 245
+    },
+    {
+      "name": "event_pool_brief.json",
+      "bytes": 4674,
+      "sha256_lf": "afbc24f54dcc578b12352665cd8d6ee5f0ca137e9398424f1a6c2c336d0fbdd6",
+      "bytes_lf": 4486
+    },
+    {
+      "name": "prediction_log.json",
+      "bytes": 7369,
+      "sha256_lf": "8886b095f161b3ee75993816e9abb31cdfcb288f8d57f2c754ceb8d46e836a3a",
+      "bytes_lf": 6991
+    },
+    {
+      "name": "p1_sync_status.json",
+      "bytes": 3443,
+      "sha256_lf": "fb1518564c8e544fe0c8f3ec7895a2eb5cb59d280a2b213da30c79e527310241",
+      "bytes_lf": 3328
+    },
+    {
+      "name": "backtest_runs.json",
+      "bytes": 3216,
+      "sha256_lf": "0b81040c63ddba027cd1e3c5e7e7945aee1687c991cd34bf6b3fa11d3fc9082b",
+      "bytes_lf": 3105
+    },
+    {
+      "name": "data_refresh_state.json",
+      "bytes": 258,
+      "sha256_lf": "4b29250506532eaab4e247817b6daff4c514463b4dbed82682e743135f9e56da",
+      "bytes_lf": 251
+    },
+    {
+      "name": "shepherd_ladder_history.json",
+      "bytes": 10599,
+      "sha256_lf": "e26f2d6faf779060ef1d457c7344a9aecb97adb13557354d1835fe98466eb7de",
+      "bytes_lf": 10049
+    },
+    {
+      "name": "snapshots/2026-09-01.json",
+      "bytes": 3021,
+      "sha256_lf": "1edcbba68f7c5f52ebc34d090430482da0d19016040677ab3fb1fcc547ef45b4",
+      "bytes_lf": 2904
+    }
+  ]
+}

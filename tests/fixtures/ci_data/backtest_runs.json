@@ -1,0 +1,112 @@
+{
+  "runs": [
+    {
+      "run_id": "20261023-162048-009d8c07562a",
+      "created_at": "2026-10-23T16:20:48",
+      "status": "success",
+      "params": {
+        "ticker": "601088",
+        "start": "2025-10-23",
+        "end": "2026-10-23",
+        "strategy": "multi_factor",
+        "initial_capital": 100000
+      },
+      "summary": {
+        "ticker": "601088",
+        "strategy": "multi_factor",
+        "initial_capital": 100000,
+        "final_value": 98116.08,
+        "total_return_pct": -1.88,
+        "max_drawdown_pct": -18.81,
+        "sharpe_ratio": 0.02,
+        "win_rate_pct": 52.17,
+        "profit_factor": 1.05,
+        "avg_trade_return_pct": 0.12,
+        "trade_count": 23,
+        "start_date": "2025-10-23",
+        "end_date": "2026-10-23"
+      }
+    },
+    {
+      "run_id": "20261023-162016-8f4321f4d95a",
+      "created_at": "2026-10-23T16:20:16",
+      "status": "success",
+      "params": {
+        "ticker": "601088",
+        "start": "2025-10-23",
+        "end": "2026-10-23",
+        "strategy": "multi_factor",
+        "initial_capital": 100000
+      },
+      "summary": {
+        "ticker": "601088",
+        "strategy": "multi_factor",
+        "initial_capital": 100000,
+        "final_value": 98116.08,
+        "total_return_pct": -1.88,
+        "max_drawdown_pct": -18.81,
+        "sharpe_ratio": 0.02,
+        "win_rate_pct": 52.17,
+        "profit_factor": 1.05,
+        "avg_trade_return_pct": 0.12,
+        "trade_count": 23,
+        "start_date": "2025-10-23",
+        "end_date": "2026-10-23"
+      }
+    },
+    {
+      "run_id": "20261023-161959-c6a0bbe1657f",
+      "created_at": "2026-10-23T16:19:59",
+      "status": "success",
+      "params": {
+        "ticker": "601088",
+        "start": "2025-10-23",
+        "end": "2026-10-23",
+        "strategy": "multi_factor",
+        "initial_capital": 100000
+      },
+      "summary": {
+        "ticker": "601088",
+        "strategy": "multi_factor",
+        "initial_capital": 100000,
+        "final_value": 98116.08,
+        "total_return_pct": -1.88,
+        "max_drawdown_pct": -18.81,
+        "sharpe_ratio": 0.02,
+        "win_rate_pct": 52.17,
+        "profit_factor": 1.05,
+        "avg_trade_return_pct": 0.12,
+        "trade_count": 23,
+        "start_date": "2025-10-23",
+        "end_date": "2026-10-23"
+      }
+    },
+    {
+      "run_id": "20261017-114449-c19538156133",
+      "created_at": "2026-10-17T11:44:49",
+      "status": "success",
+      "params": {
+        "ticker": "601088",
+        "start": "2025-10-17",
+        "end": "2026-10-17",
+        "strategy": "multi_factor",
+        "initial_capital": 100000
+      },
+      "summary": {
+        "ticker": "601088",
+        "strategy": "multi_factor",
+        "initial_capital": 100000,
+        "final_value": 99640.2,
+        "total_return_pct": -0.36,
+        "max_drawdown_pct": -18.81,
+        "sharpe_ratio": 0.09,
+        "win_rate_pct": 52.17,
+        "profit_factor": 1.05,
+        "avg_trade_return_pct": 0.12,
+        "trade_count": 23,
+        "start_date": "2025-10-17",
+        "end_date": "2026-10-16"
+      }
+    }
+  ]
+}
