@@ -15,6 +15,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { z } from 'zod'
 import * as R from '@/api/schemas/read'
 import * as S from '@/api/schemas/stock'
+import * as D from '@/api/schemas/diagnostics'
 import { EnvelopeResponse } from '@/api/schema'
 import * as F from '@/mocks/fixtures'
 
@@ -139,9 +140,15 @@ const fixturePairs: Pair[] = [
   },
   { name: 'index-quotes', schema: S.IndexQuotesSchema, samples: [F.indexQuotes] },
   { name: 'index-kline', schema: S.IndexKlineSchema, samples: [F.indexKlineSh000001] },
-  // diagnostics 在 schemas/stock.ts 无独立 schema（api/diagnostics.ts 用 z.unknown() 透传），
-  // 此处用 unknown 占位，仅确认夹具可被解析（无约束校验）。
-  { name: 'diagnostics', schema: z.unknown(), samples: [F.diagnostics, F.diagnosticsDegraded, F.diagnosticsProbe] },
+  // diagnostics 契约在 api/schemas/diagnostics.ts 有完整独立 schema，
+  // api/diagnostics.ts 也已用 DiagnosticsSchema.parse 校验。此处必须真校验，
+  // 不能用 z.unknown() 空转：否则夹具/生产的 sources/freshness/endpoints/probe
+  // 字段漂移会完全漏检（历史缺陷：守卫自我静音 + 注释与事实不符）。
+  {
+    name: 'diagnostics',
+    schema: D.DiagnosticsSchema,
+    samples: [F.diagnostics, F.diagnosticsDegraded, F.diagnosticsProbe],
+  },
 ]
 
 describe('contract-drift A: MSW fixtures satisfy Zod schemas (mock ↔ contract)', () => {
@@ -161,7 +168,7 @@ describe('contract-drift A: MSW fixtures satisfy Zod schemas (mock ↔ contract)
 // ───────────── B. 实时后端 JSON ↔ Zod（生产 ↔ 契约，需 SS_BACKEND_URL）─────────────
 const BASE = process.env.SS_BACKEND_URL
 
-type LiveCase = { key: string; url: string; schema: z.ZodTypeAny | null }
+type LiveCase = { key: string; url: string; schema: z.ZodTypeAny }
 
 const liveCases: LiveCase[] = [
   { key: 'daily-snapshot', url: '/api/v2/read/daily-snapshot', schema: R.DailySnapshotSchema },
@@ -212,7 +219,7 @@ const liveCases: LiveCase[] = [
   { key: 'compare-one', url: '/api/v2/read/compare-one?code=600519', schema: S.CompareOneSchema },
   { key: 'research-deep', url: '/api/v2/read/research-deep?code=600519', schema: S.ResearchDeepSchema },
   { key: 'stock-intraday', url: '/api/v2/read/stock-intraday?code=600519', schema: S.StockIntradaySchema },
-  { key: 'diagnostics', url: '/api/v2/read/diagnostics', schema: null },
+  { key: 'diagnostics', url: '/api/v2/read/diagnostics', schema: D.DiagnosticsSchema },
   { key: 'index-quotes', url: '/api/v2/read/index-quotes', schema: S.IndexQuotesSchema },
   { key: 'index-kline', url: '/api/v2/read/index-kline?code=sh000001', schema: S.IndexKlineSchema },
 ]
@@ -269,8 +276,6 @@ describe.skipIf(!BASE)('contract-drift B: live backend JSON satisfies Zod (produ
             detail = JSON.stringify(env.error.issues)
           } else if (env.data.status !== 'ok') {
             status = `SKIP(${env.data.code})` // 无网/无权限/无数据：不误报
-          } else if (c.schema === null) {
-            status = 'OK(unconstrained)'
           } else {
             const parsed = c.schema.safeParse(env.data.data)
             if (parsed.success) status = 'OK'

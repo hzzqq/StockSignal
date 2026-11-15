@@ -1274,6 +1274,12 @@ export const diagnosticsEndpoints = [
   { path: '/api/v2/read/limit-up-review', needs_params: false, probe_path: '/api/v2/read/limit-up-review', required_query: [], sample_query: null },
   { path: '/api/v2/read/market-sentiment', needs_params: false, probe_path: '/api/v2/read/market-sentiment', required_query: [], sample_query: null },
   { path: '/api/v2/read/momentum-breadth', needs_params: false, probe_path: '/api/v2/read/momentum-breadth', required_query: [], sample_query: null },
+  // 98 仓位落地：source 有默认值（recommend），属可直接探测端点。
+  // 注意：无快照/评分源不可用时后端如实返回 status=error（unavailable），
+  // 诊断页会如实标注「信封 status=error」，不得把它洗成成功。
+  { path: '/api/v2/read/position-allocation', needs_params: false, probe_path: '/api/v2/read/position-allocation', required_query: [], sample_query: null },
+  // 81 NL 语义解析：缺 query 即 400，与后端 _DIAG_REQUIRED_QUERY 字面一致。
+  { path: '/api/v2/read/nl-screen', needs_params: true, probe_path: null, required_query: ['query'], sample_query: 'query=创业板' },
 ]
 
 export const diagnostics = {

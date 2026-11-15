@@ -90,6 +90,10 @@ _VALIDATION_ONLY_400 = {
     "/api/v2/read/trading-account",
     "/api/v2/read/breadth-analytics",
     "/api/v2/read/market-sentiment",
+    # event-backtest 四个参数全有默认值（metric/direction/quantile/horizon），
+    # 400 只在**显式传非法值**时触发；缺参请求照样 200，不属需参端点。
+    # 该端点由「事件因子回测」批次新增，此前未单跑本守卫，误报一直没暴露。
+    "/api/v2/read/event-backtest",
 }
 
 
@@ -132,7 +136,7 @@ def test_registered_paths_are_real_routes():
 
 
 def _endpoint_objects(text: str) -> dict[str, str]:
-    """从 fixtures.ts 抽出每个 ``{ path: '/api/v2/read/…', … }`` 完整对象块（跨行安全）。
+    r"""从 fixtures.ts 抽出每个 ``{ path: '/api/v2/read/…', … }`` 完整对象块（跨行安全）。
 
     历史缺陷（2026-11-09 实测，不是理论风险）：旧守卫用单行正则
     ``\{ path: '<full>'[^\n]*\}``，prettier 一格式化成多行就匹配不到；配合

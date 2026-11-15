@@ -76,3 +76,35 @@ jobs:
           --cov=modules.fetch_parallel
           --cov-fail-under=70
           -q
+
+
+  frontend-v2:
+    name: Frontend v2 (typecheck + vitest + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend-v2/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend-v2
+        run: npm ci
+
+      - name: Typecheck (tsc --noEmit)
+        working-directory: frontend-v2
+        run: npm run typecheck
+
+      # 含 contract-drift A 段（MSW fixture ↔ Zod / 含 diagnostics 契约）、
+      # 路由懒加载、导航守卫、页面三态等；B 段需 SS_BACKEND_URL，CI 默认不跑。
+      - name: Vitest (incl. contract-drift guards)
+        working-directory: frontend-v2
+        run: npm test
+
+      - name: Production build
+        working-directory: frontend-v2
+        run: npm run build

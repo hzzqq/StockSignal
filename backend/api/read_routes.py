@@ -2849,18 +2849,21 @@ def nl_screen():
     返回 status / query / spec / note；spec 含 boards/filters/sort/sort_dir/
     limit/concepts/exclude_boards/exclude_concepts/unparsed/errors。
 
-    空查询 → invalid_param（不臆造解析结果）；解析异常 → compute_error（不 500）。
+    空查询/超长 → invalid_param + HTTP 400（必填参数，与 MSW 对齐）；
+    解析异常 → compute_error（不 500）。
     """
     try:
         from modules import nl_screen as ns
 
         q = (request.args.get("query") or "").strip()
         if not q:
+            # 必填参数缺失/非法 → 400，与 MSW invalidParam() 及既有需参端点同口径；
+            # 否则诊断层会把本端点当成「可直接探测」，点开必假报接口故障。
             return fail(message="查询文本为空（不臆造解析结果）",
-                        code="invalid_param", http_status=200)
+                        code="invalid_param", http_status=400)
         if len(q) > 200:
             return fail(message="查询文本过长（上限 200 字）",
-                        code="invalid_param", http_status=200)
+                        code="invalid_param", http_status=400)
 
         spec = ns.parse_query(q)
         data = {
@@ -4034,7 +4037,7 @@ def _diag_freshness():
     return {"available": True, "rows": rows, "reason": None}
 
 
-# 这些只读 GET 端点缺少 query 参数会直接 400 validation_error。
+# 这些只读 GET 端点缺少必填 query 参数会直接 400（validation_error / invalid_param）。
 # 早期 _diag_endpoints 只按 "<" 判断参数需求，把它们当成「可直接探测」，
 # 接真实后端时接口检测约 10 个端点假报 HTTP 400、数据浏览器一选就报错。
 # 单一真理源：新增需参端点必须登记在这里（tests/test_diagnostics_endpoint_contract.py 会扫）。
@@ -4053,6 +4056,9 @@ _DIAG_REQUIRED_QUERY = {
     "/api/v2/read/backtest": {"ticker": "600519"},
     # 68 页 z-score 轨迹：缺 dim 即 400；window 可选（缺省 250）。
     "/api/v2/read/breadth-zseries": {"dim": "up_count"},
+    # 81 页语义解析层：缺 query 即 400。不登记会被 _diag_endpoints() 当成
+    # 「可直接探测」，诊断页点开必拿到 invalid_param 而假报接口故障。
+    "/api/v2/read/nl-screen": {"query": "创业板"},
 }
 
 
