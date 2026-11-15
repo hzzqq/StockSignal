@@ -86,6 +86,15 @@ export function AppShell() {
         {/* 底部固定入口：不进 NAV 数组，避免影响导航分组/图标唯一守卫 */}
         <div className="mt-auto border-t border-sf-line pt-3 space-y-0.5">
           <Link
+            to="/stock/screener"
+            title="选股框架"
+            aria-label="选股框架"
+            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+          >
+            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">⌕</span>
+            <span className="nav-label hidden md:inline whitespace-nowrap">选股框架</span>
+          </Link>
+          <Link
             to="/catalog"
             title="v1 功能全景"
             aria-label="v1 功能全景"

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { EChartsOption } from 'echarts'
-import type { Portfolio as PortfolioData } from '@/api/schemas/read'
-import { usePortfolio } from '@/lib/queries'
+import type { Portfolio as PortfolioData, PositionAllocation } from '@/api/schemas/read'
+import { usePortfolio, usePositionAllocation } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
@@ -21,7 +21,8 @@ import { CHART } from '@/shared/charts/palette'
  *  - 净值曲线为尽力而为的历史还原，curve_available=false 时如实标注、不补零曲线；
  *  - NaN/Inf 后端已清洗为 null，缺值显示「—」，绝不补 0。
  */
-type View = 'positions' | 'attribution'
+type View = 'positions' | 'attribution' | 'landing'
+type AllocSource = 'recommend' | 'user' | 'equal'
 
 function f2(v: unknown): string {
   return typeof v === 'number' && Number.isFinite(v) ? v.toFixed(2) : '—'
@@ -35,6 +36,7 @@ function pnlColor(v: unknown): string | undefined {
 
 export function Portfolio() {
   const [view, setView] = useState<View>('positions')
+  const [source, setSource] = useState<AllocSource>('recommend')
   const q = usePortfolio()
   const data = q.data
 
@@ -57,6 +59,13 @@ export function Portfolio() {
           >
             收益归因
           </button>
+          <button
+            type="button"
+            onClick={() => setView('landing')}
+            className={`rounded-tile px-3 py-1.5 ${view === 'landing' ? 'bg-sf-accent text-sf-ink' : 'text-sf-ink-3'}`}
+          >
+            决策落地
+          </button>
         </div>
       </div>
 
@@ -71,8 +80,10 @@ export function Portfolio() {
         {data ? (
           view === 'positions' ? (
             <PositionsView data={data} />
-          ) : (
+          ) : view === 'attribution' ? (
             <AttributionView data={data} />
+          ) : (
+            <LandingView source={source} setSource={setSource} />
           )
         ) : null}
       </QueryState>
@@ -219,6 +230,162 @@ function AttributionView({ data }: { data: PortfolioData }) {
           </div>
         )}
       </Card>
+
+      {data.note && <div className="text-xs text-sf-ink-3">{data.note}</div>}
+    </div>
+  )
+}
+
+const SOURCE_LABELS: Record<AllocSource, string> = {
+  recommend: '荐股引擎综合分',
+  user: '用户 StockScore',
+  equal: '等权（明示降级）',
+}
+
+/**
+ * 决策落地（98 页 V2 化，纯建议层只读卡片）。
+ *
+ * 数据：usePositionAllocation(source) → GET /api/v2/read/position-allocation。
+ * 把「市场仓位（当日快照）× 个股评分」落为个股目标权重。
+ *
+ * ⚠️ 诚实红线（同 v1 98 页）：
+ *  - 纯建议层：系统不会自动下单，也绝不写入持仓记录（portfolio.csv 只读不碰）；
+ *  - 市场仓位/评分源不可得 → 后端返回 unavailable（前端 error 态），不实时臆算；
+ *  - 评分缺失标的剔除并注明，绝不编造；等权＝明示降级（无评分源可用）。
+ */
+function LandingView({ source, setSource }: { source: AllocSource; setSource: (s: AllocSource) => void }) {
+  const q = usePositionAllocation(source)
+  const data = q.data
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-tile bg-sf-surface-2 px-3 py-2 text-xs text-sf-ink-3">
+        🚦 <span className="font-medium text-sf-ink">建议 ≠ 交易</span>：本卡片只产出「目标权重」参考，
+        系统不会自动下单，也绝不写入你的持仓记录（只读不碰）。数据源 = 当日归档快照，无快照不实时臆算。
+      </div>
+
+      <div className="flex gap-1 rounded-tile bg-sf-surface-2 p-1 text-xs self-start">
+        {(Object.keys(SOURCE_LABELS) as AllocSource[]).map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setSource(s)}
+            className={`rounded-tile px-3 py-1.5 ${source === s ? 'bg-sf-accent text-sf-ink' : 'text-sf-ink-3'}`}
+          >
+            {SOURCE_LABELS[s]}
+          </button>
+        ))}
+      </div>
+
+      <QueryState
+        isLoading={q.isLoading}
+        isError={q.isError}
+        error={q.error}
+        isEmpty={!!data && data.status !== 'ok'}
+        emptyLabel="仓位落地暂不可用"
+        emptyHint="市场仓位或评分源不可得（后端诚实降级，不臆算）"
+      >
+        {data && data.status === 'ok' ? <AllocationBody data={data} /> : null}
+      </QueryState>
+    </div>
+  )
+}
+
+function AllocationBody({ data }: { data: PositionAllocation }) {
+  const meta = data.meta ?? {}
+  const mkt = (meta.market ?? {}) as Record<string, unknown>
+  const src = (meta.source ?? {}) as Record<string, unknown>
+  const allocations = data.allocations ?? []
+  const excluded = data.excluded ?? []
+  const capped = meta.capped ?? []
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <Stat label="市场温度" value={typeof mkt.temperature === 'number' ? f2(mkt.temperature) : '—'} />
+        <Stat label="目标总敞口" value={pct(meta.target_pct)} />
+        <Stat label="Σ目标权重" value={pct(meta.sum_pct)} />
+        <Stat label="单票上限" value={pct(meta.cap_pct)} />
+        <Stat label="分配票数" value={f2(meta.n_alloc)} />
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <Stat label="快照数据日" value={typeof mkt.snapshot_date === 'string' ? String(mkt.snapshot_date) : '—'} />
+        <Stat label="仓位档" value={typeof mkt.band === 'string' ? String(mkt.band) : '—'} />
+        <Stat label="剔除票数（评分缺失）" value={f2(meta.n_excluded)} />
+      </div>
+
+      {meta.degraded ? (
+        <div className="rounded-tile bg-sf-surface-2 px-3 py-2 text-xs text-sf-ink-3">
+          ℹ️ 等权明示降级：未使用任何评分信号（标的池无逐票评分可用），权重仅为均分参考，不构成强弱排序。
+        </div>
+      ) : null}
+
+      {typeof meta.overflow_pct === 'number' && meta.overflow_pct > 0 ? (
+        <div className="rounded-tile bg-sf-surface-2 px-3 py-2 text-xs text-sf-ink-3">
+          ⚠️ 标的数 × 单票上限不足以承载市场仓位：总敞口被封顶在 {pct(meta.sum_pct)}（目标 {pct(meta.target_pct)}，
+          缺口 {pct(meta.overflow_pct)} 如实少配，不凑满）。
+        </div>
+      ) : null}
+
+      {capped.length > 0 ? (
+        <div className="text-xs text-sf-ink-3">
+          截断标注：{capped.join('、')} 触及单票上限，超出部分已按权重重分给其余标的。
+        </div>
+      ) : null}
+
+      <Card title={`目标权重分配（${allocations.length} 只）`}>
+        {allocations.length === 0 ? (
+          <div className="text-xs text-sf-ink-3">暂无分配结果。</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-sf-ink">
+              <thead>
+                <tr className="text-sf-ink-3 border-b border-sf-line">
+                  <th className="text-left py-1.5 pr-3">代码</th>
+                  <th className="text-left py-1.5 pr-3">名称</th>
+                  <th className="text-right py-1.5 pr-3">评分</th>
+                  <th className="text-right py-1.5 pr-3">目标权重</th>
+                  <th className="text-right py-1.5 pr-3">目标仓位%</th>
+                  <th className="text-left py-1.5">触上限</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allocations.map((a, i) => (
+                  <tr key={`${a.code}-${i}`} className="border-b border-sf-line/60">
+                    <td className="py-1.5 pr-3">{a.code}</td>
+                    <td className="py-1.5 pr-3">{a.name ?? '—'}</td>
+                    <td className="py-1.5 pr-3 text-right">{a.score == null ? '—' : f2(a.score)}</td>
+                    <td className="py-1.5 pr-3 text-right">{a.weight == null ? '—' : `${(a.weight * 100).toFixed(2)}%`}</td>
+                    <td className="py-1.5 pr-3 text-right">{a.pct == null ? '—' : pct(a.pct)}</td>
+                    <td className="py-1.5">{capped.includes(a.code) ? '是' : '否'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {excluded.length > 0 ? (
+        <Card title={`被剔除标的（${excluded.length}，评分缺失不编造）`}>
+          <ul className="text-xs text-sf-ink-3 space-y-1">
+            {excluded.map((e, i) => (
+              <li key={`${e.code}-${i}`}>
+                <span className="text-sf-ink">{e.code}</span> {e.name ?? ''}：{e.reason ?? '评分缺失'}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
+
+      <div className="text-xs text-sf-ink-3">
+        评分源：{SOURCE_LABELS[(data.source as AllocSource) ?? 'recommend']}
+        {typeof src.generated_at === 'string' ? `　｜　推荐生成 ${src.generated_at}` : ''}
+        {typeof src.data_as_of === 'string' ? `　｜　行情截至 ${src.data_as_of}` : ''}
+        {typeof mkt.snapshot_date === 'string' ? `　｜　市场快照 ${mkt.snapshot_date}` : ''}
+        ，建议 ≠ 交易，请结合自身风控独立决策。
+      </div>
 
       {data.note && <div className="text-xs text-sf-ink-3">{data.note}</div>}
     </div>

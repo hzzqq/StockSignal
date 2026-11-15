@@ -68,6 +68,7 @@ const LazyLimitUpReview = lazyRouteComponent(() => import('@/features/breadth/Li
 const LazyMarketSentiment = lazyRouteComponent(() => import('@/features/market/MarketSentiment'), 'MarketSentiment')
 const LazyXingchen = lazyRouteComponent(() => import('@/features/xingchen/XingchenPage'), 'XingchenPage')
 const LazyEventBacktest = lazyRouteComponent(() => import('@/features/eventbacktest/EventFactorBacktest'), 'EventFactorBacktest')
+const LazyScreener = lazyRouteComponent(() => import('@/features/screener/Screener'), 'Screener')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -551,6 +552,14 @@ function CompareRouteView() {
   )
 }
 
+// 选股框架（/stock/screener）：v2 真实选股入口聚合 + 自然语言选股语义解析层
+// + v1 31/33/81 三类选股意图的如实落地状态（不做假入口、不编造候选池）。
+const screenerRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/stock/screener',
+  component: LazyScreener,
+})
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   legacyRoute,
@@ -610,6 +619,7 @@ const routeTree = rootRoute.addChildren([
     researchRoute,
     fundamentalsRoute,
     compareRoute,
+    screenerRoute,
   ]),
 ])
 

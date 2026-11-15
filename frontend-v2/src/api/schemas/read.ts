@@ -652,6 +652,99 @@ export const PortfolioSchema = z
   .catchall(z.unknown())
 export type Portfolio = z.infer<typeof PortfolioSchema>
 
+// ───────── 仓位落地（position-allocation / 98 页 V2 化）─────────
+// 复用 modules.position_allocator.build_allocation：市场仓位×评分源→个股目标权重（纯建议层）。
+// 诚实红线：status=unavailable 时前端判空；meta 内 market/source 溯源；score 可空（缺失剔除）；
+// 所有数值可空，严禁 ?? 0 兜底。
+export const PositionAllocationMetaSchema = z
+  .object({
+    mode: z.string().nullable().optional(),
+    degraded: z.boolean().nullable().optional(),
+    cap_pct: z.number().nullable().optional(),
+    target_pct: z.number().nullable().optional(),
+    sum_pct: z.number().nullable().optional(),
+    n_alloc: z.number().nullable().optional(),
+    n_excluded: z.number().nullable().optional(),
+    capped: z.array(z.string()).optional(),
+    overflow_pct: z.number().nullable().optional(),
+    market: z.record(z.string(), z.unknown()).nullable().optional(),
+    source: z.record(z.string(), z.unknown()).nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type PositionAllocationMeta = z.infer<typeof PositionAllocationMetaSchema>
+
+export const PositionAllocationItemSchema = z.object({
+  code: z.string(),
+  name: z.string().optional(),
+  score: z.number().nullable().optional(),
+  weight: z.number().nullable().optional(),
+  pct: z.number().nullable().optional(),
+})
+export type PositionAllocationItem = z.infer<typeof PositionAllocationItemSchema>
+
+export const PositionAllocationSchema = z
+  .object({
+    status: z.string().optional(),
+    source: z.string().optional(),
+    meta: PositionAllocationMetaSchema.nullable().optional(),
+    allocations: z.array(PositionAllocationItemSchema).optional(),
+    excluded: z
+      .array(
+        z.object({
+          code: z.string(),
+          name: z.string().optional(),
+          reason: z.string().optional(),
+        }),
+      )
+      .optional(),
+    note: z.string().optional(),
+    unavailable: z.array(z.unknown()).optional(),
+  })
+  .catchall(z.unknown())
+export type PositionAllocation = z.infer<typeof PositionAllocationSchema>
+
+// ───────── 自然语言选股 · 语义解析（nl-screen / 81 页解析层 V2 化）─────────
+// 复用 modules.nl_screen.parse_query（纯函数、确定性、不触网）。
+// ⚠️ 诚实红线：只返回结构化 QuerySpec，绝不返回候选标的；未识别的词进 unparsed，
+//    解析不出的字段为 null（前端显示「—」），严禁补默认值假装听懂。
+export const NlFilterSchema = z
+  .object({
+    field: z.string(),
+    op: z.string(),
+    value: z.unknown().optional(),
+    unit: z.string().nullable().optional(),
+    raw: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type NlFilter = z.infer<typeof NlFilterSchema>
+
+export const NlSpecSchema = z
+  .object({
+    boards: z.array(z.string()).optional(),
+    filters: z.array(NlFilterSchema).optional(),
+    sort: z.string().nullable().optional(),
+    sort_dir: z.string().nullable().optional(),
+    limit: z.number().nullable().optional(),
+    concepts: z.array(z.string()).optional(),
+    exclude_boards: z.array(z.string()).optional(),
+    exclude_concepts: z.array(z.string()).optional(),
+    unparsed: z.array(z.string()).optional(),
+    errors: z.array(z.string()).optional(),
+  })
+  .catchall(z.unknown())
+export type NlSpec = z.infer<typeof NlSpecSchema>
+
+export const NlScreenSchema = z
+  .object({
+    status: z.string().optional(),
+    query: z.string().optional(),
+    spec: NlSpecSchema.nullable().optional(),
+    note: z.string().optional(),
+    unavailable: z.array(z.unknown()).optional(),
+  })
+  .catchall(z.unknown())
+export type NlScreen = z.infer<typeof NlScreenSchema>
+
 // ───────── 资金流向（fund-flow / 35 页 V2 化）─────────
 // 四块各自独立 available；金额为「亿元」（后端已折算），百分比为原始百分数。
 // 缺值后端已清洗为 null，前端显示「—」，绝不补 0。

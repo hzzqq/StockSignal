@@ -21,6 +21,8 @@ import {
   BacktestSchema,
   MarketPanoramaSchema,
   PortfolioSchema,
+  PositionAllocationSchema,
+  NlScreenSchema,
   FundFlowSchema,
   TradingAccountSchema,
   MacroDataSchema,
@@ -59,6 +61,8 @@ import {
   type Backtest,
   type MarketPanorama,
   type Portfolio,
+  type PositionAllocation,
+  type NlScreen,
   type FundFlow,
   type TradingAccount,
   type MacroData,
@@ -336,6 +340,16 @@ export interface PortfolioParams {
 /** GET /api/v2/read/portfolio —— 持仓汇总 / 逐批盈亏 / 收益归因 / 市值占比 / 净值曲线（45 页 V2 化） */
 export function getPortfolio(_params: PortfolioParams = {}): Promise<Portfolio> {
   return readValidated('portfolio', PortfolioSchema)
+}
+
+/** GET /api/v2/read/position-allocation?source= —— 仓位落地（98 页 V2 化）：市场仓位×评分源→个股目标权重 */
+export function getPositionAllocation(source: string = 'recommend'): Promise<PositionAllocation> {
+  return readValidated(`position-allocation?source=${encodeURIComponent(source)}`, PositionAllocationSchema)
+}
+
+/** GET /api/v2/read/nl-screen?query= —— 自然语言选股语义解析（81 页解析层 V2 化，纯函数不触网） */
+export function getNlScreen(query: string): Promise<NlScreen> {
+  return readValidated(`nl-screen?query=${encodeURIComponent(query)}`, NlScreenSchema)
 }
 
 // ───────── 资金流向（fund-flow / 35 页 V2 化）─────────

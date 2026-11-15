@@ -548,6 +548,60 @@ export const portfolio = {
   note: '持仓为本地模拟/历史数据（data/portfolio.csv），仅供学习不构成投资建议；现价为最近可得收盘（离线口径可能为静态样本）；净值曲线为尽力而为的历史还原，缺失则如实标注。',
 }
 
+// Tier1 · 仓位落地（position-allocation）Mock，字段名与后端 /api/v2/read/position-allocation 契约一致。
+// 数值为确定性静态样例（非实时）：市场仓位（当日快照）× 荐股引擎综合分 → 个股目标权重。
+// ⚠️ 诚实红线：status=ok 才渲染分配；评分缺失标的须进 excluded；等权时 degraded=true。
+export const positionAllocation = {
+  status: 'ok',
+  source: 'recommend',
+  meta: {
+    mode: 'score',
+    degraded: false,
+    cap_pct: 20,
+    target_pct: 60,
+    sum_pct: 60,
+    n_alloc: 3,
+    n_excluded: 0,
+    capped: ['600519'],
+    overflow_pct: 0,
+    market: { snapshot_date: '2026-11-09', temperature: 12.5, band: '中性偏暖' },
+    source: { key: 'recommend', label: '荐股引擎综合分', generated_at: '2026-11-09T15:30:00', data_as_of: '2026-11-08' },
+  },
+  allocations: [
+    { code: '600519', name: '贵州茅台', score: 82, weight: 0.2, pct: 20 },
+    { code: '000001', name: '平安银行', score: 55, weight: 0.1333, pct: 13.33 },
+    { code: '300750', name: '宁德时代', score: 63, weight: 0.2667, pct: 26.67 },
+  ],
+  excluded: [],
+  note: '仓位落地为纯建议层：市场仓位×个股评分→个股目标权重，仅供学习；系统不会自动下单，也绝不写入持仓记录（portfolio.csv 只读不碰）。数据源=当日归档快照（data/daily_snapshot.json），无快照不实时臆算。',
+  unavailable: [],
+}
+
+// 自然语言选股语义解析（nl-screen）Mock：结构对齐后端 nl_screen() / modules.nl_screen.parse_query。
+// ⚠️ 确定性静态样例（非实时解析结果）：取自 parse_query 真实输出形态，仅用于 MSW 开发态。
+//    绝不含候选标的（后端只解析不筛选）；未识别字段如实 null。
+export const nlScreen = {
+  status: 'ok',
+  query: '创业板 市盈率<30 且 营收增长>20% 剔除ST 前10',
+  spec: {
+    boards: ['cyb'],
+    filters: [
+      { field: 'pe', op: 'lt', value: 30, unit: 'ratio', raw: '市盈率<30' },
+      { field: 'rev_growth', op: 'gt', value: 20, unit: 'pct', raw: '营收增长>20%' },
+    ],
+    sort: null,
+    sort_dir: 'desc',
+    limit: 10,
+    concepts: [],
+    exclude_boards: [],
+    exclude_concepts: ['ST'],
+    unparsed: [],
+    errors: [],
+  },
+  note: 'v2 仅承接自然语言选股的「语义解析层」：把口语查询透明解析为结构化条件（板块/指标/排序/数量/概念/排除/未识别词）。本端点为纯函数、不触网，绝不返回或编造候选标的；筛选执行依赖联网行情，仅 v1 提供，v2 不做等价实现。',
+  unavailable: [],
+}
+
 // Tier1 · 资金流向（fund-flow）Mock，字段名与后端 /api/v2/read/fund-flow 契约一致。
 // 四块各自独立 available；演示数值非实时行情，金额已折算为亿元。
 export const fundFlow = {

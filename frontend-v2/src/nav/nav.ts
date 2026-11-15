@@ -24,6 +24,7 @@ export type AppPath =
   | '/stock/research'
   | '/stock/fundamentals'
   | '/stock/compare'
+  | '/stock/screener'
   | '/factor'
   | '/backtest'
   | '/panorama'
@@ -134,6 +135,7 @@ export const NAV: NavGroup[] = [
  */
 export const UTILITY_PATHS: readonly AppPath[] = [
   '/settings', '/catalog', '/data', '/matrix', '/guide', '/users', '/financial-hunter', '/dashboard-custom', '/export',
+  '/stock/screener',
   '/earnings-calendar', '/me', '/review-notes',
   '/sentiment-clock', '/similar-days', '/inflection-scan', '/regime-duration',
   '/momentum-resonance', '/limit-up-review', '/market-sentiment',

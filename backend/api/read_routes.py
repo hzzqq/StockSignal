@@ -2776,6 +2776,117 @@ def portfolio():
     return ok(data=_sanitize(data), message="portfolio")
 
 
+# ───────── 仓位落地（98 页 V2 化）：市场仓位 × 个股评分 → 个股目标权重 ─────────
+# 复用 modules.position_allocator（纯建议层：只读不写盘，建议 ≠ 交易）。
+# 诚实红线：市场仓位不可得 / 评分源不可用 → status=error（unavailable），前端判空渲染；
+# 评分缺失标的剔除不编造；等权＝明示降级。
+_PA_NOTE = (
+    "仓位落地为纯建议层：市场仓位×个股评分→个股目标权重，仅供学习；系统不会自动下单，"
+    "也绝不写入持仓记录（portfolio.csv 只读不碰）。数据源=当日归档快照（data/daily_snapshot.json），"
+    "无快照不实时臆算。"
+)
+
+
+@bp.get("/position-allocation")
+@jwt_required
+def position_allocation():
+    """仓位落地（98 页）。
+
+    GET /api/v2/read/position-allocation?source=recommend|user|equal
+    包装 modules.position_allocator.build_allocation(source)：
+    - recommend：荐股引擎综合分；user：用户 StockScore；equal：自选池均分（明示降级）。
+    - 返回 status / meta / allocations / excluded / note / unavailable。
+    - 市场仓位不可得或评分源不可用 → status=error（unavailable），前端诚实空态，不编造。
+    """
+    try:
+        from modules import position_allocator as pa
+
+        source = (request.args.get("source") or "recommend").strip()
+        if source not in ("recommend", "user", "equal"):
+            return fail(message=f"未知评分源：{source!r}（可选 recommend/user/equal）",
+                        code="bad_param", http_status=200)
+
+        result = pa.build_allocation(source)
+        if result.get("status") != "ok":
+            return fail(message=result.get("reason", "分配不可用"),
+                        code="unavailable", http_status=200)
+
+        data = {
+            "status": "ok",
+            "source": source,
+            "meta": _sanitize(result.get("meta") or {}),
+            "allocations": result.get("allocations") or [],
+            "excluded": result.get("excluded") or [],
+            "note": _PA_NOTE,
+            "unavailable": [],
+        }
+        return ok(data=_sanitize(data), message="position-allocation")
+    except Exception as e:  # noqa: BLE001 - 计算异常：诚实降级，不 500
+        return fail(message=f"仓位分配失败：{type(e).__name__}: {e}",
+                    code="compute_error", http_status=200)
+
+
+# ───────── 自然语言选股 · 语义解析层（81 页 V2 化）─────────
+# 复用 modules.nl_screen.parse_query（纯函数、确定性、不触网）：把大白话解析为
+# 结构化 QuerySpec，透明展示「听懂了什么 / 没听懂的词」。
+# ⚠️ 诚实红线：v2 **只做语义解析**，绝不执行联网筛选、绝不编造候选池。
+#    筛选执行依赖联网行情（v1 32/81 页），v2 明确不做等价实现。
+_NL_NOTE = (
+    "v2 仅承接自然语言选股的「语义解析层」：把口语查询透明解析为结构化条件"
+    "（板块/指标/排序/数量/概念/排除/未识别词）。本端点为纯函数、不触网，"
+    "绝不返回或编造候选标的；筛选执行依赖联网行情，仅 v1 提供，v2 不做等价实现。"
+)
+
+
+@bp.get("/nl-screen")
+@jwt_required
+def nl_screen():
+    """自然语言选股 · 语义解析（81 页 V2 化，解析层）。
+
+    GET /api/v2/read/nl-screen?query=<口语选股条件>
+    包装 modules.nl_screen.parse_query(query) → 结构化 QuerySpec。
+
+    返回 status / query / spec / note；spec 含 boards/filters/sort/sort_dir/
+    limit/concepts/exclude_boards/exclude_concepts/unparsed/errors。
+
+    空查询 → invalid_param（不臆造解析结果）；解析异常 → compute_error（不 500）。
+    """
+    try:
+        from modules import nl_screen as ns
+
+        q = (request.args.get("query") or "").strip()
+        if not q:
+            return fail(message="查询文本为空（不臆造解析结果）",
+                        code="invalid_param", http_status=200)
+        if len(q) > 200:
+            return fail(message="查询文本过长（上限 200 字）",
+                        code="invalid_param", http_status=200)
+
+        spec = ns.parse_query(q)
+        data = {
+            "status": "ok",
+            "query": q,
+            "spec": {
+                "boards": spec.boards,
+                "filters": spec.filters,
+                "sort": spec.sort,
+                "sort_dir": spec.sort_dir,
+                "limit": spec.limit,
+                "concepts": spec.concepts,
+                "exclude_boards": spec.exclude_boards,
+                "exclude_concepts": spec.exclude_concepts,
+                "unparsed": spec.unparsed,
+                "errors": spec.errors,
+            },
+            "note": _NL_NOTE,
+            "unavailable": [],
+        }
+        return ok(data=_sanitize(data), message="nl-screen")
+    except Exception as e:  # noqa: BLE001 - 解析异常：诚实降级，不 500
+        return fail(message=f"语义解析失败：{type(e).__name__}: {e}",
+                    code="compute_error", http_status=200)
+
+
 # ───────── 资金流向（35 页）─────────
 # 分块诚实降级：北向 / 行业 / 大盘主力 / 融资融券 四块各自独立 available；
 # 任一网络取数失败只影响该块（available=False + 空数据），不整页 500、不补 0；

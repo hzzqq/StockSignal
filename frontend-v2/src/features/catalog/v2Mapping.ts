@@ -91,7 +91,7 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   '95_数据导出.py': { to: '/export' },
   // —— 以下为「已被现有 native 真实覆盖、此前误报为 data」的页，集中收口为 native（不新建页）——
   // 31/32 形态选股/智能选股：v2 等价实现 /recommend（每日荐股结果，只读展示）。
-  '31_形态选股.py': { to: '/recommend' },
+  '31_形态选股.py': { to: '/recommend', note: 'v2 由每日荐股承接荐股结果；技术形态扫描器本身未迁移，已在 /stock/screener 如实登记' },
   '32_智能选股.py': { to: '/recommend' },
   // 34 体检扫描：v2 等价实现 /stock/six-dim（六维评分），非新建页。
   '34_体检扫描.py': { to: '/stock/six-dim' },
@@ -137,11 +137,11 @@ const PINNED: Record<string, { note: string }> = {
   '15_市场驱动力.py': { note: '实验性视图，v2 暂无等价计划' },
   '17_市场魔方.py': { note: '展示性视图，v2 不做等价实现' },
   '25_QuantAgent投研.py': { note: '实验性 Agent 流程，留 v1 观察' },
-  '33_ETF筛选.py': { note: '小众筛选器，v2 暂无等价计划' },
+  '33_ETF筛选.py': { note: '小众筛选器，v2 不做等价实现；已在 /stock/screener 如实登记并给出 v1 直达' },
   '43_实盘交易.py': { note: '真实券商下单(QMT/同花顺)仅 v1；v2 仅有只读账户概览（交易账户入口），不提供交易能力' },
   '52_股吧.py': { note: '社区抓取，低频遗留，留 v1' },
   '53_星辰AI.py': { note: '独立 AI 对话，留 v1' },
-  '81_自然语言选股.py': { note: '实验性 NL 选股，v2 暂无等价计划' },
+  '81_自然语言选股.py': { note: '实验性 NL 选股；v2 仅承接语义解析层（/stock/screener 透明展示「听懂了什么」，不触网、不返回候选标的），联网筛选执行仍仅 v1，v2 不做等价实现' },
   '83_分析规则库.py': { note: '规则维护工具，留 v1' },
   '87_语音事件.py': { note: '语音采集低频功能，留 v1' },
 }

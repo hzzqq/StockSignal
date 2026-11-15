@@ -27,6 +27,8 @@ import type {
   Backtest,
   MarketPanorama,
   Portfolio,
+  PositionAllocation,
+  NlScreen,
   FundFlow,
   TradingAccount,
   MacroData,
@@ -286,6 +288,26 @@ export function usePortfolio(params: PortfolioParams = {}): UseQueryResult<Portf
     queryKey: ['read', 'portfolio', params],
     queryFn: () => api.getPortfolio(params),
     staleTime: THIRTY_MIN,
+  })
+}
+
+/** 仓位落地（98 页 V2 化）：市场仓位×评分源→个股目标权重。纯建议层，只读。 */
+export function usePositionAllocation(source: string = 'recommend'): UseQueryResult<PositionAllocation> {
+  return useQuery({
+    queryKey: ['read', 'position-allocation', source],
+    queryFn: () => api.getPositionAllocation(source),
+    staleTime: THIRTY_MIN,
+  })
+}
+
+/** 自然语言选股语义解析（81 页解析层 V2 化）：仅解析、不触网、不返回候选标的。
+ *  query 为空时 disabled，页面显示提示而非臆造解析结果。 */
+export function useNlScreen(query: string): UseQueryResult<NlScreen> {
+  return useQuery({
+    queryKey: ['read', 'nl-screen', query],
+    queryFn: () => api.getNlScreen(query),
+    enabled: query.trim().length > 0,
+    staleTime: Infinity,
   })
 }
 

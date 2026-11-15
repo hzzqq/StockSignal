@@ -261,6 +261,17 @@ export const handlers = [
   http.get('/api/v2/read/market-panorama', () => ok(fixtures.marketPanorama)),
   // 持仓中心（45 页 V2 化）：结构对齐后端 portfolio()；演示数值非真实行情。
   http.get('/api/v2/read/portfolio', () => ok(fixtures.portfolio)),
+  // 仓位落地（98 页 V2 化）：结构对齐后端 position_allocation()；演示数值非真实行情。
+  http.get('/api/v2/read/position-allocation', ({ request }) => {
+    const source = new URL(request.url).searchParams.get('source') || 'recommend'
+    return ok({ ...fixtures.positionAllocation, source })
+  }),
+  // 自然语言选股语义解析（81 页解析层 V2 化）：空 query → invalid_param 信封，不臆造解析结果。
+  http.get('/api/v2/read/nl-screen', ({ request }) => {
+    const query = new URL(request.url).searchParams.get('query') || ''
+    if (!query.trim()) return invalidParam('查询文本为空（不臆造解析结果）')
+    return ok({ ...fixtures.nlScreen, query })
+  }),
   // 资金流向（35 页 V2 化）：结构对齐后端 fund_flow()；演示数值非真实行情，金额已折算为亿元。
   http.get('/api/v2/read/fund-flow', () => ok(fixtures.fundFlow)),
   // 实盘交易只读概览（43 页 V2 化）：结构对齐后端 trading_account()；演示数值为本地模拟账本，非真实券商。
