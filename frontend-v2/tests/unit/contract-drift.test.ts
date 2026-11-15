@@ -72,6 +72,27 @@ const fixturePairs: Pair[] = [
   { name: 'backtest', schema: R.BacktestSchema, samples: [F.backtest] },
   { name: 'market-panorama', schema: R.MarketPanoramaSchema, samples: [F.marketPanorama] },
   { name: 'portfolio', schema: R.PortfolioSchema, samples: [F.portfolio] },
+  // 98 仓位落地（V2 化）：ok + 诚实降级空态（无分配、Σ权重为 null，绝不补零）
+  {
+    name: 'position-allocation',
+    schema: R.PositionAllocationSchema,
+    samples: [
+      F.positionAllocation,
+      { ...F.positionAllocation, allocations: [], excluded: [],
+        meta: { ...F.positionAllocation.meta, sum_pct: null, n_alloc: null } },
+    ],
+  },
+  // 81 NL 选股语义解析：ok + spec=null（后端诚实降级）+ 未识别词变体
+  {
+    name: 'nl-screen',
+    schema: R.NlScreenSchema,
+    samples: [
+      F.nlScreen,
+      { ...F.nlScreen, spec: null },
+      { ...F.nlScreen,
+        spec: { ...F.nlScreen.spec, sort: null, limit: null, unparsed: ['无法识别的短语'], errors: [] } },
+    ],
+  },
   { name: 'fund-flow', schema: R.FundFlowSchema, samples: [F.fundFlow] },
   { name: 'trading-account', schema: R.TradingAccountSchema, samples: [F.tradingAccount] },
   { name: 'macro-data', schema: R.MacroDataSchema, samples: [F.macroData] },
@@ -169,6 +190,10 @@ const liveCases: LiveCase[] = [
   { key: 'backtest', url: '/api/v2/read/backtest?ticker=600519', schema: R.BacktestSchema },
   { key: 'market-panorama', url: '/api/v2/read/market-panorama?k=8', schema: R.MarketPanoramaSchema },
   { key: 'portfolio', url: '/api/v2/read/portfolio', schema: R.PortfolioSchema },
+  // 98 仓位落地：生产三源常 unavailable → SKIP（不误报）；ok 时按 Zod 校验分配结构
+  { key: 'position-allocation', url: '/api/v2/read/position-allocation?source=recommend', schema: R.PositionAllocationSchema },
+  // 81 NL 选股：纯解析端点恒 ok，用真实中文查询校验 QuerySpec 契约
+  { key: 'nl-screen', url: '/api/v2/read/nl-screen?query=' + encodeURIComponent('创业板 市盈率<30'), schema: R.NlScreenSchema },
   { key: 'fund-flow', url: '/api/v2/read/fund-flow', schema: R.FundFlowSchema },
   { key: 'trading-account', url: '/api/v2/read/trading-account', schema: R.TradingAccountSchema },
   { key: 'macro-data', url: '/api/v2/read/macro-data', schema: R.MacroDataSchema },
