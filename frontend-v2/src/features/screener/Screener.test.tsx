@@ -101,12 +101,13 @@ describe('Screener · 选股框架（诚实落地）', () => {
     expect(screen.queryByText(/筛选条件（/)).toBeNull()
   })
 
-  it('v1 三页状态来自单一真理源：31 已承接，33/81 不做假入口', () => {
+  it('v1 三页状态来自单一真理源：31/81 已承接（parity D 后 81 跨档 native），33 保留不做假入口', () => {
     renderWithClient(<Screener />)
-    expect(screen.getByText('已由 v2 承接')).toBeTruthy()
-    expect(screen.getAllByText('v1 保留（v2 不做等价实现）')).toHaveLength(2)
-    expect(screen.getAllByText('打开 v2 →')).toHaveLength(1)
-    expect(screen.getAllByText('在 v1 打开 ↗')).toHaveLength(2)
+    // D 批后 81 自然语言选股已承接执行链路 → 承接 badge 2 个（31 + 81）、保留 1 个（33）
+    expect(screen.getAllByText('已由 v2 承接')).toHaveLength(2)
+    expect(screen.getAllByText('v1 保留（v2 不做等价实现）')).toHaveLength(1)
+    expect(screen.getAllByText('打开 v2 →')).toHaveLength(2)
+    expect(screen.getAllByText('在 v1 打开 ↗')).toHaveLength(1)
     expect(screen.getByText(/不提供假入口/)).toBeTruthy()
   })
 })

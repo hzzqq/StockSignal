@@ -233,7 +233,13 @@ export function StockReportPanel() {
     if (content == null) return
     const ext = rep.html != null ? 'html' : 'md'
     const mime = ext === 'html' ? 'text/html' : 'text/markdown'
-    saveBlob(new Blob([content], { type: `${mime};charset=utf-8` }), `研报_${rep.code ?? codeInput}.${ext}`)
+    const okSaved = saveBlob(
+      new Blob([content], { type: `${mime};charset=utf-8` }),
+      `研报_${rep.code ?? codeInput}.${ext}`,
+    )
+    if (!okSaved) {
+      setError('浏览器不支持下载能力，文件已生成但未能保存')
+    }
   }
 
   return (
@@ -254,7 +260,13 @@ export function StockReportPanel() {
             <select
               aria-label="研报格式"
               value={format}
-              onChange={(e) => setFormat(e.target.value as StockReportFormat)}
+              onChange={(e) => {
+                // 切格式即失效旧研报：旧内容只对应旧格式，残留会让
+                // 「下载 Markdown 文件」按钮实下 HTML 文件（格式不符真缺陷）。
+                setFormat(e.target.value as StockReportFormat)
+                setReport(null)
+                setError(null)
+              }}
               className={INPUT_CLS}
             >
               {STOCK_REPORT_FORMATS.map((f) => (

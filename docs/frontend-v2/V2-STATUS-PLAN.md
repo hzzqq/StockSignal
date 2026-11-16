@@ -1659,3 +1659,26 @@ A 批已把「后端已有写端点」整批接进 v2；本批只做此前登记
 - `npm run build`：成功。
 - 生成器：74 页 / 158 端点 / 4761 用例 / 517 测试文件，7 份公开物料同步。
 - 实盘交易红线未触碰，v2 API 层零交易路径。
+
+## 48. 锐评 · StockReportPanel 双真缺陷 + v2 CSS 变量名错写（2026-11-16，继续 v2）
+
+> 锐评套路延续：找真实缺陷→先写失败测试坐实→修复→全量回归。本轮勘察面 = parity D 刚交付、上轮未扫过的最高缺陷密度区：`apiFetchBlob` 写层、`filenameFromDisposition` 解析、`export_routes.py` 生成侧、`ExportBundlePanels.tsx` UI 层。
+
+### 48.1 先手修复：v2 CSS 变量名错写（commit `251027c`，已先行推送）
+
+`tokens.css` @theme 定义的变量名带 `color-` 中缀（`--color-sf-ink` / `--color-sf-ink-3` / `--color-sf-accent`），但 `domainColor.ts`、`MarketSentiment.tsx`、`BreadthDivergence.tsx` 共 4 文件 10 处引用的是 `var(--sf-ink)`、`var(--sf-ink-3, #64748b)`、`var(--sf-accent, #2b8aef)`：
+- `var(--sf-ink)` **无 fallback 且变量不存在** → `color` 属性失效落继承色（domainColor 供 CompareView/ResearchView 消费，域级中性墨色从未真正生效）；
+- 带 fallback 两处恒走硬编码 hex，**不随主题切换**（亮色下弱文 #64748b、折线 #2b8aef 均非令牌值）。
+统一改 `var(--color-sf-*)` 并删硬编码 fallback；测试断言同步。`vitest domainColor 7/7`、`tsc 0 错`。附带取证：v1 侧记忆中的「stock_research.py 76 处 / ui_theme.py 99 处 sf-* / sf_card·sf_metric 函数本体」**已在此前轮次清零**（实测 0/0/0），v1 现存 `.sf-*` 类名属「xc 统一覆盖层」既定策略且有 3 个测试文件锁定，非死令牌——记忆数字过时，以此为准。
+
+### 48.2 StockReportPanel 真缺陷 ×2（失败测试先行坐实）
+
+新增 `ExportBundlePanels.test.tsx`（7 例，ExportBundlePanels 此前**零组件测试**——有夹具无测试）。**先跑出 2 failed / 5 passed 坐实缺陷，再修**：
+- **格式切换陈旧状态**：生成 HTML 研报后把格式下拉切到 Markdown 但不重新生成 → 按钮显示「下载 Markdown 文件」，`download()` 用旧 report（`rep.html != null` 判 ext）→ 实际下载的仍是 HTML 文件。**文件内容与所选格式不符且无提示**。修复：切格式 onChange 即 `setReport(null)` + `setError(null)`，旧研报立即失效，强制重新生成。
+- **下载失败静默**：`saveBlob()` 返回值不检查 → 保存失败（环境不支持）无任何提示，直接违反本文件头「下载能力缺失时如实提示」红线；同文件 `ExportBundlePanel` 有正确示范，属**同一文件内的不一致**。修复：`okSaved=false` → `setError('浏览器不支持下载能力，文件已生成但未能保存')`。
+- 锐评排除项（诚实负结果）：`_content_disposition` ASCII 回退 + RFC 5987 与前端解析对称；`readEnvelope` 对非 JSON/非信封响应有 snippet 诚实降级；`rep.get("coverage_pct", 0)` 恒拿数值（`build_report` 恒产生 float），无 None 比较 500 风险。
+
+### 48.3 验收与提交
+
+- `ExportBundlePanels.test.tsx` 7/7（修复前 2 failed 坐实）；`tsc --noEmit` 0 错；全量 `vitest run` 通过（含新增 7 例）。
+- 提交分两笔：CSS 变量修复 `251027c`（4 文件，已推）；锐评双缺陷修复 + 测试（ExportBundlePanels.tsx + 新测试文件 + 本文档）。
