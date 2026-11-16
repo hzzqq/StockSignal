@@ -153,12 +153,12 @@ describe('W4-D · 数据源与接口检测页', () => {
     expect(screen.queryByText('4/5 可用')).toBeNull()
   })
 
-  it('导航注册：新页在 NAV 中、路径唯一、图标全局唯一、仍 4 组', () => {
+  it('导航注册：新页在 NAV 中、路径唯一、图标全局唯一、7 组语义分类', () => {
     const items = NAV.flatMap((g) => g.items)
     const entry = items.filter((it) => it.to === '/diagnostics')
     expect(entry.length).toBe(1)
     expect(entry[0].label).toBe('数据源与接口检测')
-    expect(NAV.length).toBe(4)
+    expect(NAV.length).toBe(7)
     expect(new Set(items.map((it) => it.icon)).size).toBe(items.length)
   })
 })

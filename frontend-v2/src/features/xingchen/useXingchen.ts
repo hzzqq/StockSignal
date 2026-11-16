@@ -528,6 +528,7 @@ export function useXingchen() {
   const activeId = useXingchenStore((s) => s.activeId)
   const style = useXingchenStore((s) => s.style)
   const model = useXingchenStore((s) => s.model)
+  const booting = useXingchenStore((s) => s.booting)
   const runningTaskId = useXingchenStore((s) => s.runningTaskId)
   const setStyle = useXingchenStore((s) => s.setStyle)
   const setModel = useXingchenStore((s) => s.setModel)
@@ -550,6 +551,7 @@ export function useXingchen() {
     active,
     style,
     model,
+    booting,
     isRunning: !!runningTaskId,
     setStyle,
     setModel,

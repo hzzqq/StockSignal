@@ -1,4 +1,5 @@
-import { Link } from '@tanstack/react-router'
+import { StockSearchInput } from '@/shared/ui/StockSearchInput'
+import { Link, useNavigate } from '@tanstack/react-router'
 import type { Fundamentals, FundamentalsPerf, Financials } from '@/api/schemas/stock'
 import { useFundamentals, useFinancials } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
@@ -44,6 +45,7 @@ export interface FundamentalsViewProps {
 }
 
 export function FundamentalsView({ search }: FundamentalsViewProps) {
+  const navigate = useNavigate()
   const code = search?.code && CODE_RE.test(search.code) ? search.code : DEFAULT_CODE
   const fund = useFundamentals(code)
   const fin = useFinancials(code)
@@ -67,6 +69,14 @@ export function FundamentalsView({ search }: FundamentalsViewProps) {
         >
           去个股研究（深度分析）
         </Link>
+      </div>
+
+      <div className="w-72">
+        <StockSearchInput
+          value={code}
+          label="切换股票（代码 / 名称 / 首字母）"
+          onSelect={(next) => void navigate({ to: '/stock/fundamentals', search: { code: next } })}
+        />
       </div>
 
       <QueryState

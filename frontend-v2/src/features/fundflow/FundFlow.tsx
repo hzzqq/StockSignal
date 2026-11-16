@@ -2,6 +2,7 @@ import type { EChartsOption } from 'echarts'
 import type { FundFlow as FundFlowData, FundFlowNorthbound, FundFlowIndustryRow, FundFlowMarketRow, FundFlowMarginRow } from '@/api/schemas/read'
 import { useFundFlow } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
+import { CollapsibleRankTable, type RankColumn } from '@/shared/ui/CollapsibleRankTable'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
@@ -179,6 +180,16 @@ function IndustryBlock({ rows, available }: { rows: FundFlowIndustryRow[]; avail
     }],
   }
 
+  const cols: RankColumn<FundFlowIndustryRow>[] = [
+    { key: 'industry', title: '行业', value: (r) => r.industry ?? null, render: (r) => r.industry ?? '—', sortable: true },
+    { key: 'chg_pct', title: '涨跌幅%', align: 'right', value: (r) => r.chg_pct, render: (r) => <span style={{ color: flowColor(r.chg_pct) }}>{pct(r.chg_pct)}</span>, sortable: true },
+    { key: 'inflow', title: '流入(亿)', align: 'right', value: (r) => r.inflow, render: (r) => yi(r.inflow), sortable: true },
+    { key: 'outflow', title: '流出(亿)', align: 'right', value: (r) => r.outflow, render: (r) => yi(r.outflow), sortable: true },
+    { key: 'net', title: '净额(亿)', align: 'right', value: (r) => r.net, render: (r) => <span style={{ color: flowColor(r.net) }}>{yi(r.net)}</span>, sortable: true },
+    { key: 'leader', title: '领涨股', value: (r) => r.leader ?? null, render: (r) => r.leader ?? '—', sortable: true },
+    { key: 'leader_chg_pct', title: '领涨股涨跌幅%', align: 'right', value: (r) => r.leader_chg_pct, render: (r) => <span style={{ color: flowColor(r.leader_chg_pct) }}>{pct(r.leader_chg_pct)}</span>, sortable: true },
+  ]
+
   return (
     <Card title="行业板块资金流向">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -194,33 +205,16 @@ function IndustryBlock({ rows, available }: { rows: FundFlowIndustryRow[]; avail
         </div>
       )}
 
-      <div className="mt-3 overflow-x-auto">
-        <table className="w-full text-xs text-sf-ink">
-          <thead>
-            <tr className="text-sf-ink-3 border-b border-sf-line">
-              <th className="text-left py-1.5 pr-3">行业</th>
-              <th className="text-right py-1.5 pr-3">涨跌幅%</th>
-              <th className="text-right py-1.5 pr-3">流入(亿)</th>
-              <th className="text-right py-1.5 pr-3">流出(亿)</th>
-              <th className="text-right py-1.5 pr-3">净额(亿)</th>
-              <th className="text-left py-1.5 pr-3">领涨股</th>
-              <th className="text-right py-1.5">领涨股涨跌幅%</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={`${r.industry}-${i}`} className="border-b border-sf-line/60">
-                <td className="py-1.5 pr-3">{r.industry ?? '—'}</td>
-                <td className="py-1.5 pr-3 text-right">{pct(r.chg_pct)}</td>
-                <td className="py-1.5 pr-3 text-right">{yi(r.inflow)}</td>
-                <td className="py-1.5 pr-3 text-right">{yi(r.outflow)}</td>
-                <td className="py-1.5 pr-3 text-right" style={{ color: flowColor(r.net) }}>{yi(r.net)}</td>
-                <td className="py-1.5 pr-3">{r.leader ?? '—'}</td>
-                <td className="py-1.5 text-right">{pct(r.leader_chg_pct)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="mt-3">
+        <CollapsibleRankTable
+          title="行业资金流明细（展开后可正/逆排序）"
+          rows={rows}
+          columns={cols}
+          rowKey={(r, i) => `${r.industry}-${i}`}
+          defaultSort={{ key: 'net', dir: 'desc' }}
+          barColor={(r) => (typeof r.net === 'number' ? flowColor(r.net) : undefined)}
+          hint="点击表头在降序 / 升序间切换；缺失值恒排末尾、不补 0；净额红涨绿跌。"
+        />
       </div>
     </Card>
   )

@@ -1,3 +1,4 @@
+import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 import { useState } from 'react'
 import type { EChartsOption } from 'echarts'
 import { DIM_KEYS, type DimKey, type SixDim } from '@/api/schemas/stock'
@@ -64,6 +65,13 @@ export function SixDimView() {
           className="rounded-tile border border-sf-line bg-sf-surface px-3 py-1.5 text-body text-sf-ink tabular-nums"
         />
         {!valid && <span className="text-label text-sf-warn">请输入 6 位数字代码</span>}
+        <div className="w-72">
+          <StockSearchInput
+            value={input}
+            label="搜索股票（代码 / 名称 / 首字母）"
+            onSelect={(code) => setInput(code)}
+          />
+        </div>
       </div>
 
       {!valid ? (

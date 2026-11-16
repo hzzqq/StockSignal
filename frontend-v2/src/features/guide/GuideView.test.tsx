@@ -24,7 +24,10 @@ function renderView() {
 describe('GuideView · 新手教程 · 静态引导 + localStorage 进度 + FAQ 筛选', () => {
   it('渲染全部引导区块（无动态行情数字）', () => {
     renderView()
-    expect(screen.getByText('新手教程')).toBeTruthy()
+    // 导航重排后「模块导览」会列出本页自身链接，与 <h2> 同名；
+    // 按 role 精确定位标题，并显式断言两处共存（不放宽成 AllBy 了事）。
+    expect(screen.getByRole('heading', { name: '新手教程' })).toBeTruthy()
+    expect(screen.getAllByText('新手教程')).toHaveLength(2)
     expect(screen.getByText('四步上手')).toBeTruthy()
     expect(screen.getByText('差异化主线速览')).toBeTruthy()
     expect(screen.getByText('模块导览')).toBeTruthy()

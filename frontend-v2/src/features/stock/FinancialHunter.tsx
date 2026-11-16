@@ -1,3 +1,4 @@
+import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 import { useState } from 'react'
 import type { FinancialReport } from '@/api/stock'
 import { useFinancialsReport } from '@/lib/queries'
@@ -74,6 +75,14 @@ export function FinancialHunter({ search }: FinancialHunterProps) {
         >
           查询
         </button>
+
+        <div className="w-72">
+          <StockSearchInput
+            value={codeInput}
+            label="搜索股票（代码 / 名称 / 首字母）"
+            onSelect={(code) => { setCodeInput(code); setApplied(code) }}
+          />
+        </div>
 
         <div role="tablist" aria-label="报表类型" className="flex gap-2 ml-auto">
           {REPORTS.map((r) => (

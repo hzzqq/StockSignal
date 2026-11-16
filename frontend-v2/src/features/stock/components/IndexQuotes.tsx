@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useIndexQuotes } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { QueryState } from '@/shared/ui/States'
+import { RetestButton } from '@/shared/ui/RetestButton'
 import { KLineModal } from '../charts/KLineModal'
 import type { IndexQuote } from '@/api/schemas/stock'
 import type { PriceDomain } from '../charts/common'
@@ -17,13 +18,20 @@ import type { PriceDomain } from '../charts/common'
  * 绝不补 0 / 不编造涨跌幅。
  */
 export function IndexQuotes() {
-  const { data, isLoading, isError, error } = useIndexQuotes()
+  const { data, isLoading, isError, error, refetch, isFetching } = useIndexQuotes()
   const [active, setActive] = useState<IndexQuote | null>(null)
   // 指数 = 交易屏语义：涨红跌绿（--ss-up / --ss-down）。
   const priceDomain: PriceDomain = 'market'
 
   return (
     <Card title="主要指数">
+      <div className="mb-3">
+        <RetestButton
+          onRetest={() => { void refetch() }}
+          loading={isFetching}
+          hint="指数为日线快照；重新检测会重取本次报价，不改写历史数据"
+        />
+      </div>
       <QueryState
         isLoading={isLoading}
         isError={isError}

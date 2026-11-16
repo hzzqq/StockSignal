@@ -13,6 +13,7 @@ from ..utils.response import ok
 from ..utils.errors import NotFoundError
 from ..utils.params import parse_int_param, parse_str_param, parse_limit_param
 from ..services.stock_service import search_stocks, get_stock_list
+from ..services.stock_pool_fallback import search_stock_pool
 
 bp = Blueprint("stocks", __name__, url_prefix="/api/stocks")
 
@@ -35,6 +36,14 @@ def search():
     if not q:
         return ok(data=[], message="success")
     results = search_stocks(q, limit=limit)
+    if not results:
+        # stocks 表未灌入（当前部署实测 0 行）时，改用 v1 自建的真实股票池。
+        # 表内有数据却确实搜不到时不启用，避免用另一套池改变既有排序语义。
+        total = db.session.execute(
+            select(func.count()).select_from(Stock)
+        ).scalar() or 0
+        if total == 0:
+            results = search_stock_pool(q, limit=limit)
     return ok(data=results, message="success")
 
 

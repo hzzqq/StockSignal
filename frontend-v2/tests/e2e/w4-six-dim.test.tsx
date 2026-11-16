@@ -96,11 +96,10 @@ describe('W4-A · 个股六维评分', () => {
     expect(screen.queryByText('缺失')).toBeNull()
   })
 
-  it('导航注册：/stock/six-dim 并入第 3 组「量化与工具」，仍 4 组、图标全局唯一', () => {
-    expect(NAV.length).toBe(4)
-    const group3 = NAV[2]
-    expect(group3.group).toBe('量化与工具')
-    expect(group3.items.some((it) => it.to === '/stock/six-dim')).toBe(true)
+  it('导航注册：/stock/six-dim 归入「个股研究」，7 组语义分类、图标全局唯一', () => {
+    expect(NAV.length).toBe(7)
+    const group = NAV.find((g) => g.items.some((it) => it.to === '/stock/six-dim'))
+    expect(group?.group).toBe('个股研究')
     const icons = NAV.flatMap((g) => g.items.map((it) => it.icon))
     expect(new Set(icons).size).toBe(icons.length)
   })

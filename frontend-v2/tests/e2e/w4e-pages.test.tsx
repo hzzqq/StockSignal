@@ -205,13 +205,15 @@ describe('W4-E · 设置页（真实生效）', () => {
     setV1Base('http://127.0.0.1:8501')
   })
 
-  it('侧边栏底部固定设置与功能全景入口，且 NAV 仍 4 组 / 图标唯一', () => {
+  it('侧栏由 NAV 单一真理源派生，设置 / 功能全景已归入语义分组，7 组 / 图标唯一', () => {
     const src = readFileSync(resolve(ROOT, 'frontend-v2/src/app/AppShell.tsx'), 'utf8')
-    expect(src).toContain('to="/settings"')
-    expect(src).toContain('to="/catalog"')
-    expect(src).toContain('applyPreferences()')
     const items = NAV.flatMap((g) => g.items)
-    expect(NAV.length).toBe(4)
+    expect(items.map((i) => i.to)).toContain('/settings')
+    expect(items.map((i) => i.to)).toContain('/catalog')
+    expect(src).toContain('NAV.map')
+    expect(src).not.toMatch(/to="\//)
+    expect(src).toContain('applyPreferences()')
+    expect(NAV.length).toBe(7)
     expect(new Set(items.map((i) => i.icon)).size).toBe(items.length)
   })
 

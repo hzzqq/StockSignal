@@ -121,6 +121,10 @@ html[data-theme="light"] {
 }
 
 /* ── 全局底座 ── */
+/* 百分比高度链必须有确定根：html/body/#root 100% → AppShell h-screen → main min-h-0。
+ * 缺任一环，页面里的 h-full + 绝对定位消息区会塌成 0 高，表现为整页空白
+ * （2026-11-16 星辰 AI 空白页真因）。 */
+html, body, #root { height: 100%; }
 body {
   margin: 0;
   background: var(--color-sf-bg);

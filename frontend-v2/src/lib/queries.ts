@@ -5,6 +5,8 @@ import type { FactorAnalysisParams, BacktestParams, MarketPanoramaParams, Portfo
 import { getSixDim, getFundamentals, getFinancials, getStockKline, getStockIntraday, getIndexQuotes, getIndexKline } from '@/api/stock'
 import type { FinancialReport } from '@/api/stock'
 import { getDiagnostics } from '@/api/diagnostics'
+import { getStockSearch } from '@/api/stockSearch'
+import type { StockSearchResult } from '@/api/schemas/stockSearch'
 import type { SixDim, Fundamentals, Financials, StockKline, StockIntraday, IndexQuotes, IndexKline } from '@/api/schemas/stock'
 import type { Diagnostics } from '@/api/schemas/diagnostics'
 import type {
@@ -558,5 +560,18 @@ export function useDecisionLoopHealth(): UseQueryResult<DecisionLoopHealth> {
     queryFn: () => api.getDecisionLoopHealth(),
     staleTime: 30_000,
     refetchInterval: HEALTH_REFETCH_INTERVAL_MS,
+  })
+}
+
+// ───────── 股票搜索（代码 / 名称 / 拼音首字母 / 全拼）─────────
+// 空查询不发请求；解析失败/接口失败进 error 态，由输入组件如实显示「搜索失败」，
+// 绝不与「未找到匹配」混为一谈。防抖在 StockSearchInput 内完成。
+export function useStockSearch(q: string, limit = 10): UseQueryResult<StockSearchResult> {
+  return useQuery({
+    queryKey: ['stock-search', q, limit],
+    queryFn: () => getStockSearch(q, limit),
+    enabled: q.trim().length > 0,
+    staleTime: 60_000,
+    retry: false,
   })
 }

@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import * as fixtures from './fixtures'
+import { matchStockPool } from '@/lib/stockSearchLogic'
 
 /** 统一成功信封（严格对齐 backend/utils/response.py::_ok_payload）。
  * ⚠️ code 是**字符串业务码**（真后端默认 "ok"），不是数字 0。
@@ -658,3 +659,14 @@ export function resetChatMock(): void {
     })
   }
 }
+
+/** 股票搜索（v2 全站通用输入）：与后端同口径从演示池召回，空查询返回诚实空数组。 */
+handlers.push(
+  http.get('/api/stocks/search', ({ request }) => {
+    const u = new URL(request.url)
+    const q = (u.searchParams.get('q') ?? '').trim()
+    const raw = Number(u.searchParams.get('limit') ?? '10')
+    const limit = Number.isFinite(raw) && raw > 0 ? Math.min(50, Math.trunc(raw)) : 10
+    return ok(matchStockPool(fixtures.stockSearchPool, q, limit))
+  }),
+)

@@ -258,14 +258,13 @@ describe('W4-B · 个股研究页 ResearchView', () => {
 })
 
 describe('W4-B · 导航注册', () => {
-  it('仍 4 组、第 3 组含 W4-C 个股对比共 8 项、图标全局唯一', () => {
-    expect(NAV.length).toBe(4)
-    const g3 = NAV[2]
-    expect(g3.group).toBe('量化与工具')
-    expect(g3.items.some((it) => it.to === '/stock/research')).toBe(true)
-    expect(g3.items.some((it) => it.to === '/stock/fundamentals')).toBe(true)
-    expect(g3.items.some((it) => it.to === '/stock/compare')).toBe(true)
-    expect(g3.items.length).toBe(12)
+  it('7 组语义分类、个股页同归「个股研究」组共 8 项、图标全局唯一', () => {
+    expect(NAV.length).toBe(7)
+    const g3 = NAV.find((g) => g.items.some((it) => it.to === '/stock/research'))
+    expect(g3?.group).toBe('个股研究')
+    expect(g3?.items.some((it) => it.to === '/stock/fundamentals')).toBe(true)
+    expect(g3?.items.some((it) => it.to === '/stock/compare')).toBe(true)
+    expect(g3?.items.length).toBe(8)
     const icons = NAV.flatMap((g) => g.items.map((it) => it.icon))
     expect(new Set(icons).size).toBe(icons.length)
   })

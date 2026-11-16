@@ -3448,3 +3448,27 @@ export const decisionLoopHealth = {
   data_lag_days: 1,
   message: '✅ 决策闭环正常（开发态演示样例，非真实调度状态）。',
 }
+
+/**
+ * 股票搜索演示池（v1 all_stocks 的真实代码/名称/拼音，仅取 10 只用于 MSW 联调）。
+ * 刻意不编造行情数值：这是「代码-名称-拼音」基础信息，不是价格数据。
+ * 生产走后端 /api/stocks/search（真实 5191 条池），Mock 走 lib/stockSearchLogic 同口径召回。
+ */
+export const stockSearchPool = [
+  { code: '600519', name: '贵州茅台', market: 'SH', asset_type: 'stock', pinyin_initials: 'gzmt', pinyin_full: 'guizhoumaotai' },
+  { code: '000001', name: '平安银行', market: 'SZ', asset_type: 'stock', pinyin_initials: 'payh', pinyin_full: 'pinganyinhang' },
+  { code: '300750', name: '宁德时代', market: 'SZ', asset_type: 'stock', pinyin_initials: 'ndsd', pinyin_full: 'ningdeshidai' },
+  { code: '601318', name: '中国平安', market: 'SH', asset_type: 'stock', pinyin_initials: 'zgpa', pinyin_full: 'zhongguopingan' },
+  { code: '000858', name: '五粮液', market: 'SZ', asset_type: 'stock', pinyin_initials: 'wly', pinyin_full: 'wuliangye' },
+  { code: '600036', name: '招商银行', market: 'SH', asset_type: 'stock', pinyin_initials: 'zsyh', pinyin_full: 'zhaoshangyinhang' },
+  { code: '002594', name: '比亚迪', market: 'SZ', asset_type: 'stock', pinyin_initials: 'byd', pinyin_full: 'biyadi' },
+  { code: '688981', name: '中芯国际', market: 'SH', asset_type: 'stock', pinyin_initials: 'zxgj', pinyin_full: 'zhongxinguoji' },
+  { code: '600030', name: '中信证券', market: 'SH', asset_type: 'stock', pinyin_initials: 'zxzq', pinyin_full: 'zhongxinzhengquan' },
+  { code: '601899', name: '紫金矿业', market: 'SH', asset_type: 'stock', pinyin_initials: 'zjky', pinyin_full: 'zijinkuangye' },
+]
+
+/** 契约漂移 A 段样本：一条命中 + 一条诚实空结果。 */
+export const stockSearchMoutai = [
+  { code: '600519', name: '贵州茅台', market: 'SH', asset_type: 'stock', pinyin_initials: 'gzmt', pinyin_full: 'guizhoumaotai', score: 1000 },
+]
+export const stockSearchEmpty: unknown[] = []

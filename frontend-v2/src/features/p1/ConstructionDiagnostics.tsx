@@ -5,6 +5,7 @@ import { CHART } from '@/shared/charts/palette'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
+import { RetestButton } from '@/shared/ui/RetestButton'
 import { useConstructionDiag, type ConstructionDiag } from './constructionDiag'
 
 /**
@@ -203,9 +204,17 @@ export function ConstructionDiagnostics() {
     <div className="flow">
       <header className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-page font-semibold">组合构建诊断</h2>
-        <span className="text-label text-sf-ink-3">
-          {q.data?.meta.generated_at ?? ''} · P1 只读复算 · {q.data?.meta.model ?? ''}
-        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-label text-sf-ink-3">
+            {q.data?.meta.generated_at ?? ''} · P1 只读复算 · {q.data?.meta.model ?? ''}
+          </span>
+          <RetestButton
+            label="重新检测诊断数据"
+            loading={q.isFetching}
+            onRetest={() => { void q.refetch() }}
+            hint="重新读取本地诊断产物；不重算、不改写 JSON"
+          />
+        </div>
       </header>
       <p className="text-body text-sf-ink-2">
         结论先行：组合构建改造是<strong className="text-sf-ink">止血 / 防御</strong>，非治愈；根因是

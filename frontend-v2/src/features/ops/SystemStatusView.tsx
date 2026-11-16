@@ -5,6 +5,7 @@ import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { fmtNum } from '@/lib/format'
+import { RetestButton } from '@/shared/ui/RetestButton'
 
 /**
  * W3 后续簇 · 数据与运维状态页（/ops）。
@@ -32,6 +33,11 @@ export function SystemStatusView() {
         >
           ← 返回广度总览
         </a>
+        <RetestButton
+          label="重新检测三个数据源"
+          loading={sync.isFetching || runs.isFetching || refresh.isFetching}
+          onRetest={() => { void sync.refetch(); void runs.refetch(); void refresh.refetch() }}
+        />
       </div>
 
       <section className="flow" aria-labelledby="ops-sync-title">

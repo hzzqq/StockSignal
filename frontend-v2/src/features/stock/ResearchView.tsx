@@ -1,3 +1,4 @@
+import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
@@ -106,6 +107,14 @@ export function ResearchView({ search }: ResearchViewProps) {
         />
         <span className="text-label text-sf-ink-3">{`当前代码：${linkCode}`}</span>
       </label>
+
+        <div className="w-72">
+          <StockSearchInput
+            value={input}
+            label="搜索股票（代码 / 名称 / 首字母）"
+            onSelect={(code) => setInput(code)}
+          />
+        </div>
 
       {view === 'quick' ? (
         <QuickView kline={kline} valid={valid} code={input} />

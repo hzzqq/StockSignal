@@ -1,4 +1,5 @@
 import { useDecisionLoopHealth } from '@/lib/queries'
+import { ApiError } from '@/api/client'
 
 /**
  * 决策闭环停摆告警（v1 54 页横幅的 v2 生产前端等价能力）。
@@ -33,11 +34,21 @@ export function DecisionLoopAlarm() {
   )
 
   if (q.isError || !h) {
-    const why = q.error instanceof Error ? q.error.message : '接口未返回健康状态'
+    const raw = q.error instanceof Error ? q.error.message : '接口未返回健康状态'
+    const code = q.error instanceof ApiError ? q.error.code : ''
+    // 真实部署曾显示「资源不存在」：旧后端进程没有 /decision-loop-health 端点。
+    // 这是版本 / 部署问题，不是调度停摆；必须区分，否则运维会误判决策闭环已死。
+    const endpointMissing = code === 'not_found' || /\b404\b/.test(raw)
+    const why = endpointMissing
+      ? '后端未提供该端点（服务可能未重启 / 版本过旧）；请在「数据源与接口检测」确认'
+      : raw
     return (
       <div role="alert" className={`mb-3 flex flex-wrap items-center gap-2 rounded-tile border px-3 py-2 text-body ${tone(true)}`}>
         <strong className="font-semibold">决策闭环健康状态不可得</strong>
         <span className="text-label">{why}</span>
+        {endpointMissing && (
+          <a href="/diagnostics" className="text-label underline underline-offset-2">去检测 →</a>
+        )}
         <span className="ml-auto">{retry}</span>
       </div>
     )

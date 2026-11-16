@@ -1,3 +1,4 @@
+import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 import { useEffect, useMemo, useState } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import { Card } from '@/shared/ui/Card'
@@ -180,6 +181,17 @@ export function CompareView({ search }: CompareViewProps) {
         />
         <span className="text-label text-sf-ink-3">{`已选 ${codes.length} 只`}</span>
       </label>
+
+      <div className="w-72">
+        <StockSearchInput
+          label="添加对比股票（代码 / 名称 / 首字母）"
+          placeholder="搜索后加入对比"
+          onSelect={(code) => {
+            const parts = codesInput.split(',').map((x) => x.trim()).filter(Boolean)
+            setCodesInput(Array.from(new Set([...parts, code])).join(','))
+          }}
+        />
+      </div>
 
       {codes.length === 0 ? (
         <Card title="对比矩阵">

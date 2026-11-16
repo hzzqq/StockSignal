@@ -17,6 +17,7 @@ import { z } from 'zod'
 import * as R from '@/api/schemas/read'
 import * as S from '@/api/schemas/stock'
 import * as D from '@/api/schemas/diagnostics'
+import { StockSearchResultSchema } from '@/api/schemas/stockSearch'
 import { EnvelopeResponse } from '@/api/schema'
 import * as F from '@/mocks/fixtures'
 
@@ -146,6 +147,7 @@ const fixturePairs: Pair[] = [
   // 不能用 z.unknown() 空转：否则夹具/生产的 sources/freshness/endpoints/probe
   // 字段漂移会完全漏检（历史缺陷：守卫自我静音 + 注释与事实不符）。
   { name: 'decision-loop-health', schema: R.DecisionLoopHealthSchema, samples: [F.decisionLoopHealth] },
+  { name: 'stock-search', schema: StockSearchResultSchema, samples: [F.stockSearchMoutai, F.stockSearchEmpty] },
   {
     name: 'diagnostics',
     schema: D.DiagnosticsSchema,
@@ -231,6 +233,7 @@ const liveCases: LiveCase[] = [
   { key: 'research-deep', url: '/api/v2/read/research-deep?code=600519', schema: S.ResearchDeepSchema },
   { key: 'stock-intraday', url: '/api/v2/read/stock-intraday?code=600519', schema: S.StockIntradaySchema },
   { key: 'decision-loop-health', url: '/api/v2/read/decision-loop-health', schema: R.DecisionLoopHealthSchema },
+  { key: 'stock-search', url: '/api/stocks/search?q=600519', schema: StockSearchResultSchema },
   { key: 'diagnostics', url: '/api/v2/read/diagnostics', schema: D.DiagnosticsSchema },
   { key: 'index-quotes', url: '/api/v2/read/index-quotes', schema: S.IndexQuotesSchema },
   { key: 'index-kline', url: '/api/v2/read/index-kline?code=sh000001', schema: S.IndexKlineSchema },

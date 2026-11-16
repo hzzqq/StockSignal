@@ -28,6 +28,22 @@ describe('ChatPanel', () => {
     expect(screen.getByText('🌟 星辰 AI')).toBeTruthy()
   })
 
+  it('空态引导问题点击即发送，且如实标注能力边界', () => {
+    const onPickChip = vi.fn()
+    render(
+      <ChatPanel
+        messages={[]}
+        style="quick"
+        onStyleChange={() => {}}
+        onSend={() => {}}
+        onPickChip={onPickChip}
+      />,
+    )
+    expect(screen.getByText(/不提供实时行情，不构成投资建议/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '今日大盘怎么看？' }))
+    expect(onPickChip).toHaveBeenCalledWith('今日大盘怎么看？')
+  })
+
   it('渲染消息流', () => {
     render(
       <ChatPanel messages={msgs} style="quick" onStyleChange={() => {}} onSend={() => {}} />,

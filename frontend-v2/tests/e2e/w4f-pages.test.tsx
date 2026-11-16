@@ -158,16 +158,18 @@ describe('W4-F · 接线守卫（源码真扫）', () => {
     expect(r).toContain('component: LazyGuideView')
   })
 
-  it('UTILITY_PATHS 是单一真理源：每条都在 router 注册，AppShell 有对应底部入口', () => {
+  it('功能入口全归 NAV 单一真理源；/data 仅深链可达并留在回流白名单', () => {
     const r = src('frontend-v2/src/app/router.tsx')
     const shell = src('frontend-v2/src/app/AppShell.tsx')
     for (const p of UTILITY_PATHS) expect(r).toContain(`path: '${p}'`)
     expect(new Set(UTILITY_PATHS).size).toBe(UTILITY_PATHS.length)
-    const rendered = [...shell.matchAll(/to="(\/[^"]+)"/g)].map((m) => m[1])
-    for (const p of ['/matrix', '/guide', '/settings', '/catalog']) expect(rendered).toContain(p)
-    // /data 由功能全景深链进入，没有底部入口，但必须留在回流白名单里
+    const paths = NAV.flatMap((g) => g.items).map((i) => i.to)
+    for (const p of ['/matrix', '/guide', '/settings', '/catalog']) expect(paths).toContain(p)
+    expect(shell).toContain('NAV.map')
+    expect(shell).not.toMatch(/to="\//)
+    // /data 由功能全景深链进入，不进侧栏，但必须留在登录回流白名单里
     expect(UTILITY_PATHS).toContain('/data')
-    expect(rendered).not.toContain('/data')
+    expect(paths).not.toContain('/data')
   })
 
   it('LoginPage knownPaths 覆盖 UTILITY_PATHS（防「登录后被静默甩回首页」复发）', () => {
@@ -200,13 +202,15 @@ describe('W4-F · 接线守卫（源码真扫）', () => {
     expect(c['v1-only']).toBe(0)
   })
 
-  it('新页走底部入口，NAV 仍 4 组 / 第 3 组 12 项 / 图标唯一', () => {
-    expect(NAV.length).toBe(4)
-    expect(NAV[2].items.length).toBe(12)
+  it('新页已并入语义分组：NAV 7 组 / 每组 ≤12 项 / 图标与路径唯一', () => {
+    expect(NAV.length).toBe(7)
+    expect(NAV.every((g) => g.items.length <= 12)).toBe(true)
     const items = NAV.flatMap((g) => g.items)
     expect(new Set(items.map((i) => i.icon)).size).toBe(items.length)
     const paths = items.map((i) => i.to)
-    expect(paths).not.toContain('/matrix')
-    expect(paths).not.toContain('/guide')
+    expect(new Set(paths).size).toBe(paths.length)
+    expect(paths).toContain('/matrix')
+    expect(paths).toContain('/guide')
+    expect(paths).not.toContain('/data')
   })
 })

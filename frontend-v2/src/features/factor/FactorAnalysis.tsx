@@ -1,3 +1,4 @@
+import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 import { useState } from 'react'
 import type { EChartsOption } from 'echarts'
 import type { FactorAnalysis as FactorAnalysisData } from '@/api/schemas/read'
@@ -117,6 +118,15 @@ export function FactorAnalysis() {
               onChange={(e) => setForm((f) => ({ ...f, forward: Math.max(1, Math.min(20, Number(e.target.value) || 1)) }))}
             />
           </label>
+        </div>
+        <div className="mt-3 w-72">
+          <StockSearchInput
+            label="追加分析标的（代码 / 名称 / 首字母）"
+            placeholder="搜索后追加到代码列表"
+            onSelect={(code) => setForm((f) => (
+              f.codes.includes(code) ? f : { ...f, codes: [...f.codes, code] }
+            ))}
+          />
         </div>
         <button
           type="button"

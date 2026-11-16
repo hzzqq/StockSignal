@@ -1,3 +1,4 @@
+import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 import { useState } from 'react'
 import type { EChartsOption } from 'echarts'
 import type { Backtest as BacktestData } from '@/api/schemas/read'
@@ -95,6 +96,13 @@ export function Backtest() {
               ))}
             </select>
           </label>
+        </div>
+        <div className="mt-3 w-72">
+          <StockSearchInput
+            value={form.ticker}
+            label="搜索标的（代码 / 名称 / 首字母）"
+            onSelect={(code) => setForm((f) => ({ ...f, ticker: code }))}
+          />
         </div>
         <button
           type="button"

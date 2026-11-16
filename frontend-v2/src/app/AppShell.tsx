@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Outlet, Link, useNavigate } from '@tanstack/react-router'
+import { Outlet, Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { applyPreferences, getZen, setZen } from '@/lib/preferences'
 import { clearAuth } from '@/app/guards'
 import { NAV } from '@/nav/nav'
@@ -7,6 +7,7 @@ import { MockBanner } from '@/mocks/MockBanner'
 import { ThemeToggle } from '@/shared/ui/ThemeToggle'
 import { ZenToggle } from '@/shared/ui/ZenToggle'
 import { DecisionLoopAlarm } from './DecisionLoopAlarm'
+import { PageErrorBoundary } from './PageErrorBoundary'
 
 /**
  * 轻量卡片流 · 鉴权后应用外壳（DESIGN.md §3）。
@@ -17,6 +18,16 @@ import { DecisionLoopAlarm } from './DecisionLoopAlarm'
  */
 export function AppShell() {
   const navigate = useNavigate()
+  // 订阅真实路由：从 A 组跳到 B 组页面时，侧栏自动展开 B 组（不会停在旧组）。
+  const pathname = useRouterState({ select: (st) => st.location.pathname })
+  const activeGroup = NAV.find((g) => g.items.some((it) => it.to === pathname))?.group ?? ''
+  const [allOpen, setAllOpen] = useState(false)
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({})
+  const isOpen = (group: string): boolean => {
+    if (allOpen) return true
+    const own = overrides[group]
+    return own === undefined ? group === activeGroup : own
+  }
   useEffect(() => applyPreferences(), [])
 
   // 专注 / Zen 模式：状态由 localStorage 单一真理源驱动，写入 html[data-zen]。
@@ -54,213 +65,74 @@ export function AppShell() {
   }
 
   return (
-    <div className="min-h-screen flex bg-sf-bg text-sf-ink">
+    <div className="h-screen flex bg-sf-bg text-sf-ink">
       <aside className="app-sidebar w-14 md:w-56 shrink-0 flex flex-col border-r border-sf-line p-3 space-y-4 overflow-y-auto">
         <div className="px-2 py-2 text-title font-semibold text-sf-ink whitespace-nowrap">
           <span className="md:hidden">S2</span>
           <span className="nav-label hidden md:inline">StockSignal V2</span>
         </div>
-        <nav className="space-y-4">
-          {NAV.map((g) => (
-            <div key={g.group}>
-              <div className="nav-label px-2 text-label text-sf-ink-3 uppercase tracking-wide hidden md:block">
-                {g.group}
+        <div className="flex items-center justify-between gap-2 px-2">
+          <span className="nav-label hidden md:inline text-label text-sf-ink-3">
+            {NAV.length} 类 · {NAV.reduce((n, g) => n + g.items.length, 0)} 个功能
+          </span>
+          <button
+            type="button"
+            onClick={() => setAllOpen((v) => !v)}
+            aria-expanded={allOpen}
+            className="shrink-0 rounded-tile border border-sf-line px-2 py-0.5 text-label text-sf-ink-2 hover:border-sf-accent hover:text-sf-accent"
+          >
+            <span className="nav-label hidden md:inline">{allOpen ? '折叠全部' : '展开全部'}</span>
+            <span className="md:hidden" aria-hidden="true">{allOpen ? '−' : '+'}</span>
+          </button>
+        </div>
+        <nav className="space-y-2">
+          {NAV.map((g, gi) => {
+            const open = isOpen(g.group)
+            const listId = `nav-group-${gi}`
+            return (
+              <div key={g.group}>
+                <button
+                  type="button"
+                  onClick={() => setOverrides((o) => ({ ...o, [g.group]: !open }))}
+                  aria-expanded={open}
+                  aria-controls={listId}
+                  className="flex w-full items-center gap-1.5 rounded-tile px-2 py-1 text-left text-label text-sf-ink-3 hover:bg-sf-surface-2 hover:text-sf-ink"
+                >
+                  <span aria-hidden="true" className="w-3 shrink-0 text-center">{open ? '▾' : '▸'}</span>
+                  <span className="nav-label hidden md:inline uppercase tracking-wide">{g.group}</span>
+                  <span className="nav-label hidden md:inline ml-auto tabular-nums">{g.items.length}</span>
+                  <span className="md:hidden" aria-hidden="true">•••</span>
+                </button>
+                {/* 收起时 md:hidden：窄屏(<768px)图标栏始终可见，避免折叠后整条侧栏无法导航。
+                    jsdom 不加载 Tailwind，DOM 内链接始终存在，a11y 守卫不受影响。 */}
+                <div id={listId} className={open ? 'mt-1 space-y-0.5' : 'mt-1 space-y-0.5 md:hidden'}>
+                  {g.items.map((it) => (
+                    <Link
+                      key={it.to}
+                      to={it.to}
+                      title={it.label}
+                      aria-label={it.label}
+                      className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
+                    >
+                      <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">{it.icon}</span>
+                      <span className="nav-label hidden md:inline whitespace-nowrap">{it.label}</span>
+                    </Link>
+                  ))}
+                </div>
               </div>
-              <div className="mt-1 space-y-0.5">
-                {g.items.map((it) => (
-                  <Link
-                    key={it.to}
-                    to={it.to}
-                    title={it.label}
-                    aria-label={it.label}
-                    className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-                  >
-                    <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">{it.icon}</span>
-                    <span className="nav-label hidden md:inline whitespace-nowrap">{it.label}</span>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </nav>
 
-        {/* 底部固定入口：不进 NAV 数组，避免影响导航分组/图标唯一守卫 */}
-        <div className="mt-auto border-t border-sf-line pt-3 space-y-0.5">
-          <Link
-            to="/stock/screener"
-            title="选股框架"
-            aria-label="选股框架"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">⌕</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">选股框架</span>
-          </Link>
-          <Link
-            to="/catalog"
-            title="v1 功能全景"
-            aria-label="v1 功能全景"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">▣</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">v1 功能全景</span>
-          </Link>
-          <Link
-            to="/matrix"
-            title="维度领先滞后矩阵"
-            aria-label="维度领先滞后矩阵"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">⊹</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">领先滞后矩阵</span>
-          </Link>
-          <Link
-            to="/guide"
-            title="新手教程"
-            aria-label="新手教程"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">◇</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">新手教程</span>
-          </Link>
-          <Link
-            to="/settings"
-            title="设置"
-            aria-label="设置"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">⚒</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">设置</span>
-          </Link>
-          <Link
-            to="/users"
-            title="用户管理"
-            aria-label="用户管理"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">👥</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">用户管理</span>
-          </Link>
-          <Link
-            to="/financial-hunter"
-            title="财报猎手"
-            aria-label="财报猎手"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">📒</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">财报猎手</span>
-          </Link>
-          <Link
-            to="/dashboard-custom"
-            title="自定义看板"
-            aria-label="自定义看板"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">🧩</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">自定义看板</span>
-          </Link>
-          <Link
-            to="/export"
-            title="数据导出"
-            aria-label="数据导出"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">📤</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">数据导出</span>
-          </Link>
-          <Link
-            to="/earnings-calendar"
-            title="财报日历"
-            aria-label="财报日历"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">🗓</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">财报日历</span>
-          </Link>
-          <Link
-            to="/me"
-            title="我的"
-            aria-label="我的"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">👤</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">我的</span>
-          </Link>
-          <Link
-            to="/review-notes"
-            title="决策问答"
-            aria-label="决策问答"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">❓</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">决策问答</span>
-          </Link>
-          <Link
-            to="/sentiment-clock"
-            title="投机情绪时钟"
-            aria-label="投机情绪时钟"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">◷</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">投机情绪时钟</span>
-          </Link>
-          <Link
-            to="/similar-days"
-            title="历史相似日"
-            aria-label="历史相似日"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">≋</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">历史相似日</span>
-          </Link>
-          <Link
-            to="/inflection-scan"
-            title="情绪拐点扫描"
-            aria-label="情绪拐点扫描"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">⤴</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">情绪拐点扫描</span>
-          </Link>
-          <Link
-            to="/regime-duration"
-            title="温度持续期"
-            aria-label="温度持续期"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">⧗</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">温度持续期</span>
-          </Link>
-          <Link
-            to="/momentum-resonance"
-            title="动量×广度共振"
-            aria-label="动量×广度共振"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">🌀</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">动量×广度共振</span>
-          </Link>
-          <Link
-            to="/limit-up-review"
-            title="涨停复盘"
-            aria-label="涨停复盘"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">🏆</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">涨停复盘</span>
-          </Link>
-          <Link
-            to="/market-sentiment"
-            title="市场情绪温度计"
-            aria-label="市场情绪温度计"
-            className="nav-link flex items-center gap-2 px-2 py-1.5 rounded-tile text-body text-sf-ink-2 hover:bg-sf-surface-2 hover:text-sf-ink transition-colors"
-          >
-            <span aria-hidden="true" className="w-5 text-center text-sf-ink-3">⚖️</span>
-            <span className="nav-label hidden md:inline whitespace-nowrap">市场情绪温度计</span>
-          </Link>
+        {/* 底部只留说明，不再手抄 20 条平铺入口：路径唯一真理源是 nav.ts 的 NAV。 */}
+        <div className="mt-auto border-t border-sf-line pt-3">
+          <p className="nav-label hidden md:block text-label text-sf-ink-3">
+            点击分组名可折叠 / 展开
+          </p>
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
         <header className="app-header h-12 shrink-0 border-b border-sf-line flex items-center justify-between px-4 md:px-6">
           <span className="text-label text-sf-ink-3">决策中枢 · 只读视图</span>
           <div className="flex items-center gap-3">
@@ -273,11 +145,14 @@ export function AppShell() {
             </button>
           </div>
         </header>
-        <main className="app-main flex-1 overflow-auto p-4 md:p-6">
+        <main className="app-main flex-1 min-h-0 overflow-auto p-4 md:p-6">
           <MockBanner />
           {/* 决策闭环停摆告警：安全信息，Zen 折叠顶栏/侧栏时仍随 <main> 可见 */}
           <DecisionLoopAlarm />
-          <Outlet />
+          {/* 任一懒加载页面抛错时显示可解释错误卡，而不是整页空白（2026-11-16 星辰 AI 反馈） */}
+          <PageErrorBoundary>
+            <Outlet />
+          </PageErrorBoundary>
         </main>
       </div>
 

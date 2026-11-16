@@ -3,6 +3,8 @@ import { useQuoteBoard } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
+import { CollapsibleRankTable, type RankColumn } from '@/shared/ui/CollapsibleRankTable'
+import { RetestButton } from '@/shared/ui/RetestButton'
 import { CHART } from '@/shared/charts/palette'
 
 /**
@@ -108,6 +110,13 @@ export function QuoteBoard() {
   const topUp = [...withPct].sort((a, b) => nz(b.chg_pct) - nz(a.chg_pct)).slice(0, 6)
   const topDown = [...withPct].sort((a, b) => nz(a.chg_pct) - nz(b.chg_pct)).slice(0, 6)
   const upCount = withPct.filter((s) => nz(s.chg_pct) > 0).length
+  const sectorCols: RankColumn<SectorItem>[] = [
+    { key: 'name', title: '板块', value: (s) => s.name ?? null, render: (s) => s.name ?? '—', sortable: true },
+    { key: 'chg_pct', title: '涨跌幅', align: 'right', value: (s) => s.chg_pct, render: (s) => <span style={{ color: chgColor(s.chg_pct) }}>{fmtSigned(s.chg_pct, 2, '%')}</span>, sortable: true },
+    { key: 'net', title: '主力净额', align: 'right', value: (s) => s.net, render: (s) => <span style={{ color: chgColor(s.net) }}>{fmtSigned(s.net, 2, ' 亿')}</span>, sortable: true },
+    { key: 'leader', title: '领涨股', value: (s) => s.leader ?? null, render: (s) => s.leader ?? '—', sortable: true },
+    { key: 'leader_chg_pct', title: '领涨股涨跌幅', align: 'right', value: (s) => s.leader_chg_pct, render: (s) => <span style={{ color: chgColor(s.leader_chg_pct) }}>{fmtSigned(s.leader_chg_pct, 2, '%')}</span>, sortable: true },
+  ]
 
   return (
     <div className="quote-board">
@@ -124,6 +133,11 @@ export function QuoteBoard() {
             {ms.text}
           </span>
         ) : null}
+        <RetestButton
+          onRetest={() => { void q.refetch() }}
+          loading={q.isFetching}
+          hint={unavailable.length > 0 ? `本次存在 ${unavailable.length} 项降级，详见下方` : null}
+        />
       </div>
       <div className="text-xs text-sf-ink-3 mt-1">
         红涨绿跌；聚合主要指数日线快照、行业板块涨跌榜与市场状态。指数为页面加载时点快照（日线级），
@@ -164,6 +178,13 @@ export function QuoteBoard() {
                   {indices.map((i) => (
                     <IndexCard key={i.code ?? i.name ?? 'idx'} item={i} />
                   ))}
+                </div>
+              )}
+              {unavailable.includes('index_quotes_unavailable') && (
+                <div className="mt-2 rounded-tile border border-sf-warn px-3 py-2 text-[11px] text-sf-warn">
+                  本次 5 个主要指数全部未取到（index_quotes_unavailable）：多为环境网络代理限制或行情源不可达。
+                  后端已诚实降级为 null（卡片显示「—」），未补 0、未编造点位。可点「重新检测」重试，
+                  或前往「数据源与接口检测」查看真实失败原因。
                 </div>
               )}
               <div className="mt-2 text-[11px] opacity-70">
@@ -207,30 +228,19 @@ export function QuoteBoard() {
                   </div>
                 </div>
               )}
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr className="text-sf-ink-3 border-b border-sf-line">
-                      <th className="text-left py-1 pr-2 font-medium">板块</th>
-                      <th className="text-right py-1 pr-2 font-medium">涨跌幅</th>
-                      <th className="text-right py-1 pr-2 font-medium">主力净额</th>
-                      <th className="text-left py-1 pr-2 font-medium">领涨股</th>
-                      <th className="text-right py-1 pr-2 font-medium">领涨股涨跌幅</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sectors.map((s) => (
-                      <tr key={s.name ?? 'sector'} className="border-b border-sf-line/60">
-                        <td className="py-1 pr-2">{s.name ?? '—'}</td>
-                        <td className="py-1 pr-2 text-right tabular-nums" style={{ color: chgColor(s.chg_pct) }}>{fmtSigned(s.chg_pct, 2, '%')}</td>
-                        <td className="py-1 pr-2 text-right tabular-nums" style={{ color: chgColor(s.net) }}>{fmtSigned(s.net, 2, ' 亿')}</td>
-                        <td className="py-1 pr-2">{s.leader ?? '—'}</td>
-                        <td className="py-1 pr-2 text-right tabular-nums" style={{ color: chgColor(s.leader_chg_pct) }}>{fmtSigned(s.leader_chg_pct, 2, '%')}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              {sectors.length > 0 && (
+                <div className="mt-3">
+                  <CollapsibleRankTable
+                    title="行业板块完整榜单（展开后可正/逆排序）"
+                    rows={sectors}
+                    columns={sectorCols}
+                    rowKey={(s, i) => `${s.name}-${i}`}
+                    defaultSort={{ key: 'chg_pct', dir: 'desc' }}
+                    barColor={(s) => chgColor(s.chg_pct)}
+                    hint="点击表头在降序 / 升序间切换；缺失值恒排末尾、不补 0；红涨绿跌。"
+                  />
+                </div>
+              )}
               <div className="mt-2 text-[11px] opacity-70">
                 净额单位：亿元（后端已折算）；「—」= 该字段缺失，不补 0；红涨绿跌。
               </div>

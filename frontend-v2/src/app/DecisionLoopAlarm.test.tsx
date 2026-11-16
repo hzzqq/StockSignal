@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { DecisionLoopAlarm } from './DecisionLoopAlarm'
 import { HEALTH_REFETCH_INTERVAL_MS } from '@/lib/health'
 import { useDecisionLoopHealth } from '@/lib/queries'
+import { ApiError } from '@/api/client'
 
 vi.mock('@/lib/queries', () => ({ useDecisionLoopHealth: vi.fn() }))
 const mHook = vi.mocked(useDecisionLoopHealth)
@@ -88,6 +89,15 @@ describe('DecisionLoopAlarm · 决策闭环停摆告警（AC4–AC7）', () => {
     render(<DecisionLoopAlarm />)
     fireEvent.click(screen.getByRole('button', { name: /重新检测/ }))
     expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('404 not_found → 明确提示端点缺失 / 服务未重启，不误判为调度停摆', () => {
+    query({ isError: true, error: new ApiError('not_found', '资源不存在') })
+    render(<DecisionLoopAlarm />)
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent).toContain('后端未提供该端点')
+    expect(alert.textContent).toContain('服务可能未重启')
+    expect(screen.getByRole('link', { name: /去检测/ })).toBeTruthy()
   })
 
   it('自动轮询间隔为 60s（AC7）', () => {
