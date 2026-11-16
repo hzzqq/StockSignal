@@ -76,7 +76,13 @@ export function EarningsHunterPanel() {
               max={200}
               step={10}
               value={minPct}
-              onChange={(e) => setMinPct(e.target.value)}
+              onChange={(e) => {
+                // 与报告期/信号级别同语义：条件变更即失效旧结果，必须重新点扫描。
+                // 不失效的话 queryKey 随输入逐字变化自动 fetch——用户敲 "-" 的中间态
+                // 会以 min_pct=undefined（无下限过滤）发请求并把结果表闪换成未过滤数据。
+                setEnabled(false)
+                setMinPct(e.target.value)
+              }}
               className={INPUT_CLS}
             />
           </label>
@@ -115,8 +121,14 @@ export function EarningsHunterPanel() {
           type="button"
           disabled={!minPctValid}
           onClick={() => {
-            setEnabled(true)
-            q.refetch()
+            if (enabled) {
+              // 已启用（条件未变再点 = 强制刷新）：refetch 用当前渲染闭包的 key，正确。
+              q.refetch()
+            } else {
+              // 首次/条件变更后：false→true 自动 fetch，key 来自最新状态，
+              // 避免在同一同步块 refetch 旧闭包 key（切期后首扫会以旧 period 发冗余请求）。
+              setEnabled(true)
+            }
           }}
           className="rounded-tile border border-sf-line px-3 py-1.5 text-label text-sf-ink-2 hover:text-sf-accent disabled:opacity-50"
         >

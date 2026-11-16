@@ -1682,3 +1682,26 @@ A 批已把「后端已有写端点」整批接进 v2；本批只做此前登记
 
 - `ExportBundlePanels.test.tsx` 7/7（修复前 2 failed 坐实）；`tsc --noEmit` 0 错；全量 `vitest run` 通过（含新增 7 例）。
 - 提交分两笔：CSS 变量修复 `251027c`（4 文件，已推）；锐评双缺陷修复 + 测试（ExportBundlePanels.tsx + 新测试文件 + 本文档）。
+
+## 49. 锐评 · export_bundle 全链路诚实排除 + 77 面板「中间态参数偷跑」真缺陷（2026-11-16，继续 v2）
+
+> 锐评勘察面继续沿 D 批未扫区推进：`modules/export_bundle.py`（441 行装配核心）、`earnings_routes.py`、`EarningsHunterPanel.tsx`、`NlExecutePanel.tsx`。
+
+### 49.1 后端排除项（诚实负结果，全链路核验）
+
+- `export_bundle.py`：`scan_stock` 恒含 `report` 键（`build_risk_report` 结果）与前端 `_risk`/`_announcement` 的 None 安全分支对齐；`build_report` 恒产生 float `coverage_pct`（无 None 比较风险）；`build_default_sources` 闭包引用函数参数非循环变量，无晚绑定陷阱；`_watch_rows` 单只失败进 `logger.debug` 留痕 + 显式 `{代码, 名称: None}` 行。
+- `earnings_routes.py`：period 白名单 / min_pct 范围（NaN/inf 被范围判断拒）/ signals ⊆ SIGNAL_ORDER / NaN 递归转 None / `_MAX_ROWS=100` 截断诚实标注，逻辑严谨。
+
+### 49.2 真缺陷：77 面板 minPct 中间态偷跑 + 旧闭包 key 冗余请求
+
+失败测试先行坐实（新增 `EarningsHunterPanel.test.tsx` 3 例，修复前 `expected 4 to be 1`）：
+- **minPct 输入框变更不置 `enabled=false`**：已扫描过（enabled=true）时用户逐字输入 -50，敲 `-` 的瞬间 `Number('-')=NaN` → `min_pct` 中间态以 `undefined`（**无下限过滤**）入 queryKey → TanStack key 变化自动 fetch → **每敲一个字符发一次请求，结果表闪换成未过滤全量数据**。与报告期/信号级别的「点按钮才扫」语义相悖。修复：onChange 同置 `setEnabled(false)`（三控件语义统一：条件变更即失效，必须手动重扫）。
+- **按钮 onClick 的 `q.refetch()` 与 `setEnabled(true)` 同块**：refetch 用旧渲染闭包的 observer key——切报告期后首次扫描会以**旧 period** 发一次冗余请求，随后 enabled 翻转再以新 key 发一次（双发）。修复：分支处理——`enabled ? q.refetch() : setEnabled(true)`，两路 key 均为当前值。
+
+### 49.3 测试稳定性插曲（如实记录）
+
+修复后单文件首跑用例 2 报 `expected 2 to be 1`，加请求参数记录（msw handler 记 period）后 3/3 过，且 300ms 等待窗口 + `calls.params` 参数级断言连跑两次全过——判定为 vitest 转换缓存时序抖动（编辑组件后立即跑，transform 缓存未失效；测试文件自身变更触发重转换后消失）。**非产品代码竞态**：参数级断言证明唯一请求以初值 period 发出。
+
+### 49.4 验收
+
+- `EarningsHunterPanel.test.tsx` 3/3（修复前坐实 4 次请求含中间态偷跑）；`tsc --noEmit` 0 错（顺手清 unused import）；全量 `vitest run` **128 文件 / 938 passed / 2 skipped** 零回归。
