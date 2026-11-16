@@ -108,6 +108,8 @@ ROUTES = (
     ("/alerts", "alerts"),
     ("/webapps", "webapps"),
     ("/breadth", "breadth"),
+    ("/breadth-divergence", "breadth_divergence"),  # 61 广度结构分化（parity B）
+    ("/temperature-backtest", "temperature_backtest"),  # 63 五档温度回测（parity B）
     ("/ladder", "ladder"),
     ("/events", "events"),
     ("/predictions", "predictions"),
@@ -152,6 +154,7 @@ ROUTES = (
     ("/limit-up-review", "limit_up_review"),  # 70 涨停复盘（实时涨停池，诚实降级）
     ("/market-sentiment", "market_sentiment"),  # 50 市场情绪温度计（实时）
     ("/xingchen", "xingchen"),                  # 53 星辰 AI 助手（多会话 + 持久化）
+    ("/forum", "forum"),                        # 52 股吧社区（parity A，此前漏审计）
     ("/event-backtest", "event_backtest"),      # 事件因子回测（补齐 AppPath 覆盖）
     ("/stock/screener", "screener"),            # 31/33/81 选股框架（底部固定入口）
 )
