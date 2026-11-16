@@ -14,6 +14,7 @@ export type AppPath =
   // 61 广度结构分化 / 63 温度档历史回测（parity B 批次）
   | '/breadth-divergence'
   | '/temperature-backtest'
+  | '/pattern-scan'
   | '/ladder'
   | '/events'
   | '/event-backtest'
@@ -116,6 +117,7 @@ export const NAV: NavGroup[] = [
     items: [
       { to: '/recommend', label: '每日荐股', icon: '★' },
       { to: '/backtest', label: '策略回测', icon: '⊟' },
+      { to: '/pattern-scan', label: '技术形态扫描', icon: '⌗' },
       { to: '/paper', label: '模拟交易', icon: '⊞' },
       { to: '/portfolio', label: '持仓中心', icon: '💼' },
       { to: '/trading-account', label: '交易账户（只读）', icon: '💰' },

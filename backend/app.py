@@ -94,6 +94,8 @@ def create_app(config_object: type = Config) -> Flask:
     from .api.research_routes import bp as research_bp
     from .api.recommend_routes import bp as recommend_bp
     from .api.read_routes import bp as read_bp
+    from .api.pattern_routes import bp as pattern_bp
+    from .api.paper_write_routes import bp as paper_write_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(admin_bp)
@@ -110,6 +112,8 @@ def create_app(config_object: type = Config) -> Flask:
     app.register_blueprint(research_bp)
     app.register_blueprint(recommend_bp)
     app.register_blueprint(read_bp)
+    app.register_blueprint(pattern_bp)
+    app.register_blueprint(paper_write_bp)
 
     # ---- 市场指标异动定时调度器（守护线程，测试/禁用环境自动跳过）----
     try:

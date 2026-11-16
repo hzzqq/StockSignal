@@ -32,6 +32,7 @@ const LazyBreadthOverview = lazyRouteComponent(() => import('@/features/breadth/
 // parity B：61 广度结构分化 / 63 温度档回测（v1 纯算法模块后端化后的 v2 页面）
 const LazyBreadthDivergence = lazyRouteComponent(() => import('@/features/breadth/BreadthDivergence'), 'BreadthDivergence')
 const LazyTemperatureBacktest = lazyRouteComponent(() => import('@/features/breadth/TemperatureBacktest'), 'TemperatureBacktest')
+const LazyPatternScan = lazyRouteComponent(() => import('@/features/pattern/PatternScan'), 'PatternScan')
 const LazyLadderResonance = lazyRouteComponent(() => import('@/features/breadth/LadderResonance'), 'LadderResonance')
 const LazyEventPoolView = lazyRouteComponent(() => import('@/features/ops/EventPoolView'), 'EventPoolView')
 const LazyPredictionLogView = lazyRouteComponent(() => import('@/features/ops/PredictionLogView'), 'PredictionLogView')
@@ -204,6 +205,13 @@ const temperatureBacktestRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/temperature-backtest',
   component: LazyTemperatureBacktest,
+})
+
+// 31 形态选股：v1 离线纯函数算法后端化（parity C）
+const patternScanRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/pattern-scan',
+  component: LazyPatternScan,
 })
 
 const ladderRoute = createRoute({
@@ -601,6 +609,7 @@ const routeTree = rootRoute.addChildren([
     breadthRoute,
     breadthDivergenceRoute,
     temperatureBacktestRoute,
+    patternScanRoute,
     ladderRoute,
     eventsRoute,
     eventBacktestRoute,

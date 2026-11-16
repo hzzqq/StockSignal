@@ -63,7 +63,8 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   '71_因子分析.py': { to: '/factor' },
   '72_六维评分.py': { to: '/stock/six-dim' },
   // 交易 / 持仓
-  '42_模拟交易.py': { to: '/paper', note: '仅展示 /api/v2/read/paper-trades 只读账本；v1 的模拟下单/平仓写入本地 JSON 账本，后端无对应写端点，v2 暂未承接' },
+  // parity C：本地模拟账本写已接回（POST/DELETE paper-trades + reset），JWT 用户隔离，绝不触实盘
+  '42_模拟交易.py': { to: '/paper', note: 'v2 /paper 已承接 v1 的模拟账本写（本地 JSON 原子写、JWT 用户隔离、删除仅删记录不回滚现金/持仓）；与 43 实盘交易红线无关' },
   '40_仓位管理.py': { to: '/portfolio', note: SNAPSHOT_READONLY_NOTE },
   '41_组合收益.py': { to: '/portfolio', note: SNAPSHOT_READONLY_NOTE },
   '45_持仓中心.py': { to: '/portfolio', note: SNAPSHOT_READONLY_NOTE },
@@ -110,7 +111,8 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   '95_数据导出.py': { to: '/export', note: '当前仅导出原始 JSON 归档；v1 的 CSV/Excel/PDF/ZIP/研报多格式导出 v2 尚未承接' },
   // —— 以下为「已被现有 native 真实覆盖、此前误报为 data」的页，集中收口为 native（不新建页）——
   // 31/32 形态选股/智能选股：v2 等价实现 /recommend（每日荐股结果，只读展示）。
-  '31_形态选股.py': { to: '/recommend', note: 'v2 由每日荐股承接荐股结果；技术形态扫描器本身未迁移，已在 /stock/screener 如实登记' },
+  // parity C：v1 31 的高级形态识别纯函数已后端化，/pattern-scan 真承接（不是荐股结果代偿）
+  '31_形态选股.py': { to: '/pattern-scan', note: 'v2 由 /pattern-scan 承接 v1 的 MACD/均线/KDJ 金叉死叉与顶底背离纯函数算法（POST pattern-scan，单股失败 available=false 原样透出）' },
   '32_智能选股.py': { to: '/recommend' },
   // 34 体检扫描：v2 等价实现 /stock/six-dim（六维评分），非新建页。
   '34_体检扫描.py': { to: '/stock/six-dim' },

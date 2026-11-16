@@ -75,7 +75,6 @@ describe('v2Mapping · v1→v2 双向失真防复发守卫', () => {
 
   it('已知能力缩水页：mappingOf 必带非空 note（杜绝「标 native 却零说明」）', () => {
     const shrinkPages = [
-      '42_模拟交易.py',
       '11_股票选取.py',
       '14_智能盯盘.py',
       '20_个股分析.py',
@@ -90,9 +89,18 @@ describe('v2Mapping · v1→v2 双向失真防复发守卫', () => {
       expect(m.note, `${f} 缺诚实 note`).toBeTruthy()
       expect(m.note!.trim().length, `${f} note 为空`).toBeGreaterThan(0)
     }
-    // 性质最严重的两页：note 必须显式承认「只读 / 未承接」，不能只写套话
-    expect(mappingOf(mustPage('42_模拟交易.py')).note).toMatch(/只读|未承接/)
+    // 多格式导出仍未承接：note 必须显式承认，不能只写套话
+    // 42 模拟账本写已在 parity C 真承接（见下条 parity C 测试），不再属于缩水页
     expect(mappingOf(mustPage('95_数据导出.py')).note).toMatch(/多格式|尚未承接/)
+  })
+
+  it('parity C：31 形态扫描 / 42 模拟账本写已真承接为 native', () => {
+    const pat = mappingOf(mustPage('31_形态选股.py'))
+    expect(pat.status).toBe('native')
+    expect(pat.to).toBe('/pattern-scan')
+    const paper = mappingOf(mustPage('42_模拟交易.py'))
+    expect(paper.status).toBe('native')
+    expect(paper.note).toMatch(/模拟账本写/)
   })
 
   it('parity B：61 广度分化 / 63 温度回测已真承接为 native（不再是缩水页 / v1-only）', () => {

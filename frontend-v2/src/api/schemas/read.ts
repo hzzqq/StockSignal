@@ -132,6 +132,8 @@ export const PaperPositionSchema = z.object({
 export type PaperPosition = z.infer<typeof PaperPositionSchema>
 
 export const PaperTradeRowSchema = z.object({
+  // parity C：新写入的模拟成交带服务端 id；历史账本记录无 id，故为可选（不伪造）。
+  id: z.number().int().optional(),
   time: z.string().optional(),
   code: z.string().optional(),
   name: z.string().optional(),

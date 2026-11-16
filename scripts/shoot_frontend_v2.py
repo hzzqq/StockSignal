@@ -125,6 +125,7 @@ ROUTES = (
     ("/stock/compare?codes=600519,000001", "compare_dual"),  # W4-C 多股对比（双码态）
     ("/factor", "factor"),                    # Tier2 因子分析
     ("/backtest", "backtest"),                # Tier2 策略回测
+    ("/pattern-scan", "pattern_scan"),        # 31 技术形态扫描（parity C）
     ("/panorama", "panorama"),                # Tier2 市场全景
     ("/regime", "regime"),                    # Tier2 市场状态机
     ("/portfolio", "portfolio"),              # Tier2 持仓中心

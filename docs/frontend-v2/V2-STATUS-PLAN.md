@@ -1595,3 +1595,33 @@ A 批已把「后端已有写端点」整批接进 v2；本批只做此前登记
 - `pytest backend/tests`（独立库）：全通过。
 - `scripts/gen_portfolio_page.py --fast`：74 页 / 150 端点 / 4685 用例；公开物料同步。
 - 实盘交易红线未触碰，v2 API 层零交易路径。
+
+
+---
+
+## 46. parity C 批 · 形态扫描 + 模拟账本写（2026-11-16）
+
+### 46.1 承接范围（以源码实测为准）
+
+- `31_形态选股` → 新增 `POST /api/v2/pattern-scan`，封装 `modules/pattern_scan.py` 的 MACD / 均线 / KDJ 金叉死叉与顶底背离纯函数；1–50 个 6 位代码，仅 K 线取数、零联网；单股失败 `available=false` + reason 原样透出。v2 新路由 `/pattern-scan`（策略与持仓组）。
+- `42_模拟交易` → 新增 `POST/DELETE /api/v2/paper-trades`、`POST /api/v2/paper-trades/reset`：本地 JSON 原子写、JWT 用户隔离（不接受 body.user）、qty 100 整数倍、side 中文买/卖；删除只删记录、不回滚现金/持仓，UI 明示该语义。v2 `/paper` → `PaperWritePanels`。
+- 四档仍为 **64 native + 0 data + 0 v1-only + 10 v1-pinned = 74**：31/42 从「诚实 note 缩水」升级为真承接，未跨档（此前已是 native）。
+
+### 46.2 诚实口径
+
+- 形态是历史技术描述，不是收益预测；无 id 的历史成交记录不伪造 id，React key 用「id / 时间+代码+序号」稳定组合，消除重复 undefined key。
+- PatternScan 方向标签用中性色 + ▲/▼ 形状，禁止把 `text-ss-up/down` 涨跌色借作通用 UI 语义（价格域 `var(--color-ss-up/down)` 仍保留）。
+- 模拟账本写只碰本地 JSON，绝不复用 `/api/trade/*`、`/api/cond-orders` 等实盘红线端点。
+
+### 46.3 新增守卫
+
+- `tests/test_no_new_streamlit_pages.py`：磁盘 `pages/*.py` 集合 == 冻结清单 + 每页必须有 v2 映射；mutation 实测新增假页即红。技术栈红线 CI 化。
+- `v2Mapping.test.ts`：42 退出缩水页清单，42/31 的 note 断言改为「已真承接」，95 仍锁「多格式/尚未承接」。
+
+### 46.4 验收
+
+- `npx tsc --noEmit`：0 错。
+- `npx vitest run`：126 文件全通过。
+- `pytest backend/tests`（独立库 `sqlite:///E:/tmp/ss_probe_c/app.db`）：全通过。
+- `npm run build`：成功。
+- 实盘交易红线未触碰，v2 API 层零交易路径。

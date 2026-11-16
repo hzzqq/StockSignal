@@ -3,6 +3,7 @@ import { usePaperTrades } from '@/lib/queries'
 import { QueryState } from '@/shared/ui/States'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
+import { PaperWritePanels } from './PaperWritePanels'
 
 const INPUT_CLS =
   'mt-1 bg-sf-bg border border-sf-line text-sf-ink rounded px-2 py-1.5 outline-none focus:border-sf-accent'
@@ -113,6 +114,10 @@ export function PaperTrades() {
           </div>
         )}
       </QueryState>
+
+      <div className="mt-8">
+        <PaperWritePanels />
+      </div>
     </div>
   )
 }

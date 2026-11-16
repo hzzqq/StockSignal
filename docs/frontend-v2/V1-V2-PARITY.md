@@ -18,7 +18,7 @@
 | 本批把 **A 类（后端已有 REST 写端点）全量补齐**：自选股、垃圾股、用户打分、四类价格预警、市场告警、股吧社区、账户设置/头像/注册/登出 | 真 Flask 探针 `E:/tmp/ss_parity_api_probe.log`（probe5 独立库）+ 新增 3 组 API/Query/MSW handler |
 | 映射表存在**双向失真**：低报 53 星辰 AI / 52 股吧；高报 11/20/40/41/42/44/46 等只读壳 | 逐页源码取证，见 §2 |
 | C 类实盘红线明确不做，v2 API 层零路径字面量 | 新守卫硬断言 `/cond-orders`、`/trade/orders`、`action=buy` 绝不出现 |
-| 当前四档实时统计：**64 native + 0 data + 0 v1-only + 10 v1-pinned = 74**（B 批后） | `statusCounts()` 实测输出（vitest 日志实打印） |
+| 当前四档实时统计：**64 native + 0 data + 0 v1-only + 10 v1-pinned = 74**（C 批后，数值与 B 批相同：31/42 由「诚实 note 缩水」升级为「真承接」，未跨档） | `statusCounts()` 实测输出（vitest 日志实打印） |
 
 ---
 
@@ -42,7 +42,7 @@
 | `44_智能条件单.py` | `native → /alerts` | **`v1-pinned`（C 类红线）** | 页内明写真实下单、`action=buy\|sell`、`/api/cond-orders/scan`、调度器自动扫描下单 |
 | `43_实盘交易.py` | `v1-pinned` | **保持 `v1-pinned`** | QMT / easytrader 真实券商通道仅 v1 |
 | `63_温度回测.py` | `native → /backtest`（假）→ `v1-only` | **`native` → `/temperature-backtest`** | B 批新增 `modules/temperature_backtest.py` 端点与页面，五档回测真承接，v1-only 归零 |
-| `42_模拟交易.py` | `native`（note 空） | **`native` + 诚实 note** | v2 `/paper` 是只读壳，模拟账本写能力未承接 |
+| `42_模拟交易.py` | `native`（note 空） | **`native` 真承接（C 批）** | C 批新增 `POST/DELETE /api/v2/paper-trades` 与 `POST /api/v2/paper-trades/reset`，`/paper` → `PaperWritePanels` 本地 JSON 原子写、JWT 用户隔离、删除仅删记录不回滚现金/持仓 |
 | `61_广度分化.py` | 压进 `/breadth` 无 note | **`native` → `/breadth-divergence`** | B 批新增 `modules/breadth_divergence.py` 端点，日历热力 / 分化检测 / 双轴趋势真承接 |
 | `95_数据导出.py` | 未声明缩水 | **`native` + 诚实 note** | v1 六类产物（CSV / Excel 多 Sheet / PDF / ZIP / 研报 HTML / 研报 MD），v2 `/export` 只有原始 JSON Blob |
 
@@ -71,7 +71,7 @@
 
 ---
 
-## 4. B 类 · 需后端新增能力（本批承接 4 项，余 5 项延后）
+## 4. B 类 · 需后端新增能力（B 批承接 4 项 + C 批承接 2 项，余 3 项延后）
 
 ### 本批已承接（2026-11-16）
 
@@ -82,15 +82,22 @@
 | `73_自定义看板` | `PUT /api/v2/read/user-dashboard`（v2 组件 id 白名单 5 个，1–5 项保序） | `/dashboard-custom`：localStorage 即时态 + 服务端持久化；深链只读不回写 |
 | `51_复盘笔记` | `PUT /api/v2/read/review-notes`（按日期 Markdown 全文覆盖，原子写） | `/review-notes`：编辑区默认空，主动「载入原文」才回填；失败如实报错 |
 
+#### C 批已承接（2026-11-16）
+
+| 页 | 新增后端能力 | v2 落点 |
+|---|---|---|
+| `31_形态选股` | `POST /api/v2/pattern-scan`（封装 `modules/pattern_scan.py` 的 MACD / 均线 / KDJ 金叉死叉与顶底背离纯函数，1–50 code，仅 K 线取数、零联网） | 新路由 `/pattern-scan`：单股失败 `available=false` + reason 原样透出，不补 0、不伪造形态 |
+| `42_模拟交易` | `POST/DELETE /api/v2/paper-trades`、`POST /api/v2/paper-trades/reset`（本地 JSON 原子写；JWT 用户隔离；qty 100 整数倍；删除只删记录不回滚现金/持仓） | `/paper` → `PaperWritePanels`：记一笔 / 删记录（历史无 id 不可删）/ 重置；与 43 实盘红线无关 |
+
 ### 延后（诚实登记，未承接）
 
 | 页 | 缺口 | 当前 v2 状态 |
 |---|---|---|
-| `31_形态选股` | 形态识别服务端算法 | `/recommend` 无等价筛选 |
-| `77_跨股财报筛选` | 跨股财务条件组合查询 | `/earnings-calendar` 仅日历 |
+| `77_财报猎手` | 跨股财务条件组合查询（C 批未承接；页名按磁盘 `77_财报猎手.py` 校正，旧表述 `77_跨股财报筛选` 失真） | `/financial-hunter` 当前未做条件组合查询 |
 | `81_自然语言选股执行` | NL 解析有 `/nl-screen`，执行链路无 | 只解析不执行 |
 | `95_数据导出` | PDF / Excel 多 Sheet / ZIP / 研报 HTML+MD 六类产物 | `/export` 仅 JSON Blob |
-| `42_模拟交易` | 模拟账本写能力 | `/paper` 只读壳 |
+
+> 31 / 42 已在 C 批真承接，从延后表移除；剩余 3 项（77 / 81 / 95）继续诚实登记为未承接。
 
 ---
 
@@ -140,5 +147,6 @@
 - 诚实数据守卫：`honest-data.test.tsx` 扫全 `src`，禁止 `?? 0` / `|| 0` / `new Date()` 冒充数据日。
 - 跨语言契约：`contract-drift.test.ts` A 段夹具 ↔ Zod 恒跑；B 段在 `SS_BACKEND_URL` 可用时拉真后端只读端点校验。
 - B 批：`backend/tests/test_batch_b_endpoints.py` 真 Flask `test_client` + 独立库 + 写后 GET 回读；`handlersBatchB` 已并入 `handlers.ts`，`batchBFixturePairs` 已入契约漂移 A 段。
+- C 批：`backend/tests/test_pattern_scan.py`（26 例，含 1–50 code / 无 id 行 / 单股失败诚实降级）、`backend/tests/test_paper_write_routes.py`（3 类写端点 + JWT 隔离 + 422/401 + 删记录不回滚）；前端 `patternScan/paperWrite` schema + fixture + handler 全接入契约漂移 A 段。
 
 > MSW 演示态的时间戳是固定常量 `MOCK_WRITE_TS`，内存态 CRUD 仅为演示交互，不代表真实行情 / 真实账户数据。
