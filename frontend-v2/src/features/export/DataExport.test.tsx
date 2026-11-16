@@ -29,10 +29,11 @@ beforeEach(() => {
   snapMock.mockReset().mockResolvedValue(okData)
 })
 
-/** 选中日期（先等下拉清单落定再触发 change，避开 act 时序抖动）。 */
+/** 选中日期（先等下拉清单落定再触发 change，避开 act 时序抖动）。
+ * parity D 后页面另有「导出格式」「研报格式」下拉，此处按 name 精确定位归档日期下拉。 */
 async function pickDate(date: string) {
   await screen.findByText('2026-02-28')
-  fireEvent.change(screen.getByRole('combobox'), { target: { value: date } })
+  fireEvent.change(screen.getByRole('combobox', { name: '选择归档日期' }), { target: { value: date } })
 }
 
 describe('DataExport · 95 数据导出 · 归档快照 + 错误按 code 分流', () => {

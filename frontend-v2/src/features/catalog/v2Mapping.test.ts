@@ -82,16 +82,29 @@ describe('v2Mapping · v1→v2 双向失真防复发守卫', () => {
       '41_组合收益.py',
       '45_持仓中心.py',
       '46_自选股监控.py',
-      '95_数据导出.py',
     ]
     for (const f of shrinkPages) {
       const m = mappingOf(mustPage(f))
       expect(m.note, `${f} 缺诚实 note`).toBeTruthy()
       expect(m.note!.trim().length, `${f} note 为空`).toBeGreaterThan(0)
     }
-    // 多格式导出仍未承接：note 必须显式承认，不能只写套话
-    // 42 模拟账本写已在 parity C 真承接（见下条 parity C 测试），不再属于缩水页
-    expect(mappingOf(mustPage('95_数据导出.py')).note).toMatch(/多格式|尚未承接/)
+    // 42 模拟账本写已在 parity C 真承接、95 多格式导出已在 parity D 真承接
+    // （见下条 parity D 测试），均不再属于缩水页
+  })
+
+  it('parity D：77 业绩预告扫描 / 81 NL 执行 / 95 多格式导出已真承接为 native', () => {
+    const fh = mappingOf(mustPage('77_财报猎手.py'))
+    expect(fh.status).toBe('native')
+    expect(fh.to).toBe('/financial-hunter')
+    expect(fh.note).toMatch(/earnings-hunter/)
+    const nl = mappingOf(mustPage('81_自然语言选股.py'))
+    expect(nl.status).toBe('native')
+    expect(nl.to).toBe('/stock/screener')
+    expect(nl.note).toMatch(/nl-screen\/execute/)
+    const exp = mappingOf(mustPage('95_数据导出.py'))
+    expect(exp.status).toBe('native')
+    expect(exp.to).toBe('/export')
+    expect(exp.note).toMatch(/export-bundle/)
   })
 
   it('parity C：31 形态扫描 / 42 模拟账本写已真承接为 native', () => {

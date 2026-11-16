@@ -9,6 +9,7 @@ import { v1PageUrl } from '@/lib/preferences'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
+import { NlExecutePanel } from './NlExecutePanel'
 
 /**
  * 选股框架（/stock/screener）：把 v1「31 形态选股 / 33 ETF筛选 / 81 自然语言选股」
@@ -187,6 +188,8 @@ export function Screener() {
           <div className="text-xs text-sf-ink-3">尚未提交查询（不预填、不臆造解析结果）。</div>
         )}
       </Card>
+
+      <NlExecutePanel />
 
       <Card title="v1 三类选股页 · 如实落地状态（单一真理源 v2Mapping）">
         <ul className="space-y-2">

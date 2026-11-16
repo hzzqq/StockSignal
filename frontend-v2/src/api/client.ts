@@ -135,3 +135,81 @@ async function run<T>(path: string, init: RequestInit, retried: boolean): Promis
 export function apiFetch<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
   return run<T>(path, init, false)
 }
+
+/**
+ * 文件字节下载（parity D · 95 数据导出）：同款 401 单飞刷新，但读取 Blob 而非 JSON 信封。
+ *
+ * 后端契约（export-bundle zip/excel/pdf）：成功 → 二进制 + Content-Disposition；
+ * 失败（全数据集失败 / 格式化崩）→ HTTP 200 + JSON 信封 available=false。
+ * 因此：响应是 JSON（或非 2xx）时按信封解析并抛 ApiError（message 即诚实 reason）；
+ * 只有真二进制才返回 { blob, filename }。绝不把 JSON 错误信封当作文件字节保存。
+ */
+export interface BlobDownload {
+  blob: Blob
+  /** 来自 Content-Disposition（RFC 5987 filename* 优先）；后端未提供时为 null。 */
+  filename: string | null
+}
+
+async function runBlob(path: string, init: RequestInit, retried: boolean): Promise<BlobDownload> {
+  const store = tokenStore()
+  const headers = new Headers(init.headers)
+  if (store.access) headers.set('Authorization', `Bearer ${store.access}`)
+
+  const res = await fetch(`${BASE}${path}`, {
+    ...init,
+    credentials: 'include',
+    headers,
+  })
+
+  if (res.status === 401) {
+    if (retried) {
+      store.access = null
+      store.refresh = null
+      throw new ApiError('unauthorized', '认证失败，请重新登录')
+    }
+    if (!refreshPromise) {
+      refreshPromise = doRefresh().finally(() => {
+        refreshPromise = null
+      })
+    }
+    const ok = await refreshPromise
+    if (!ok) {
+      store.access = null
+      store.refresh = null
+      throw new ApiError('unauthorized', '登录已过期，请重新登录')
+    }
+    return runBlob(path, init, true)
+  }
+
+  const contentType = res.headers.get('content-type') ?? ''
+  const isJson = contentType.includes('application/json')
+  if (!res.ok || isJson) {
+    const env = await readEnvelope(res)
+    if (env.status !== 'ok') throw new ApiError(env.code, env.message)
+    // HTTP 200 + ok 信封 = 业务降级（available=false 等），以业务码抛出交 UI 展示
+    throw new ApiError('unavailable', '本次导出无可用数据（后端返回降级说明，无文件）')
+  }
+  return {
+    blob: await res.blob(),
+    filename: filenameFromDisposition(res.headers.get('content-disposition')),
+  }
+}
+
+export function apiFetchBlob(path: string, init: RequestInit = {}): Promise<BlobDownload> {
+  return runBlob(path, init, false)
+}
+
+/** 从 Content-Disposition 提取下载文件名（RFC 5987 filename* 优先，回退 filename）。 */
+export function filenameFromDisposition(header: string | null): string | null {
+  if (!header) return null
+  const star = /filename\*=(?:UTF-8''|utf-8'')([^;]+)/i.exec(header)
+  if (star) {
+    try {
+      return decodeURIComponent(star[1].replace(/^"|"$/g, ''))
+    } catch {
+      /* 非法编码回退 filename */
+    }
+  }
+  const plain = /filename="?([^";]+)"?/.exec(header)
+  return plain ? plain[1] : null
+}

@@ -6,6 +6,7 @@ import type { Financials } from '@/api/schemas/stock'
 import { Card } from '@/shared/ui/Card'
 import { QueryState } from '@/shared/ui/States'
 import { fmtNum } from '@/lib/format'
+import { EarningsHunterPanel } from './EarningsHunterPanel'
 
 /**
  * 77 财报猎手（/financial-hunter，v2 native，旧 77 财报猎手页）。
@@ -13,8 +14,10 @@ import { fmtNum } from '@/lib/format'
  *
  * 诚实红线（与 FundamentalsView 同款）：null 数值显示「缺失」/「—」而非 0；date 为 null
  * 显示「暂无权威数据日」，禁用当前日期兜底；note 原文展示，不改写、不包装成投资建议。
- * 重要边界：本页为「逐股票深挖」视图（输入代码 → 多期财报三表之一），不是跨股票筛选器——
- * v2 暂无跨股财报筛选端点，页面如实说明，绝不伪造筛选结果。
+ * 能力边界（parity D 后）：本页上半部为「逐股票深挖」视图（输入代码 → 多期财报三表之一）；
+ * 跨股筛选 = 业绩预告信号扫描（EarningsHunterPanel → GET /api/v2/read/earnings-hunter，
+ * 封装 modules.financial_hunter.scan，best-effort，无数据 available=false 原文透出），
+ * 仍非任意财务字段组合查询，绝不伪造筛选结果。
  */
 const CODE_RE = /^\d{6}$/
 const DEFAULT_CODE = '600519'
@@ -144,12 +147,14 @@ function HunterBody({ data, code }: { data: Financials; code: string }) {
         </p>
         <ul className="mt-3 space-y-1 text-label text-sf-ink-3 list-disc pl-5">
           <li>
-            本页为「逐股票深挖」视图：输入 6 位代码后按所选报表展示多期财务数据；非跨股票筛选器
-            （v2 暂无跨股财报筛选端点），不伪造筛选结果。
+            本页上半部分为「逐股票深挖」视图：输入 6 位代码后按所选报表展示多期财务数据；
+            跨股筛选由下方「业绩预告信号扫描」面板承接（parity D，东财业绩预告 best-effort）。
           </li>
           <li>数据日来自后端原始响应，可能来自过期缓存（旧交易日），不标注「今日」。</li>
         </ul>
       </Card>
+
+      <EarningsHunterPanel />
     </div>
   )
 }

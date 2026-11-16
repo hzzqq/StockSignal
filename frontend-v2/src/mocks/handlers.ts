@@ -7,6 +7,7 @@ import { alertWriteHandlers, resetAlertWriteMock } from './handlersAlertWrite'
 import { communityHandlers, resetCommunityMock } from './handlersCommunity'
 // v1/v2 parity B 类端点：广度分化 / 温度回测 / 看板写 / 复盘笔记写
 import { batchBHandlers, resetBatchBMock } from './handlersBatchB'
+import { batchDHandlers } from './handlersBatchD'
 
 /** 统一成功信封（严格对齐 backend/utils/response.py::_ok_payload）。
  * ⚠️ code 是**字符串业务码**（真后端默认 "ok"），不是数字 0。
@@ -689,6 +690,7 @@ handlers.push(
  */
 handlers.push(...userCollectionsHandlers, ...alertWriteHandlers, ...communityHandlers)
 handlers.push(...batchBHandlers)
+handlers.push(...batchDHandlers)
 
 /** 三组写端点内存态复位（测试间调用，与 resetAdminMock / resetChatMock 同范式）。 */
 export { resetUserCollectionsMock, resetAlertWriteMock, resetCommunityMock, resetBatchBMock }

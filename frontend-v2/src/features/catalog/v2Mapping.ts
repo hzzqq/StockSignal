@@ -102,13 +102,14 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   '92_用户管理.py': { to: '/users' },
   // 77 财报猎手：v2 等价实现 /financial-hunter，逐股票三表（income/balance/cash）切换深挖；
   // 非跨股筛选器（v2 暂无跨股财报筛选端点），页面如实说明。
-  '77_财报猎手.py': { to: '/financial-hunter' },
+  '77_财报猎手.py': { to: '/financial-hunter', note: 'v2 已承接业绩预告信号扫描（GET /api/v2/read/earnings-hunter，封装 modules.financial_hunter.scan，best-effort）与个股一键研报（/stock-report）；逐股财报深挖走 financials 三表。仍非任意财务字段组合查询' },
+  '81_自然语言选股.py': { to: '/stock/screener', note: 'v2 已承接语义解析层 + 执行链路（POST /api/v2/nl-screen/execute：候选池三级降级取数 → 条件过滤 → 二道闸排雷，available=false 原文透出）；执行依赖联网取数，离线环境仍只展示解析（能力边界非故障）' },
   // 73 自定义看板：parity B 新增服务端持久化 PUT /api/v2/read/user-dashboard（v2 组件 id，保序），
   // localStorage 仍作即时本地态；深链 ?widgets= 只读覆盖不回写。
   '73_自定义看板.py': { to: '/dashboard-custom', note: '服务端偏好写已承接（PUT user-dashboard，v2 组件 id）；注意 v2 的 5 个组件与 v1 的 6 个 Streamlit widget 并非一一对应' },
   // 95 数据导出：v2 等价实现 /export，仅浏览归档快照并导出原始 JSON（纯前端，无写能力）；
   // v1 的 CSV/Excel/PDF/ZIP/研报多格式导出尚未承接，note 如实声明。
-  '95_数据导出.py': { to: '/export', note: '当前仅导出原始 JSON 归档；v1 的 CSV/Excel/PDF/ZIP/研报多格式导出 v2 尚未承接' },
+  '95_数据导出.py': { to: '/export', note: 'v2 已承接多格式导出（GET /api/v2/read/export-bundle：7 数据集 best-effort → ZIP(全 CSV)/Excel 多 Sheet/PDF 中文摘要/JSON 预览）与一键研报（GET /api/v2/read/stock-report HTML/MD）；单数据集失败进 skipped 全清单，绝不补零' },
   // —— 以下为「已被现有 native 真实覆盖、此前误报为 data」的页，集中收口为 native（不新建页）——
   // 31/32 形态选股/智能选股：v2 等价实现 /recommend（每日荐股结果，只读展示）。
   // parity C：v1 31 的高级形态识别纯函数已后端化，/pattern-scan 真承接（不是荐股结果代偿）
@@ -171,7 +172,6 @@ const PINNED: Record<string, { note: string }> = {
   '43_实盘交易.py': { note: '真实券商下单(QMT/同花顺)仅 v1；v2 仅有只读账户概览（交易账户入口），不提供交易能力' },
   // 44 智能条件单：原被错标 native→/alerts，实为真实券商条件单 / 自动扫描触发下单，属实盘红线，纠正归入 PINNED。
   '44_智能条件单.py': { note: '真实券商条件单 / 自动扫描触发下单仅 v1；后端 /api/cond-orders、action=buy|sell、调度器真实下单属实盘红线，v2 不提供' },
-  '81_自然语言选股.py': { note: '实验性 NL 选股；v2 仅承接语义解析层（/stock/screener 透明展示「听懂了什么」，不触网、不返回候选标的），联网筛选执行仍仅 v1，v2 不做等价实现' },
   '83_分析规则库.py': { note: '规则维护工具，留 v1' },
   '87_语音事件.py': { note: '语音采集低频功能，留 v1' },
 }

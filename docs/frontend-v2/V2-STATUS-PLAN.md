@@ -1625,3 +1625,37 @@ A 批已把「后端已有写端点」整批接进 v2；本批只做此前登记
 - `pytest backend/tests`（独立库 `sqlite:///E:/tmp/ss_probe_c/app.db`）：全通过。
 - `npm run build`：成功。
 - 实盘交易红线未触碰，v2 API 层零交易路径。
+
+
+---
+
+## 47. parity D 批 · 77 业绩预告扫描 + 81 NL 执行 + 95 多格式导出（2026-11-16，B 类延后清零）
+
+### 47.1 承接范围（以源码实测为准）
+
+- `77_财报猎手` → `GET /api/v2/read/earnings-hunter`（封装 `modules.financial_hunter.scan`，东财业绩预告 best-effort，period 白名单 5 档 / min_pct -200~200 / signals ⊆ 五档）+ `GET /api/v2/read/stock-report`（一键研报 HTML/MD，复用 `modules.research_report`，coverage 0% 即 available=false）。v2 `/financial-hunter` 加 `EarningsHunterPanel` 与 `StockReportPanel`。
+- `81_自然语言选股` → `POST /api/v2/nl-screen/execute`：候选池三级降级（local_api → akspot → custom，全部依赖注入可零联网测试）→ `nl_screen.apply_filters` → 二道闸 `risk_gate.scan_and_gate`；全未理解 / 候选池空 / 执行异常一律 200 + available=false + reason 原文（截 180 字）。v2 `/stock/screener` 加 `NlExecutePanel`，走统一写层 `useWriteMutation`。
+- `95_数据导出` → `GET /api/v2/read/export-bundle?format=zip|excel|pdf|json`：7 数据集 best-effort 装配（单失败进 skipped），ZIP=全 CSV utf-8-sig + manifest、Excel=openpyxl 多 Sheet、PDF=reportlab 中文摘要前 25 行、JSON=页面预览；`GET /api/v2/read/stock-report` 一键研报。v2 `/export` 加 `ExportBundlePanel` + `StockReportPanel`，文件下载走新增 `apiFetchBlob`。
+- 集成要点：`app.py::_add_headers` 豁免 `application/zip`、`application/pdf`、xlsx MIME（否则文件响应被强制改写为 JSON 头）。
+- 四档变为 **65 native + 0 data + 0 v1-only + 9 v1-pinned = 74**（77/95 诚实 note 升级为真承接未跨档；**81 从 v1-pinned 跨档为 native**——执行链路落地后「v2 不做等价实现」的旧决策失效）；**B 类延后项全部清零**。
+
+### 47.2 诚实口径
+
+- 业绩预告是启发式文本分级（预增/扭亏→利好 等），不是预测；预增≠必涨，预告也可能被修正。
+- NL 执行依赖联网取数；离线环境只展示解析是能力边界非故障——available=false + reason 原文，绝不伪造筛选行。
+- 导出单数据集失败进 skipped 全清单，绝不补零；研报缺数据板块标注「数据不可用」；`apiFetchBlob` 收到 JSON 降级信封时抛错，绝不把错误说明存成损坏文件。
+- `honest-data` 守卫抓出本批 5 处 `?? 0` / `new Date()`（coverage 缺失显「—」、fallback 文件名去时间戳、计数显式三元）——全部按守卫语义修复而非绕过。
+
+### 47.3 新增接线
+
+- `src/api/client.ts::apiFetchBlob` + `filenameFromDisposition`（401 单飞刷新同款；RFC 5987 文件名解析）。
+- `handlersBatchD` + `batchDFixturePairs`（4 组夹具对）入 `handlers.ts` 与契约漂移 A 段。
+
+### 47.4 验收
+
+- `npx tsc --noEmit`：0 错。
+- `npx vitest run`：126 文件全通过。
+- `pytest backend/tests`（独立库 `sqlite:///E:/tmp/ss_probe_d/app.db`）：全通过（含 `test_no_silent_swallow` 抓出 `nl_execute_routes.py` 一处宽泛静默吞异常，已改 logger.debug 留痕）。
+- `npm run build`：成功。
+- 生成器：74 页 / 158 端点 / 4761 用例 / 517 测试文件，7 份公开物料同步。
+- 实盘交易红线未触碰，v2 API 层零交易路径。

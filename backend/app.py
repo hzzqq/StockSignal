@@ -96,6 +96,9 @@ def create_app(config_object: type = Config) -> Flask:
     from .api.read_routes import bp as read_bp
     from .api.pattern_routes import bp as pattern_bp
     from .api.paper_write_routes import bp as paper_write_bp
+    from .api.earnings_routes import bp as earnings_bp
+    from .api.export_routes import bp as export_bp
+    from .api.nl_execute_routes import bp as nl_execute_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(admin_bp)
@@ -114,6 +117,9 @@ def create_app(config_object: type = Config) -> Flask:
     app.register_blueprint(read_bp)
     app.register_blueprint(pattern_bp)
     app.register_blueprint(paper_write_bp)
+    app.register_blueprint(earnings_bp)
+    app.register_blueprint(export_bp)
+    app.register_blueprint(nl_execute_bp)
 
     # ---- 市场指标异动定时调度器（守护线程，测试/禁用环境自动跳过）----
     try:
@@ -325,7 +331,11 @@ def _register_security_headers(app: Flask) -> None:
         ct = resp.headers.get("Content-Type", "")
         # 安全网：把「意外」的非 JSON 响应强制为 JSON，避免 Flask 默认 HTML 错误页泄漏。
         # 有意的管理界面 HTML 页（text/html）与导出文件（text/markdown）必须保留，不能被误改成 JSON 头。
-        if "text/html" not in ct and "text/markdown" not in ct and not ct.startswith("application/json"):
+        _FILE_MIMES = ("application/zip", "application/pdf",
+                       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        if ("text/html" not in ct and "text/markdown" not in ct
+                and not ct.startswith("application/json")
+                and not ct.startswith(_FILE_MIMES)):
             try:
                 resp.headers["Content-Type"] = "application/json; charset=utf-8"
             except Exception as e:

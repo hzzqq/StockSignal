@@ -18,7 +18,7 @@
 | 本批把 **A 类（后端已有 REST 写端点）全量补齐**：自选股、垃圾股、用户打分、四类价格预警、市场告警、股吧社区、账户设置/头像/注册/登出 | 真 Flask 探针 `E:/tmp/ss_parity_api_probe.log`（probe5 独立库）+ 新增 3 组 API/Query/MSW handler |
 | 映射表存在**双向失真**：低报 53 星辰 AI / 52 股吧；高报 11/20/40/41/42/44/46 等只读壳 | 逐页源码取证，见 §2 |
 | C 类实盘红线明确不做，v2 API 层零路径字面量 | 新守卫硬断言 `/cond-orders`、`/trade/orders`、`action=buy` 绝不出现 |
-| 当前四档实时统计：**64 native + 0 data + 0 v1-only + 10 v1-pinned = 74**（C 批后，数值与 B 批相同：31/42 由「诚实 note 缩水」升级为「真承接」，未跨档） | `statusCounts()` 实测输出（vitest 日志实打印） |
+| 当前四档实时统计：**65 native + 0 data + 0 v1-only + 9 v1-pinned = 74**（D 批后：77/95 由诚实 note 升级为真承接未跨档；**81 从 v1-pinned 跨档为 native**——执行链路真落地后「不做等价实现」的架构决策不再成立；至此 B 类延后项全部清零） | `statusCounts()` 实测输出（vitest 日志实打印） |
 
 ---
 
@@ -71,7 +71,7 @@
 
 ---
 
-## 4. B 类 · 需后端新增能力（B 批承接 4 项 + C 批承接 2 项，余 3 项延后）
+## 4. B 类 · 需后端新增能力（B/C/D 三批共承接 9 项，延后清零）
 
 ### 本批已承接（2026-11-16）
 
@@ -89,15 +89,15 @@
 | `31_形态选股` | `POST /api/v2/pattern-scan`（封装 `modules/pattern_scan.py` 的 MACD / 均线 / KDJ 金叉死叉与顶底背离纯函数，1–50 code，仅 K 线取数、零联网） | 新路由 `/pattern-scan`：单股失败 `available=false` + reason 原样透出，不补 0、不伪造形态 |
 | `42_模拟交易` | `POST/DELETE /api/v2/paper-trades`、`POST /api/v2/paper-trades/reset`（本地 JSON 原子写；JWT 用户隔离；qty 100 整数倍；删除只删记录不回滚现金/持仓） | `/paper` → `PaperWritePanels`：记一笔 / 删记录（历史无 id 不可删）/ 重置；与 43 实盘红线无关 |
 
-### 延后（诚实登记，未承接）
+#### D 批已承接（2026-11-16，B 类延后项至此全部清零）
 
-| 页 | 缺口 | 当前 v2 状态 |
+| 页 | 新增后端能力 | v2 落点 |
 |---|---|---|
-| `77_财报猎手` | 跨股财务条件组合查询（C 批未承接；页名按磁盘 `77_财报猎手.py` 校正，旧表述 `77_跨股财报筛选` 失真） | `/financial-hunter` 当前未做条件组合查询 |
-| `81_自然语言选股执行` | NL 解析有 `/nl-screen`，执行链路无 | 只解析不执行 |
-| `95_数据导出` | PDF / Excel 多 Sheet / ZIP / 研报 HTML+MD 六类产物 | `/export` 仅 JSON Blob |
+| `77_财报猎手` | `GET /api/v2/read/earnings-hunter`（封装 `modules.financial_hunter.scan`，东财业绩预告 best-effort 30 分钟缓存；period 白名单 5 档 + min_pct + signals） + `GET /api/v2/read/stock-report`（一键研报 HTML/MD，复用 `modules.research_report`，覆盖率 0% 即 available=false） | `/financial-hunter` → `EarningsHunterPanel`（跨股预告扫描）+ `StockReportPanel` |
+| `81_自然语言选股` | `POST /api/v2/nl-screen/execute`（候选池三级降级 local_api→akspot→custom → `nl_screen.apply_filters` → 二道闸 `risk_gate.scan_and_gate`；全未理解 / 取数失败 available=false + reason 原文） | `/stock/screener` → `NlExecutePanel`（执行筛选 + 结果表 + 排雷明细） |
+| `95_数据导出` | `GET /api/v2/read/export-bundle?format=zip|excel|pdf|json`（7 数据集 best-effort，单失败进 skipped；ZIP 全 CSV + manifest / openpyxl 多 Sheet / reportlab 中文摘要前 25 行 / JSON 预览） | `/export` → `ExportBundlePanel`（apiFetchBlob 文件下载，JSON 档页面预览） |
 
-> 31 / 42 已在 C 批真承接，从延后表移除；剩余 3 项（77 / 81 / 95）继续诚实登记为未承接。
+> 31 / 42 已在 C 批真承接；77 / 81 / 95 已在 D 批真承接——**B 类延后项全部清零**，v2 对 v1 的能力对标至此闭环（C 类实盘红线除外，永久不做）。
 
 ---
 
@@ -148,5 +148,6 @@
 - 跨语言契约：`contract-drift.test.ts` A 段夹具 ↔ Zod 恒跑；B 段在 `SS_BACKEND_URL` 可用时拉真后端只读端点校验。
 - B 批：`backend/tests/test_batch_b_endpoints.py` 真 Flask `test_client` + 独立库 + 写后 GET 回读；`handlersBatchB` 已并入 `handlers.ts`，`batchBFixturePairs` 已入契约漂移 A 段。
 - C 批：`backend/tests/test_pattern_scan.py`（26 例，含 1–50 code / 无 id 行 / 单股失败诚实降级）、`backend/tests/test_paper_write_routes.py`（3 类写端点 + JWT 隔离 + 422/401 + 删记录不回滚）；前端 `patternScan/paperWrite` schema + fixture + handler 全接入契约漂移 A 段。
+- D 批：`backend/tests/test_earnings_hunter.py`（22 例）+ `test_export_bundle.py`（34 例，zip PK / xlsx 读回 / %PDF magic / NaN→None）+ `test_nl_execute.py`（19 例，全零联网注入假候选池）；前端 `handlersBatchD` + `batchDFixturePairs` 入契约漂移 A 段；文件下载走新增 `apiFetchBlob`（JSON 错误信封识别，绝不把降级说明存成文件）。
 
 > MSW 演示态的时间戳是固定常量 `MOCK_WRITE_TS`，内存态 CRUD 仅为演示交互，不代表真实行情 / 真实账户数据。
