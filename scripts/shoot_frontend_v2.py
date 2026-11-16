@@ -394,7 +394,7 @@ def sample(cdp: CDP) -> dict:
             colorScheme: cs.colorScheme || null,
             bodyBg: getComputedStyle(document.body).backgroundColor || null,
             rootChildren: (document.getElementById('root')||{}).children?.length || 0,
-            textLen: (document.body.innerText || '').length,
+            textLen: ((document.body || {}).innerText || '').length,
             interactive: document.querySelectorAll(
                 'input,button,a,table,canvas,[role="status"],[role="img"]'
             ).length,
@@ -502,7 +502,7 @@ def capture_sixdim_partial(cdp: CDP, theme: str, out_dir: Path,
         probe_expr = """(() => {
           const q = (s) => document.querySelector(s);
           const txt = (s) => ((q(s) && q(s).textContent) || '').trim();
-          const body = document.body.innerText || '';
+          const body = (document.body || {}).innerText || '';
           const cs = Array.from(document.querySelectorAll('canvas')).map(
               c => ({w: c.width, h: c.height}));
           return {
@@ -588,7 +588,7 @@ def capture_deeplink_case(cdp: CDP, base_url: str, case: tuple, theme: str,
             path: location.pathname,
             search: location.search,
             kids: (document.getElementById('root')||{}).children?.length || 0,
-            textLen: (document.body.innerText || '').length
+            textLen: ((document.body || {}).innerText || '').length
         }))()"""
         info = {}
         deadline = time.time() + 16.0
