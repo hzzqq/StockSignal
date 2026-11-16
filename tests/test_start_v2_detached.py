@@ -22,7 +22,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 BAT = ROOT / "start_frontend_v2.bat"
 STOP_BAT = ROOT / "_stop_services.bat"
-SH = ROOT / "start_frontend_v2.sh"
 VBS = ROOT / "start_frontend_v2_hidden.vbs"
 LAUNCHER = ROOT / "scripts" / "start_v2_detached.py"
 VITE_CFG = ROOT / "frontend-v2" / "vite.config.ts"
@@ -246,12 +245,6 @@ def test_vite_uses_strict_port():
         "端口被占用时 Vite 静默漂移到 5174 会让整条停止/探测链路指向错误端口"
 
 
-def test_sh_uses_the_same_detached_launcher():
-    text = SH.read_text(encoding="utf-8")
-    assert "scripts/start_v2_detached.py" in text
-    assert "export VITE_ENABLE_MOCKS=false" in text
-    assert "STOCKSIGNAL_USE_MOCKS" in text
-    assert "nohup npm run dev" not in text
-    assert "SS_OPEN_BROWSER" in text
-    assert "npm.cmd" in text
-    assert "The services keep running after this terminal is closed." in text
+# start_frontend_v2.sh（Git Bash/Linux 入口）已于 2026-11-17 移除：
+# 单 Windows 用户只需 .bat 入口，跨平台 .sh 与 .bat 双入口徒增维护面；
+# detached 核心逻辑仍由 scripts/start_v2_detached.py 承载（POSIX 分支保留在其内）。
