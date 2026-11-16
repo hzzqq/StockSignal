@@ -20,6 +20,10 @@ import * as D from '@/api/schemas/diagnostics'
 import { StockSearchResultSchema } from '@/api/schemas/stockSearch'
 import { EnvelopeResponse } from '@/api/schema'
 import * as F from '@/mocks/fixtures'
+// v1/v2 parity A 类写端点夹具（三组由各 feature 分文件维护，此处统一纳入漂移守卫）
+import { userCollectionsFixturePairs } from '@/mocks/fixturesUserCollections'
+import { alertWriteFixturePairs } from '@/mocks/fixturesAlertWrite'
+import { communityFixturePairs } from '@/mocks/fixturesCommunity'
 
 // ───────────────────────── A. fixture ↔ Zod ─────────────────────────
 type Pair = { name: string; schema: z.ZodTypeAny; samples: unknown[] }
@@ -153,6 +157,12 @@ const fixturePairs: Pair[] = [
     schema: D.DiagnosticsSchema,
     samples: [F.diagnostics, F.diagnosticsDegraded, F.diagnosticsProbe],
   },
+  // ─────── v1/v2 parity 批次 A 类写端点（2026-11-16）───────
+  // 后端写端点整批悬空是本次审计的核心缺陷；补齐客户端后，其响应夹具必须同样受
+  // 「mock ↔ Zod 契约」硬约束，否则 MSW 全绿但接真后端时字段形状漂移会全站漏检。
+  ...userCollectionsFixturePairs,
+  ...alertWriteFixturePairs,
+  ...communityFixturePairs,
 ]
 
 describe('contract-drift A: MSW fixtures satisfy Zod schemas (mock ↔ contract)', () => {

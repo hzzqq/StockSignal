@@ -99,7 +99,11 @@ describe('W4-E · v1 功能全景清单（真实性）', () => {
     const c = statusCounts()
     expect(c.native + c.data + c['v1-only'] + c['v1-pinned']).toBe(V1_PAGES_TOTAL)
     expect(c.native).toBeGreaterThan(10)
-    expect(c['v1-only']).toBe(0)
+    // 2026-11-16 parity 审计：63 温度回测与 /backtest 模块错配，撤下假 native 后
+    // 诚实回落 v1-only。允许且只允许这一页 v1-only，防止「为凑 0 而假接线」回潮。
+    const v1OnlyFiles = V1_PAGES.filter((p) => mappingOf(p).status === 'v1-only').map((p) => p.file)
+    expect(v1OnlyFiles).toEqual(['63_温度回测.py'])
+    expect(c['v1-only']).toBe(v1OnlyFiles.length)
     expect(c['v1-pinned']).toBeGreaterThan(0)
     for (const p of V1_PAGES) {
       const m = mappingOf(p)
@@ -163,13 +167,21 @@ describe('W4-E · 功能全景页交互', () => {
   })
 
   it('「待迁移」项给 v1 直达链接且编码中文页名', () => {
-    // 92 用户管理已迁 v2 后，v1-only 收口为 0 —— 不再有「待迁移」直链。
-    const target = V1_PAGES.find((p) => mappingOf(p).status === 'v1-only')
-    expect(target).toBeUndefined()
-    // 全景页如实呈现「待迁移」统计标签（值为 0，由 Stat 组件渲染）
+    const targets = V1_PAGES.filter((p) => mappingOf(p).status === 'v1-only')
+    expect(targets.map((p) => p.file)).toEqual(['63_温度回测.py'])
+    for (const p of targets) {
+      expect(p.v1Url).toBe('/' + p.file.replace(/\.py$/, ''))
+      // 中文页名必须经 v1PageUrl 编码进 href，禁止裸拼导致跳转 404
+      expect(v1PageUrl(p.v1Url)).toContain(encodeURIComponent('63_温度回测'))
+      expect(decodeURIComponent(v1PageUrl(p.v1Url))).toContain('63_温度回测')
+    }
     mount(<CatalogView />)
     // 「待迁移」同时出现在 Stat 标签与状态筛选按钮，须用 getAllByText 避免多节点歧义
     expect(screen.getAllByText('待迁移').length).toBeGreaterThan(0)
+    const hasEncodedLink = screen
+      .getAllByRole('link')
+      .some((a) => (a.getAttribute('href') ?? '').includes(encodeURIComponent('63_温度回测')))
+    expect(hasEncodedLink, '63 温度回测必须渲染中文编码的 v1 直达链接').toBe(true)
   })
 })
 

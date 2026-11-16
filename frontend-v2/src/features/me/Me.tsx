@@ -2,6 +2,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { useUserDashboard } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Loading, ErrorState } from '@/shared/ui/States'
+import { AccountPanel } from './AccountPanel'
 
 const WIDGET_LABELS: Record<string, string> = {
   snapshot: '今日决策快照',
@@ -23,7 +24,7 @@ export function Me() {
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">我的</h2>
-      <p className="text-xs text-sf-ink-3">登录身份与自定义看板偏好（只读视图，无写能力）。</p>
+      <p className="text-xs text-sf-ink-3">登录身份、自定义看板偏好与账户管理。</p>
 
       <Card title="账户">
         {user ? (
@@ -73,6 +74,8 @@ export function Me() {
           </div>
         )}
       </Card>
+
+      <AccountPanel />
     </div>
   )
 }

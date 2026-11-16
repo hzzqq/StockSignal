@@ -1,6 +1,10 @@
 import { http, HttpResponse } from 'msw'
 import * as fixtures from './fixtures'
 import { matchStockPool } from '@/lib/stockSearchLogic'
+// v1/v2 parity A 类写端点：各 feature 分文件注册，主入口统一接线（避免并发改同一文件）。
+import { userCollectionsHandlers, resetUserCollectionsMock } from './handlersUserCollections'
+import { alertWriteHandlers, resetAlertWriteMock } from './handlersAlertWrite'
+import { communityHandlers, resetCommunityMock } from './handlersCommunity'
 
 /** 统一成功信封（严格对齐 backend/utils/response.py::_ok_payload）。
  * ⚠️ code 是**字符串业务码**（真后端默认 "ok"），不是数字 0。
@@ -670,3 +674,25 @@ handlers.push(
     return ok(matchStockPool(fixtures.stockSearchPool, q, limit))
   }),
 )
+
+/**
+ * v1/v2 parity 批次 A 类写端点统一接线（2026-11-16）。
+ *
+ * 后端早已注册 /api/watchlist、/api/junk-stocks、/api/user-scores、
+ * /api/price-alerts、/api/market-alerts、/api/forum/posts、/api/auth/* 等写端点，
+ * 但 v2 此前整批悬空。三组 handler 与既有只读 handler 合并进同一数组，
+ * 供 MSW node/browser 两个入口共用，杜绝「页面调得到、演示态没注册」的漂移。
+ *
+ * ⚠️ 实盘红线（条件单 / 真实券商下单）不在此注册，v2 明确不提供。
+ */
+handlers.push(...userCollectionsHandlers, ...alertWriteHandlers, ...communityHandlers)
+
+/** 三组写端点内存态复位（测试间调用，与 resetAdminMock / resetChatMock 同范式）。 */
+export { resetUserCollectionsMock, resetAlertWriteMock, resetCommunityMock }
+
+/** 一次性复位全部演示态写状态，供全局 setup 使用。 */
+export function resetAllWriteMocks(): void {
+  resetUserCollectionsMock()
+  resetAlertWriteMock()
+  resetCommunityMock()
+}

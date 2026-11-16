@@ -57,6 +57,8 @@ export type AppPath =
   | '/limit-up-review'
   | '/market-sentiment'
   | '/xingchen'
+  // 股吧社区（52 页 V2 化）：后端 /api/forum 完整 CRUD，非 v1「社区抓取」遗留
+  | '/forum'
 
 export interface NavItem {
   to: AppPath
@@ -82,10 +84,12 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
-    group: '智能助手',
+    group: '智能助手与社区',
     items: [
       { to: '/xingchen', label: '星辰 AI 助手', icon: '🌟' },
       { to: '/review-notes', label: '决策问答', icon: '❓' },
+      // 52 页：v1 就走 /api/forum（纯后端 CRUD），旧映射标「社区抓取，留 v1」是失实描述
+      { to: '/forum', label: '股吧社区', icon: '💬' },
     ],
   },
   {

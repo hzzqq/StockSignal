@@ -69,6 +69,8 @@ const LazyMarketSentiment = lazyRouteComponent(() => import('@/features/market/M
 const LazyXingchen = lazyRouteComponent(() => import('@/features/xingchen/XingchenPage'), 'XingchenPage')
 const LazyEventBacktest = lazyRouteComponent(() => import('@/features/eventbacktest/EventFactorBacktest'), 'EventFactorBacktest')
 const LazyScreener = lazyRouteComponent(() => import('@/features/screener/Screener'), 'Screener')
+// 52 股吧社区 V2 化：后端 /api/forum 完整 CRUD，v1 也是同一套后端（非社区抓取遗留）
+const LazyForumView = lazyRouteComponent(() => import('@/features/community/ForumView'), 'ForumView')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -448,6 +450,13 @@ const xingchenRoute = createRoute({
   component: LazyXingchen,
 })
 
+// 52 股吧社区（v2 native /forum）：列表/详情/发帖/评论/点赞/删除，后端 /api/forum。
+const forumRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/forum',
+  component: LazyForumView,
+})
+
 function FinancialHunterRouteView() {
   const search = financialHunterRoute.useSearch()
   return (
@@ -614,6 +623,7 @@ const routeTree = rootRoute.addChildren([
     limitUpReviewRoute,
     marketSentimentRoute,
     xingchenRoute,
+    forumRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,

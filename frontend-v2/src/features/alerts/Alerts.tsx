@@ -1,6 +1,8 @@
 import { useAlertRules, useAlertLog } from '@/lib/queries'
 import { QueryState } from '@/shared/ui/States'
 import { Card } from '@/shared/ui/Card'
+// v1 47 价格预警 / 94 市场异动提醒的写能力（后端早有 REST 端点，v2 此前整批悬空）。
+import { AlertWritePanels } from './AlertWritePanels'
 
 /** 74 告警引擎：展示告警规则与触发日志（当前数据文件缺失 → 诚实渲染「无数据」）。 */
 export function Alerts() {
@@ -44,6 +46,8 @@ export function Alerts() {
           )}
         </QueryState>
       </Card>
+
+      <AlertWritePanels />
     </div>
   )
 }

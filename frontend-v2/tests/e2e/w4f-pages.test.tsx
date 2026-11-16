@@ -199,7 +199,10 @@ describe('W4-F · 接线守卫（源码真扫）', () => {
     const c = statusCounts()
     expect(c.native + c.data + c['v1-only'] + c['v1-pinned']).toBe(V1_PAGES.length)
     expect(c.native).toBeGreaterThan(17)
-    expect(c['v1-only']).toBe(0)
+    // 63 温度回测经 parity 审计撤下错配的 /backtest，诚实回落 v1-only（唯一白名单项）
+    expect(V1_PAGES.filter((p) => mappingOf(p).status === 'v1-only').map((p) => p.file)).toEqual([
+      '63_温度回测.py',
+    ])
   })
 
   it('新页已并入语义分组：NAV 7 组 / 每组 ≤12 项 / 图标与路径唯一', () => {

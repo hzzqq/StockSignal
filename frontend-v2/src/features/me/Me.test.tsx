@@ -12,6 +12,11 @@ vi.mock('@/lib/auth', () => ({
 vi.mock('@/lib/queries', () => ({
   useUserDashboard: vi.fn(),
 }))
+// 账户面板有独立测试文件（AccountPanel.test.tsx）；此处用空替身隔离，
+// 避免其 useNavigate / 多个 useQuery / MSW 请求影响 Me 原有只读用例，断言一个都不删。
+vi.mock('./AccountPanel', () => ({
+  AccountPanel: () => null,
+}))
 
 const mUser = vi.mocked(getCurrentUser)
 const mDash = vi.mocked(useUserDashboard)

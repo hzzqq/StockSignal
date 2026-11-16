@@ -4,6 +4,8 @@ import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { CHART } from '@/shared/charts/palette'
+// v1 自选股 / 垃圾股 / 自定义打写的写能力（后端早有 REST 端点，v2 此前只有只读盯盘壳）。
+import { WatchWritePanels } from './WatchWritePanels'
 
 /**
  * 14 页「智能盯盘」V2 化（对应 V2-STATUS-PLAN Tier2）。
@@ -239,6 +241,14 @@ export function Watch() {
           资金流为页面加载时点数据，盘中读数可能有延迟。实时现价需在个股分时 / 行情端点查看。
         </div>
       </div>
+
+      {/* 主只读快照首次加载时不挂载写面板：避免 4 个额外 loading 占位淹没页面的加载态语义；
+          加载完成（含 error / 空数据）后照常渲染，写能力不依赖只读快照是否有数据。 */}
+      {q.isLoading ? null : (
+        <div className="mt-8">
+          <WatchWritePanels />
+        </div>
+      )}
     </div>
   )
 }
