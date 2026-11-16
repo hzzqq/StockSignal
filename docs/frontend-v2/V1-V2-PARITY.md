@@ -18,7 +18,7 @@
 | 本批把 **A 类（后端已有 REST 写端点）全量补齐**：自选股、垃圾股、用户打分、四类价格预警、市场告警、股吧社区、账户设置/头像/注册/登出 | 真 Flask 探针 `E:/tmp/ss_parity_api_probe.log`（probe5 独立库）+ 新增 3 组 API/Query/MSW handler |
 | 映射表存在**双向失真**：低报 53 星辰 AI / 52 股吧；高报 11/20/40/41/42/44/46 等只读壳 | 逐页源码取证，见 §2 |
 | C 类实盘红线明确不做，v2 API 层零路径字面量 | 新守卫硬断言 `/cond-orders`、`/trade/orders`、`action=buy` 绝不出现 |
-| 当前四档实时统计：**63 native + 0 data + 1 v1-only + 10 v1-pinned = 74** | `statusCounts()` 实测输出 |
+| 当前四档实时统计：**64 native + 0 data + 0 v1-only + 10 v1-pinned = 74**（B 批后） | `statusCounts()` 实测输出（vitest 日志实打印） |
 
 ---
 
@@ -41,9 +41,9 @@
 | `52_股吧.py` | `v1-pinned`「社区抓取，低频遗留」 | **`native` → `/forum`** | v1 页首行即写「纯前端聚合，走后端 `/api/forum`」；后端 `forum_routes.py` 是完整 CRUD，非抓取遗留 |
 | `44_智能条件单.py` | `native → /alerts` | **`v1-pinned`（C 类红线）** | 页内明写真实下单、`action=buy\|sell`、`/api/cond-orders/scan`、调度器自动扫描下单 |
 | `43_实盘交易.py` | `v1-pinned` | **保持 `v1-pinned`** | QMT / easytrader 真实券商通道仅 v1 |
-| `63_温度回测.py` | `native → /backtest` | **`v1-only`** | `/backtest` 是策略回测运行记录，不是牧羊人温度回测算法；模块错配，撤下假 native |
+| `63_温度回测.py` | `native → /backtest`（假）→ `v1-only` | **`native` → `/temperature-backtest`** | B 批新增 `modules/temperature_backtest.py` 端点与页面，五档回测真承接，v1-only 归零 |
 | `42_模拟交易.py` | `native`（note 空） | **`native` + 诚实 note** | v2 `/paper` 是只读壳，模拟账本写能力未承接 |
-| `61_广度分化.py` | 压进 `/breadth` 无 note | **`native` + 诚实 note** | v2 `/breadth` 无 v1 的分化维度 |
+| `61_广度分化.py` | 压进 `/breadth` 无 note | **`native` → `/breadth-divergence`** | B 批新增 `modules/breadth_divergence.py` 端点，日历热力 / 分化检测 / 双轴趋势真承接 |
 | `95_数据导出.py` | 未声明缩水 | **`native` + 诚实 note** | v1 六类产物（CSV / Excel 多 Sheet / PDF / ZIP / 研报 HTML / 研报 MD），v2 `/export` 只有原始 JSON Blob |
 
 防复发守卫：`src/features/catalog/v2Mapping.test.ts` 锁 53/52 为 native、44/43 为 pinned、缩水页 note 非空、native 路径必须是真实 `AppPath`、四档之和 = 74；另扫源码不含 `action=buy` 等红线字面量。
@@ -71,19 +71,26 @@
 
 ---
 
-## 4. B 类 · 需后端新增能力（下一批，当前诚实登记）
+## 4. B 类 · 需后端新增能力（本批承接 4 项，余 5 项延后）
+
+### 本批已承接（2026-11-16）
+
+| 页 | 新增后端能力 | v2 落点 |
+|---|---|---|
+| `61_广度分化` | `GET /api/v2/read/breadth-divergence`（封装 `modules/breadth_divergence.py` 三纯函数） | `/breadth-divergence`：日历热力 + 分化检测 + 双轴趋势；null / available=false 诚实透出 |
+| `63_温度回测` | `GET /api/v2/read/temperature-backtest`（封装 `band_backtest`） | `/temperature-backtest`：五档 1/5 日回测，n<50 标低置信，reason 原文透出 |
+| `73_自定义看板` | `PUT /api/v2/read/user-dashboard`（v2 组件 id 白名单 5 个，1–5 项保序） | `/dashboard-custom`：localStorage 即时态 + 服务端持久化；深链只读不回写 |
+| `51_复盘笔记` | `PUT /api/v2/read/review-notes`（按日期 Markdown 全文覆盖，原子写） | `/review-notes`：编辑区默认空，主动「载入原文」才回填；失败如实报错 |
+
+### 延后（诚实登记，未承接）
 
 | 页 | 缺口 | 当前 v2 状态 |
 |---|---|---|
-| `61_广度分化` | 分化维度算法未承接 | `/breadth` 只有部分聚合 |
-| `63_温度回测` | `modules/temperature_backtest.py` 极端区回测 + 基准窗口 | `v1-only`，给 v1 直达链接 |
 | `31_形态选股` | 形态识别服务端算法 | `/recommend` 无等价筛选 |
 | `77_跨股财报筛选` | 跨股财务条件组合查询 | `/earnings-calendar` 仅日历 |
 | `81_自然语言选股执行` | NL 解析有 `/nl-screen`，执行链路无 | 只解析不执行 |
 | `95_数据导出` | PDF / Excel 多 Sheet / ZIP / 研报 HTML+MD 六类产物 | `/export` 仅 JSON Blob |
 | `42_模拟交易` | 模拟账本写能力 | `/paper` 只读壳 |
-| `51_复盘笔记` | 笔记写入 | `/review-notes` 问答式，无写笔记 |
-| `73_自定义看板` | 看板布局持久化 | `/dashboard` 无布局写 |
 
 ---
 
@@ -132,5 +139,6 @@
 - 真 Flask `test_client` 探针：独立库 `DATABASE_URL=sqlite:///E:/tmp/ss_probe5/app.db`，测全部非红线写端点；红线端点只查 `url_map` 注册，绝不调用。
 - 诚实数据守卫：`honest-data.test.tsx` 扫全 `src`，禁止 `?? 0` / `|| 0` / `new Date()` 冒充数据日。
 - 跨语言契约：`contract-drift.test.ts` A 段夹具 ↔ Zod 恒跑；B 段在 `SS_BACKEND_URL` 可用时拉真后端只读端点校验。
+- B 批：`backend/tests/test_batch_b_endpoints.py` 真 Flask `test_client` + 独立库 + 写后 GET 回读；`handlersBatchB` 已并入 `handlers.ts`，`batchBFixturePairs` 已入契约漂移 A 段。
 
 > MSW 演示态的时间戳是固定常量 `MOCK_WRITE_TS`，内存态 CRUD 仅为演示交互，不代表真实行情 / 真实账户数据。

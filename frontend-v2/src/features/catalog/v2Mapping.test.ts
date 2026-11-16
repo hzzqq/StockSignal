@@ -83,8 +83,6 @@ describe('v2Mapping · v1→v2 双向失真防复发守卫', () => {
       '41_组合收益.py',
       '45_持仓中心.py',
       '46_自选股监控.py',
-      '61_广度分化.py',
-      '63_温度回测.py',
       '95_数据导出.py',
     ]
     for (const f of shrinkPages) {
@@ -95,6 +93,18 @@ describe('v2Mapping · v1→v2 双向失真防复发守卫', () => {
     // 性质最严重的两页：note 必须显式承认「只读 / 未承接」，不能只写套话
     expect(mappingOf(mustPage('42_模拟交易.py')).note).toMatch(/只读|未承接/)
     expect(mappingOf(mustPage('95_数据导出.py')).note).toMatch(/多格式|尚未承接/)
+  })
+
+  it('parity B：61 广度分化 / 63 温度回测已真承接为 native（不再是缩水页 / v1-only）', () => {
+    const div = mappingOf(mustPage('61_广度分化.py'))
+    expect(div.status).toBe('native')
+    expect(div.to).toBe('/breadth-divergence')
+    const temp = mappingOf(mustPage('63_温度回测.py'))
+    expect(temp.status).toBe('native')
+    expect(temp.to).toBe('/temperature-backtest')
+    // 63 绝不能回退到策略回测 /backtest（模块错配）
+    expect(temp.to).not.toBe('/backtest')
+    expect(statusCounts()['v1-only']).toBe(0)
   })
 
   it('所有 native 的 to 必须是 nav.ts AppPath 真实路径（/forum 为本批唯一待接线项）', () => {

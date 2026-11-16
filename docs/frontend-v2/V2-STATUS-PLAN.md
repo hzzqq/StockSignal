@@ -1560,3 +1560,38 @@ v2 前端组件级测试治理已于 §40 **收官**：`stock/`、`analytics/`�
 L4=`东方财富: RemoteDisconnected: ...`、L2/L3=`20 行`；
 TDD 红灯 2 红 1 绿 → 绿灯；mutation M1–M3 全变红、还原全绿；
 MSW 夹具同步；tsc / vitest / build / 后端相关守卫 / 静态守卫全量。
+
+
+## 45. v1→v2 parity B 批：四项 B 类能力补齐（2026-11-16）
+
+### 45.1 范围与取舍
+
+A 批已把「后端已有写端点」整批接进 v2；本批只做此前登记为 B 类、且满足「后端可加纯函数端点 + 零联网 + 可离线实证」的四项：
+
+- `61_广度分化` → 新增 `GET /api/v2/read/breadth-divergence`，封装 `modules/breadth_divergence.py` 的日历热力 / 分化检测 / 双轴趋势；v2 新页 `/breadth-divergence`。
+- `63_温度回测` → 新增 `GET /api/v2/read/temperature-backtest`，封装 `modules/temperature_backtest.py::band_backtest` 五档回测；v2 新页 `/temperature-backtest`。此前错配 `/backtest` 的假 native 已撤，v1-only 归零。
+- `73_自定义看板` → 新增 `PUT /api/v2/read/user-dashboard`，白名单为 v2 真实组件 id（snapshot / recommendation / breadth / event / backtest，1–5 项保序）；`/dashboard-custom` 服务端持久化。
+- `51_复盘笔记` → 新增 `PUT /api/v2/read/review-notes`，按日期 Markdown 全文覆盖、原子写；`/review-notes` 编辑区默认空，主动「载入原文」才回填。
+
+延后五项（`31 / 81 / 95 / 77 / 42`）需联网实时、大格式导出或推翻既有架构决策，继续诚实登记为未承接。
+
+### 45.2 诚实口径
+
+- 四档从 `63 native + 0 data + 10 v1-pinned + 1 v1-only` 变为 **`64 native + 0 data + 10 v1-pinned + 0 v1-only = 74`**（`statusCounts()` 实打印）。
+  - 注：上文 §41.2 等历史条目中的 `63 native + 11 v1-pinned` 是按当时快照写下的历史记录，不回改；本条为最新口径。
+- 数据缺失一律 `available:false` + `reason` 原文透出；null 显 `—`，不补零、不伪造分化日 / 热力格 / 趋势点。
+- n<50 的回测档位标「低置信」；服务端写端点校验失败 422，失败不写文件。
+
+### 45.3 防漂移接线
+
+- `handlersBatchB` 并入 `src/mocks/handlers.ts`，`resetAllWriteMocks()` 一并复位；`batchBFixturePairs` 纳入 `contract-drift.test.ts` A 段。
+- 新增 `backend/tests/test_batch_b_endpoints.py`：真 Flask `test_client` + 独立 SQLite、写后 GET 回读、参数非法逐条 422、缺 token 401、降级变体不伪造。
+- 看板 widget 白名单前后端统一为 v2 五 id（不是 v1 六 key），否则页面保存必然 422。
+
+### 45.4 验收
+
+- `npx tsc --noEmit`：0 错。
+- `npx vitest run`：126 文件 / 922 通过 / 2 跳过。
+- `pytest backend/tests`（独立库）：全通过。
+- `scripts/gen_portfolio_page.py --fast`：74 页 / 150 端点 / 4685 用例；公开物料同步。
+- 实盘交易红线未触碰，v2 API 层零交易路径。

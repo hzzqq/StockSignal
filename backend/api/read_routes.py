@@ -3,8 +3,9 @@
 backend/api/read_routes.py — W1 只读数据端点（前端 v2 替代 12 个绕过 API 的 Streamlit 页）
 
 背景：legacy Streamlit 前端有 12 个页面直接读本地磁盘文件（data/ 等），新 React
-前端（frontend-v2）要替换它们，需要把这些本地数据源用统一信封包成只读 REST 端点，
-置于 JWT 鉴权之后。本蓝图**只读取、绝不写/改**任何数据文件。
+前端（frontend-v2）要替换它们，需要把这些本地数据源用统一信封包成 REST 端点，
+置于 JWT 鉴权之后。绝大多数端点为只读；parity B 批次新增的两个 PUT 端点
+（user-dashboard / review-notes）会写本地偏好与笔记文件，均走原子写。
 
 安全约束（防穿越）：
   - 固定白名单端点：路径在代码里写死为绝对允许路径，用户无法注入路径段；
@@ -58,7 +59,7 @@ _DATA_DIR = (_ROOT / "data").resolve()
 _REPORTS_DIR = (_ROOT / "reports").resolve()
 _WEBAPPS_DIR = (_ROOT / "webapps").resolve()
 
-# 固定白名单：端点 key -> 绝对允许路径（仅本地只读，绝不写出）
+# 固定白名单：端点 key -> 绝对允许路径（user_dashboard 亦为对应 PUT 的写入目标）
 _FILE_WHITELIST = {
     "daily_snapshot": _DATA_DIR / "daily_snapshot.json",
     "daily_recommendation": _DATA_DIR / "daily_recommendation.json",
@@ -4163,3 +4164,141 @@ def decision_loop_health():
     from modules.decision import assess_decision_loop_health
 
     return ok(data=assess_decision_loop_health(), message="decision-loop-health")
+
+
+# ───────── Parity B 批次：广度分化 / 温度回测 / 看板偏好 / 复盘笔记写入 ─────────
+# 本批四个端点均为新增；校验失败统一 422 validation_error（既有只读端点仍为 400，互不改动）。
+# v2 看板组件稳定 id（frontend-v2/src/features/dashboard/DashboardCustom.tsx:37-43），
+# 顺序即默认展示顺序；与 v1 Streamlit 页的 widget key 无关。
+_DASHBOARD_WIDGETS = frozenset({
+    "snapshot", "recommendation", "breadth", "event", "backtest",
+})
+_REVIEW_MAX_CHARS = 500_000
+
+
+def _bb_float(raw, default, lo, hi, name):
+    """解析 query 浮点：缺省取 default；非法/越界返回 (None, 错误信息)。"""
+    if raw is None or raw == "":
+        return default, None
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return None, f"{name} 必须是数值"
+    if not math.isfinite(v) or v < lo or v > hi:
+        return None, f"{name} 必须在 {lo}~{hi} 之间"
+    return v, None
+
+
+def _bb_int(raw, default, lo, hi, name):
+    """解析 query 整数：缺省取 default（可为 None 表示全历史）；非法/越界返回 (None, 错误信息)。"""
+    if raw is None or raw == "":
+        return default, None
+    try:
+        v = int(raw)
+    except (TypeError, ValueError):
+        return None, f"{name} 必须是整数"
+    if v < lo or v > hi:
+        return None, f"{name} 必须在 {lo}~{hi} 之间"
+    return v, None
+
+
+@bp.get("/breadth-divergence")
+@jwt_required
+def breadth_divergence():
+    """61 广度结构分化：透传 modules.breadth_divergence 三段纯函数，不重算、不补零。
+
+    任一数据源缺失时对应分段 available=false 原样透出；顶层 available=任一分段可用。
+    具体哪段可用看各分段自身的 available（calendar/divergence/trend）。
+    """
+    red_thresh, err = _bb_float(request.args.get("red_thresh"), 50.0, 0.0, 100.0, "red_thresh")
+    if err:
+        return fail(message=err, code="validation_error", http_status=422)
+    ld_quantile, err = _bb_float(request.args.get("ld_quantile"), 0.9, 0.01, 0.99, "ld_quantile")
+    if err:
+        return fail(message=err, code="validation_error", http_status=422)
+    window_days, err = _bb_int(request.args.get("window_days"), 750, 1, 5000, "window_days")
+    if err:
+        return fail(message=err, code="validation_error", http_status=422)
+
+    from modules import breadth_divergence as _bd
+
+    cal = _bd.breadth_calendar()
+    div = _bd.divergence_episodes(red_thresh=red_thresh, ld_quantile=ld_quantile)
+    trend = _bd.breadth_trend(window_days=window_days)
+    data = {
+        "available": any(bool(x.get("available")) for x in (cal, div, trend)),
+        "calendar": cal,
+        "divergence": div,
+        "trend": trend,
+    }
+    return ok(data=data, message="breadth-divergence")
+
+
+@bp.get("/temperature-backtest")
+@jwt_required
+def temperature_backtest():
+    """63 全温度档历史回测：原样透出 modules.temperature_backtest.band_backtest。
+
+    window_days 缺省（None）= 全历史；合法 1~5000，仅取最近 N 个交易日，口径不变。
+    与单标的策略回测 /api/v2/read/backtest 无关，不要复用。
+    """
+    window_days, err = _bb_int(request.args.get("window_days"), None, 1, 5000, "window_days")
+    if err:
+        return fail(message=err, code="validation_error", http_status=422)
+
+    from modules import temperature_backtest as _tb
+
+    return ok(data=_tb.band_backtest(window_days=window_days), message="temperature-backtest")
+
+
+@bp.put("/user-dashboard")
+@jwt_required
+def save_user_dashboard():
+    """写入 v2 看板偏好（data/user_dashboard.json），保留用户输入顺序。
+
+    合法 id 白名单为 v2 组件稳定 id（DashboardCustom.tsx:37-43）：snapshot /
+    recommendation / breadth / event / backtest；widgets 必须是 1~5 项、全合法且
+    不重复，否则 422 validation_error。写入走 atomic_json_dump，杜绝半写。
+    GET /api/v2/read/user-dashboard 读同一文件（_FILE_WHITELIST["user_dashboard"]）。
+    """
+    from modules.atomic_io import atomic_json_dump
+
+    body = request.get_json(silent=True)
+    widgets = body.get("widgets") if isinstance(body, dict) else None
+    if not isinstance(widgets, list) or not (1 <= len(widgets) <= 5):
+        return fail(message="widgets 必须是 1~5 项的数组", code="validation_error", http_status=422)
+    if any(not isinstance(w, str) or w not in _DASHBOARD_WIDGETS for w in widgets):
+        return fail(message="widgets 含非法 key", code="validation_error", http_status=422)
+    if len(set(widgets)) != len(widgets):
+        return fail(message="widgets 不允许重复", code="validation_error", http_status=422)
+
+    atomic_json_dump({"widgets": widgets}, str(_FILE_WHITELIST["user_dashboard"]))
+    return ok(data={"widgets": widgets}, message="user-dashboard saved")
+
+
+@bp.put("/review-notes")
+@jwt_required
+def save_review_notes():
+    """写入指定日期复盘笔记（data/review_notes_<date>.md），UTF-8 全文覆盖。
+
+    date 复用 _valid_date（形状 + 真实日历）；content 必须是 ≤500000 字符的字符串，
+    空串允许（空白笔记，文件仍写入）；校验失败 422 validation_error。
+    路径经 _safe_file 防穿越，写入走 atomic_write_text；GET /review-notes?date= 读同一文件。
+    """
+    from modules.atomic_io import atomic_write_text
+
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return fail(message="body 必须是 JSON 对象", code="validation_error", http_status=422)
+    date = body.get("date")
+    if not _valid_date(date):
+        return fail(message="date 非法（须为真实 YYYY-MM-DD）", code="validation_error", http_status=422)
+    content = body.get("content")
+    if not isinstance(content, str) or len(content) > _REVIEW_MAX_CHARS:
+        return fail(message="content 必须是 ≤500000 字符的字符串", code="validation_error", http_status=422)
+
+    path = _safe_file(_DATA_DIR, f"review_notes_{date}.md")
+    if path is None:
+        return fail(message="非法路径", code="validation_error", http_status=422)
+    atomic_write_text(content, str(path))
+    return ok(data={"date": date, "content": content}, message="review-notes saved")

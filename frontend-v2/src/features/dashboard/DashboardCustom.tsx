@@ -9,6 +9,8 @@ import {
   useEventPool,
   useBacktestRuns,
 } from '@/lib/queries'
+// 73 页 parity B：服务端持久化（v2 自己的组件 id），localStorage 仍作即时本地态。
+import { useUpdateUserDashboard } from '@/lib/queriesBatchB'
 import type {
   DailySnapshot,
   DailyRecommendation,
@@ -20,9 +22,10 @@ import type {
 /**
  * 73 自定义看板（/dashboard-custom，v2 native）。
  *
- * 聚合现有只读端点，做成可由用户勾选的组件看板；选择持久化在 localStorage（不依赖服务端
- * 写入），刷新后保留。每个组件都是真实只读端点 + 诚实渲染（null 显「—」、收益为负如实红绿、
- * 不回测美化、不编造列表）。
+ * 聚合现有只读端点，做成可由用户勾选的组件看板。
+ * 持久化双写：localStorage 即时生效 + 服务端 PUT /api/v2/read/user-dashboard（v2 自己的组件 id，
+ * 顺序即展示顺序）。服务端失败如实报错，不谎称已保存；深链 ?widgets= 只读覆盖，不回写。
+ * 每个组件都是真实只读端点 + 诚实渲染（null 显「—」、收益为负如实红绿、不回测美化、不编造列表）。
  *
  * ⚠️ 诚实红线：本页不引入任何「合成」数据；组件清单固定为 5 个真实端点，缺失字段一律显「—」，
  * 回测收益为负如实展示（绿跌），不得取绝对值、不得包装成「策略领先」。
@@ -284,6 +287,8 @@ export function DashboardCustom({ search }: DashboardCustomProps) {
 
   const [enabled, setEnabled] = useState<string[]>(() => urlWidgets ?? loadEnabled())
   const [editing, setEditing] = useState(false)
+  const saveM = useUpdateUserDashboard()
+  const [saveNotice, setSaveNotice] = useState<string | null>(null)
 
   // URL 覆盖时不写 localStorage（深链是只读视图）
   useEffect(() => {
@@ -302,7 +307,24 @@ export function DashboardCustom({ search }: DashboardCustomProps) {
     setEnabled((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     )
+    setSaveNotice(null)
   }
+
+  /** 服务端持久化：深链只读视图禁用；空选择不写（后端要求 1–5 个）；失败如实显示。 */
+  function saveToServer() {
+    if (urlWidgets) return
+    setSaveNotice(null)
+    saveM.reset()
+    if (enabled.length === 0) {
+      setSaveNotice('至少勾选一个组件后才能保存到服务端')
+      return
+    }
+    saveM.mutate(enabled, {
+      onSuccess: () => setSaveNotice('已保存到服务端（当前顺序即展示顺序）'),
+    })
+  }
+
+  const saveError = saveM.error instanceof Error ? saveM.error.message : null
 
   const active = WIDGETS.filter((w) => enabled.includes(w.id))
 
@@ -311,7 +333,7 @@ export function DashboardCustom({ search }: DashboardCustomProps) {
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-lg font-semibold">自定义看板</h2>
         <span className="text-label text-sf-ink-3">
-          组件与顺序由本地保存（localStorage），数据均来自只读端点，未做任何填充
+          组件与顺序本地即时保存（localStorage），可另存到服务端；数据均来自只读端点，未做任何填充
         </span>
         <button
           type="button"
@@ -337,6 +359,22 @@ export function DashboardCustom({ search }: DashboardCustomProps) {
                 <span>{w.icon} {w.title}</span>
               </label>
             ))}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={saveToServer}
+              disabled={saveM.isPending}
+              className="text-label px-3 py-1.5 rounded-tile border border-sf-line disabled:opacity-50"
+            >
+              {saveM.isPending ? '保存中…' : '保存到服务端'}
+            </button>
+            {saveError && (
+              <span className="text-label text-sf-danger">服务端保存失败：{saveError}</span>
+            )}
+            {saveNotice && !saveError && (
+              <span className="text-label text-sf-ink-2">{saveNotice}</span>
+            )}
           </div>
         </div>
       ) : null}

@@ -17,8 +17,10 @@ import { V1_PAGES, type V1Page } from './v1Pages.generated'
  * 2026-11-16 双向失真纠正（权威对照见 docs/frontend-v2/V1-V2-PARITY.md，回归网见 v2Mapping.test.ts）：
  *  - 纠正「低估」：53 星辰 AI / 52 股吧 v2 已完整实现，由 pinned 升级 native；
  *  - 纠正「高估」：44 智能条件单涉真实下单，由 native 降 pinned（实盘红线）；
- *    63 温度回测与 /backtest 模块错配，撤下 native 回落 v1-only；
- *    并为 42/11/14/20/40/41/45/46/61/95 等只读缩水页补齐诚实 note，杜绝「标 native 却零说明」。
+ *    63 温度回测与 /backtest 模块错配，先撤下假 native；2026-11-16 parity B 批次
+ *    已由 /temperature-backtest 真承接 modules/temperature_backtest.py，升回 native；
+ *    61 广度分化亦由 /breadth-divergence 承接分化维度算法，不再只是广度总览。
+ *    并为 42/11/14/20/40/41/45/46/95 等只读缩水页补齐诚实 note，杜绝「标 native 却零说明」。
  */
 
 export type V2Status = 'native' | 'data' | 'v1-only' | 'v1-pinned'
@@ -51,7 +53,8 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   '24_个股研究.py': { to: '/stock/research' },
   // 决策 / 复盘 / 晨报 / 信号
   '36_每日荐股.py': { to: '/recommend' },
-  '51_每日晨报.py': { to: '/morning' },
+  // parity B：GET /review-notes 已有读；PUT /review-notes 承接按日期保存 Markdown 全文。
+  '51_每日晨报.py': { to: '/morning', note: '晨报主体已承接；复盘笔记段由 /review-notes 的 PUT 承接按日期保存（图片上传未承接）' },
   '54_今日决策面板.py': { to: '/decision' },
   '55_P1量化信号.py': { to: '/p1' },
   '97_决策回放.py': { to: '/replay' },
@@ -75,7 +78,8 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   '56_市场状态机.py': { to: '/regime' },
   '57_市场全景.py': { to: '/panorama' },
   '59_市场温度计.py': { to: '/breadth' },
-  '61_广度分化.py': { to: '/breadth', note: 'v2 仅广度总览，v1 的 modules/breadth_divergence.py 分化维度算法未承接' },
+  // parity B：/breadth-divergence 已承接分化维度算法（日历热力 + 分化检测 + 双轴趋势）。
+  '61_广度分化.py': { to: '/breadth-divergence', note: 'v2 由 /breadth-divergence 承接 modules/breadth_divergence.py 的日历热力、分化检测与趋势（真实离线广度序列）' },
   '58_连板龙头共振.py': { to: '/ladder' },
   // 市场数据
   '75_题材热点.py': { to: '/theme' },
@@ -98,8 +102,9 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   // 77 财报猎手：v2 等价实现 /financial-hunter，逐股票三表（income/balance/cash）切换深挖；
   // 非跨股筛选器（v2 暂无跨股财报筛选端点），页面如实说明。
   '77_财报猎手.py': { to: '/financial-hunter' },
-  // 73 自定义看板：v2 等价实现 /dashboard-custom，勾选组件 + localStorage 持久化，聚合现有只读端点。
-  '73_自定义看板.py': { to: '/dashboard-custom' },
+  // 73 自定义看板：parity B 新增服务端持久化 PUT /api/v2/read/user-dashboard（v2 组件 id，保序），
+  // localStorage 仍作即时本地态；深链 ?widgets= 只读覆盖不回写。
+  '73_自定义看板.py': { to: '/dashboard-custom', note: '服务端偏好写已承接（PUT user-dashboard，v2 组件 id）；注意 v2 的 5 个组件与 v1 的 6 个 Streamlit widget 并非一一对应' },
   // 95 数据导出：v2 等价实现 /export，仅浏览归档快照并导出原始 JSON（纯前端，无写能力）；
   // v1 的 CSV/Excel/PDF/ZIP/研报多格式导出尚未承接，note 如实声明。
   '95_数据导出.py': { to: '/export', note: '当前仅导出原始 JSON 归档；v1 的 CSV/Excel/PDF/ZIP/研报多格式导出 v2 尚未承接' },
@@ -114,8 +119,9 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   '47_价格预警.py': { to: '/alerts', note: '四类价格预警（price/pattern/volume/announcement）创建/启停/删除已承接' },
   // 60 事件对比分析：v2 等价实现 /events（事件因子池只读展示）。
   '60_事件对比分析.py': { to: '/events' },
-  // 63 温度回测：/backtest 是策略回测而非温度回测（模块错配），不在此登记 native，
-  // 回落 v1-only；v1 的 modules/temperature_backtest.py 算法 v2 未承接，详见 V1-V2-PARITY.md B 类。
+  // parity B：/temperature-backtest 承接 modules/temperature_backtest.py 五档回测
+  // （GET /api/v2/read/temperature-backtest，n<50 标低置信，available=false 透出 reason）。
+  '63_温度回测.py': { to: '/temperature-backtest', note: 'v2 由 /temperature-backtest 承接五档温度历史回测（1/5 日红盘率回归）；与 /backtest 策略回测是不同能力' },
   // 94 消息中心：v2 等价实现 /alerts（告警日志只读展示）。
   '94_消息中心.py': { to: '/alerts' },
   // 98 仓位落地：v2 等价实现 /decision（今日决策快照），非新建页。

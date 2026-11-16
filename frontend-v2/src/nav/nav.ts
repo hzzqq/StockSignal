@@ -11,6 +11,9 @@ export type AppPath =
   | '/alerts'
   | '/webapps'
   | '/breadth'
+  // 61 广度结构分化 / 63 温度档历史回测（parity B 批次）
+  | '/breadth-divergence'
+  | '/temperature-backtest'
   | '/ladder'
   | '/events'
   | '/event-backtest'
@@ -81,6 +84,9 @@ export const NAV: NavGroup[] = [
       { to: '/morning', label: '每日晨报', icon: '☀' },
       { to: '/p1', label: 'P1 量化信号', icon: '∑' },
       { to: '/p1-construction', label: 'P1 组合构建诊断', icon: '📐' },
+      // 事件因子与校准属决策支持，从广度组迁入以腾出位置给新的分化/回测页
+      { to: '/event-backtest', label: '事件因子回测', icon: '⌖' },
+      { to: '/predictions', label: '预测校准日志', icon: '◴' },
     ],
   },
   {
@@ -135,6 +141,8 @@ export const NAV: NavGroup[] = [
     group: '广度·温度与情绪',
     items: [
       { to: '/breadth', label: '广度总览', icon: '🌡' },
+      { to: '/breadth-divergence', label: '广度结构分化', icon: '▥' },
+      { to: '/temperature-backtest', label: '温度档回测', icon: '⌁' },
       { to: '/ladder', label: '连板梯队共振', icon: '🪜' },
       { to: '/sentiment-clock', label: '投机情绪时钟', icon: '◷' },
       { to: '/market-sentiment', label: '市场情绪温度计', icon: '⚖️' },
@@ -144,8 +152,6 @@ export const NAV: NavGroup[] = [
       { to: '/momentum-resonance', label: '动量×广度共振', icon: '🌀' },
       { to: '/limit-up-review', label: '涨停复盘', icon: '🏆' },
       { to: '/events', label: '事件因子池', icon: '◈' },
-      { to: '/event-backtest', label: '事件因子回测', icon: '⌖' },
-      { to: '/predictions', label: '预测校准日志', icon: '◴' },
     ],
   },
   {

@@ -5,6 +5,8 @@ import { matchStockPool } from '@/lib/stockSearchLogic'
 import { userCollectionsHandlers, resetUserCollectionsMock } from './handlersUserCollections'
 import { alertWriteHandlers, resetAlertWriteMock } from './handlersAlertWrite'
 import { communityHandlers, resetCommunityMock } from './handlersCommunity'
+// v1/v2 parity B 类端点：广度分化 / 温度回测 / 看板写 / 复盘笔记写
+import { batchBHandlers, resetBatchBMock } from './handlersBatchB'
 
 /** 统一成功信封（严格对齐 backend/utils/response.py::_ok_payload）。
  * ⚠️ code 是**字符串业务码**（真后端默认 "ok"），不是数字 0。
@@ -686,13 +688,15 @@ handlers.push(
  * ⚠️ 实盘红线（条件单 / 真实券商下单）不在此注册，v2 明确不提供。
  */
 handlers.push(...userCollectionsHandlers, ...alertWriteHandlers, ...communityHandlers)
+handlers.push(...batchBHandlers)
 
 /** 三组写端点内存态复位（测试间调用，与 resetAdminMock / resetChatMock 同范式）。 */
-export { resetUserCollectionsMock, resetAlertWriteMock, resetCommunityMock }
+export { resetUserCollectionsMock, resetAlertWriteMock, resetCommunityMock, resetBatchBMock }
 
 /** 一次性复位全部演示态写状态，供全局 setup 使用。 */
 export function resetAllWriteMocks(): void {
   resetUserCollectionsMock()
   resetAlertWriteMock()
   resetCommunityMock()
+  resetBatchBMock()
 }

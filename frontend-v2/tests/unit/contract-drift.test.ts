@@ -24,6 +24,8 @@ import * as F from '@/mocks/fixtures'
 import { userCollectionsFixturePairs } from '@/mocks/fixturesUserCollections'
 import { alertWriteFixturePairs } from '@/mocks/fixturesAlertWrite'
 import { communityFixturePairs } from '@/mocks/fixturesCommunity'
+// v1/v2 parity B 类端点夹具
+import { batchBFixturePairs } from '@/mocks/fixturesBatchB'
 
 // ───────────────────────── A. fixture ↔ Zod ─────────────────────────
 type Pair = { name: string; schema: z.ZodTypeAny; samples: unknown[] }
@@ -163,6 +165,8 @@ const fixturePairs: Pair[] = [
   ...userCollectionsFixturePairs,
   ...alertWriteFixturePairs,
   ...communityFixturePairs,
+  // ─────── v1/v2 parity 批次 B 类端点（2026-11-16）───────
+  ...batchBFixturePairs,
 ]
 
 describe('contract-drift A: MSW fixtures satisfy Zod schemas (mock ↔ contract)', () => {
