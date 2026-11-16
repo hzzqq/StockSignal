@@ -1237,6 +1237,7 @@ const diagNote =
 // probe_path=null（不得把带 query 的路径伪装成「可直接探测」端点），
 // sample_query 是合法示例参数，UI 会标注它不是真实业务数据。
 export const diagnosticsEndpoints = [
+  { path: '/api/v2/read/decision-loop-health', needs_params: false, probe_path: '/api/v2/read/decision-loop-health', required_query: [], sample_query: null },
   { path: '/api/v2/read/daily-snapshot', needs_params: false, probe_path: '/api/v2/read/daily-snapshot', required_query: [], sample_query: null },
   { path: '/api/v2/read/snapshot-dates', needs_params: false, probe_path: '/api/v2/read/snapshot-dates', required_query: [], sample_query: null },
   { path: '/api/v2/read/p1-sync-status', needs_params: false, probe_path: '/api/v2/read/p1-sync-status', required_query: [], sample_query: null },
@@ -3434,3 +3435,16 @@ export const chatHistory = [
   { role: 'user', content: '分析一下贵州茅台', ts: 1763023200 },
   { role: 'assistant', content: chatSampleResult.answer, ts: 1763023260 },
 ]
+
+
+// 决策闭环健康度（v2 全局停摆告警）：确定性静态样例，**非真实调度状态**。
+// 形态与后端 modules.decision.assess_decision_loop_health() 严格一致。
+export const decisionLoopHealth = {
+  status: 'ok',
+  rank: 0,
+  generated_at: '2026-11-16T09:00:00',
+  as_of: '2026-11-15',
+  gen_lag_hours: 1.2,
+  data_lag_days: 1,
+  message: '✅ 决策闭环正常（开发态演示样例，非真实调度状态）。',
+}

@@ -145,6 +145,7 @@ const fixturePairs: Pair[] = [
   // api/diagnostics.ts 也已用 DiagnosticsSchema.parse 校验。此处必须真校验，
   // 不能用 z.unknown() 空转：否则夹具/生产的 sources/freshness/endpoints/probe
   // 字段漂移会完全漏检（历史缺陷：守卫自我静音 + 注释与事实不符）。
+  { name: 'decision-loop-health', schema: R.DecisionLoopHealthSchema, samples: [F.decisionLoopHealth] },
   {
     name: 'diagnostics',
     schema: D.DiagnosticsSchema,
@@ -229,6 +230,7 @@ const liveCases: LiveCase[] = [
   { key: 'compare-one', url: '/api/v2/read/compare-one?code=600519', schema: S.CompareOneSchema },
   { key: 'research-deep', url: '/api/v2/read/research-deep?code=600519', schema: S.ResearchDeepSchema },
   { key: 'stock-intraday', url: '/api/v2/read/stock-intraday?code=600519', schema: S.StockIntradaySchema },
+  { key: 'decision-loop-health', url: '/api/v2/read/decision-loop-health', schema: R.DecisionLoopHealthSchema },
   { key: 'diagnostics', url: '/api/v2/read/diagnostics', schema: D.DiagnosticsSchema },
   { key: 'index-quotes', url: '/api/v2/read/index-quotes', schema: S.IndexQuotesSchema },
   { key: 'index-kline', url: '/api/v2/read/index-kline?code=sh000001', schema: S.IndexKlineSchema },

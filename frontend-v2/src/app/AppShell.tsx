@@ -6,6 +6,7 @@ import { NAV } from '@/nav/nav'
 import { MockBanner } from '@/mocks/MockBanner'
 import { ThemeToggle } from '@/shared/ui/ThemeToggle'
 import { ZenToggle } from '@/shared/ui/ZenToggle'
+import { DecisionLoopAlarm } from './DecisionLoopAlarm'
 
 /**
  * 轻量卡片流 · 鉴权后应用外壳（DESIGN.md §3）。
@@ -274,6 +275,8 @@ export function AppShell() {
         </header>
         <main className="app-main flex-1 overflow-auto p-4 md:p-6">
           <MockBanner />
+          {/* 决策闭环停摆告警：安全信息，Zen 折叠顶栏/侧栏时仍随 <main> 可见 */}
+          <DecisionLoopAlarm />
           <Outlet />
         </main>
       </div>

@@ -1501,3 +1501,29 @@ v2 前端组件级测试治理已于 §40 **收官**：`stock/`、`analytics/`�
 ### 42.5 提交与推送
 - commit（msg: `docs(v2): 补充 §42 真实浏览器验收结论（126/126 通过，18 红线全 PASS）`）。
 - ff-only 推送；仅 stage `docs/frontend-v2/V2-STATUS-PLAN.md`；ks 父仓库 submodule 指针留痕不推。
+
+
+## 43. v2 决策闭环停摆告警（2026-11-16，P0 诚实红线）
+
+> 承接「完成未完成的任务，开发新的方向」。v1 54 页有 `render_decision_loop_alarm()`，
+> v2 生产前端只有数据日新鲜度徽标（`lib/freshness.ts`），调度静默停摆时用户仍会看到旧仓位建议
+> 而毫不知情 —— 历史真实故障（2026-09-10 / 09-15）。本轮把该告警能力搬到 v2 全局外壳。
+
+- 后端：`GET /api/v2/read/decision-loop-health`（JWT 只读），**原样透出**
+  `modules.decision.assess_decision_loop_health()`，不重写分级、不补零、不把停摆洗成接口 error。
+- 前端：`DecisionLoopHealthSchema`（status 五态严格枚举，未知值 parse 失败）、
+  `getDecisionLoopHealth()` / `useDecisionLoopHealth()`（60s 轮询）、
+  `DecisionLoopAlarm`（ok 不渲染；warn/stale 橙；dead/unknown 红；失败显「不可得」）、
+  挂在 `AppShell <main>` 内且早于 `<Outlet />`（Zen 折叠顶栏/侧栏时仍可见）。
+- 契约：`fixturePairs` / `liveCases` / MSW handler / `diagnosticsEndpoints` 四方登记；
+  无参端点由 `_diag_endpoints()` 动态枚举自动纳入诊断页。
+- 验收：SDD spec `.workbuddy/specs/v2_decision_loop_alarm.md`（AC1–AC11，gitignored）；
+  TDD 红绿 + mutation 自检 + 盲审；`tsc` / vitest / build / `pytest backend/tests` / 静态守卫。
+- **盲审补强（AC7 防自我静音）**：初版只断言 `HEALTH_REFETCH_INTERVAL_MS === 60_000`，
+  没锁 `useDecisionLoopHealth()` 是否真引用该常量 —— 若 `refetchInterval` 被写死或删掉，
+  组件测试仍会绿，静默失去自动探测（与历史 `undefined.parse` 假绿同族）。
+  已在 `decision-loop-alarm-shell.test.ts` 增加静态契约守卫，并用 M3（写死 30_000）/
+  M4（删除轮询）两次 mutation 验证守卫真变红、还原后全绿。
+- **B 段实证**：本地真实 Flask 后端（5052 + 独立探针库）跑 `contract-drift.test.ts`，
+  `[OK] decision-loop-health`，52/52 通过，`checkedCount >= 80%` 门禁未被新增 liveCase 稀释。
+- 红线：零 Streamlit 新增页；不碰 `43_实盘交易`；不碰主区在途改动。

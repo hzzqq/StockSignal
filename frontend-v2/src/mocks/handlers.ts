@@ -266,6 +266,8 @@ export const handlers = [
     const source = new URL(request.url).searchParams.get('source') || 'recommend'
     return ok({ ...fixtures.positionAllocation, source })
   }),
+  // 决策闭环健康度（v2 全局停摆告警）：开发态样例，非真实调度状态。
+  http.get('/api/v2/read/decision-loop-health', () => ok(fixtures.decisionLoopHealth)),
   // 自然语言选股语义解析（81 页解析层 V2 化）：空 query → invalid_param 信封，不臆造解析结果。
   http.get('/api/v2/read/nl-screen', ({ request }) => {
     const query = new URL(request.url).searchParams.get('query') || ''

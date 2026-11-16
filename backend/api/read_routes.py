@@ -4147,3 +4147,19 @@ def diagnostics():
         "note": _DIAG_NOTE,
     }
     return ok(data=_sanitize(data), message="diagnostics")
+
+
+# ───────── 决策闭环健康度（v2 全局停摆告警）─────────
+# 真值源唯一在 modules.decision.assess_decision_loop_health()（与 v1 54 页同源）。
+# 端点只透传：不重写分级、不补零、不把「调度停摆」洗成接口 error，也不伪装成 ok 数据。
+@bp.get("/decision-loop-health")
+@jwt_required
+def decision_loop_health():
+    """决策闭环是否仍在运行（供 v2 AppShell 全局横幅判定）。
+
+    业务状态 ok/warn/stale/dead/unknown 在 data.status；信封 status=ok 只表示接口本身可用。
+    快照缺失时 assess() 已如实返回 dead + null 字段，此处不做任何兜底或美化。
+    """
+    from modules.decision import assess_decision_loop_health
+
+    return ok(data=assess_decision_loop_health(), message="decision-loop-health")

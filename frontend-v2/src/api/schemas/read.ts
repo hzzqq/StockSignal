@@ -1481,3 +1481,18 @@ export const MarketSentimentSchema = z.object({
   note: z.string(),
 })
 export type MarketSentiment = z.infer<typeof MarketSentimentSchema>
+
+
+// ───────── 决策闭环健康度（v2 全局停摆告警，AC3 严格契约）─────────
+// 真值源 modules.decision.assess_decision_loop_health()；未知 status 一律 parse 失败，
+// 前端进 error 态显示「健康状态不可得」，绝不把异常状态洗成 ok。
+export const DecisionLoopHealthSchema = z.object({
+  status: z.enum(['ok', 'warn', 'stale', 'dead', 'unknown']),
+  rank: z.number().int().min(0).max(3),
+  generated_at: z.string().nullable(),
+  as_of: z.string().nullable(),
+  gen_lag_hours: z.number().nullable(),
+  data_lag_days: z.number().nullable(),
+  message: z.string(),
+})
+export type DecisionLoopHealth = z.infer<typeof DecisionLoopHealthSchema>

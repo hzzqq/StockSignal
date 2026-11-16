@@ -23,6 +23,7 @@ import {
   PortfolioSchema,
   PositionAllocationSchema,
   NlScreenSchema,
+  DecisionLoopHealthSchema,
   FundFlowSchema,
   TradingAccountSchema,
   MacroDataSchema,
@@ -80,6 +81,7 @@ import {
   type MomentumBreadth,
   type LimitUpReview,
   type MarketSentiment,
+  type DecisionLoopHealth,
 } from './schemas/read'
 
 /**
@@ -404,4 +406,10 @@ export function getWatch(): Promise<Watch> {
 /** GET /api/v2/read/quote-board —— 行情看板（10 页 V2 化：指数 + 板块涨跌榜 + 市场状态） */
 export function getQuoteBoard(): Promise<QuoteBoard> {
   return readValidated('quote-board', QuoteBoardSchema)
+}
+
+
+/** GET /api/v2/read/decision-loop-health —— 决策闭环是否停摆（v2 全局横幅真值源） */
+export function getDecisionLoopHealth(): Promise<DecisionLoopHealth> {
+  return readValidated('decision-loop-health', DecisionLoopHealthSchema)
 }

@@ -1,4 +1,5 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
+import { HEALTH_REFETCH_INTERVAL_MS } from '@/lib/health'
 import * as api from '@/api/read'
 import type { FactorAnalysisParams, BacktestParams, MarketPanoramaParams, PortfolioParams, EventBacktestParams } from '@/api/read'
 import { getSixDim, getFundamentals, getFinancials, getStockKline, getStockIntraday, getIndexQuotes, getIndexKline } from '@/api/stock'
@@ -46,6 +47,7 @@ import type {
   MomentumBreadth,
   LimitUpReview,
   MarketSentiment,
+  DecisionLoopHealth,
   EventBacktest,
 } from '@/api/schemas/read'
 
@@ -543,5 +545,18 @@ export function useEventBacktest(params: EventBacktestParams): UseQueryResult<Ev
     queryKey: ['read', 'event-backtest', params],
     queryFn: () => api.getEventBacktest(params),
     staleTime: THIRTY_MIN,
+  })
+}
+
+
+// ───────── 决策闭环健康度（v2 全局停摆告警）─────────
+// 60s 轮询：调度静默停摆时，用户不会一直看到「旧仓位建议」而无任何提示。
+// 解析失败/接口失败进 error 态，由横幅显示「健康状态不可得」，不兜底。
+export function useDecisionLoopHealth(): UseQueryResult<DecisionLoopHealth> {
+  return useQuery({
+    queryKey: ['read', 'decision-loop-health'],
+    queryFn: () => api.getDecisionLoopHealth(),
+    staleTime: 30_000,
+    refetchInterval: HEALTH_REFETCH_INTERVAL_MS,
   })
 }
