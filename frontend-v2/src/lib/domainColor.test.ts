@@ -22,10 +22,10 @@ describe('domainInk 域级双色', () => {
     }
   })
 
-  it('未知域 → 中性 (--sf-ink)', () => {
-    expect(domainInk('note')).toBe('var(--sf-ink)')
-    expect(domainInk('foo_bar')).toBe('var(--sf-ink)')
-    expect(domainInk('name')).toBe('var(--sf-ink)')
+  it('未知域 → 中性 (--color-sf-ink)', () => {
+    expect(domainInk('note')).toBe('var(--color-sf-ink)')
+    expect(domainInk('foo_bar')).toBe('var(--color-sf-ink)')
+    expect(domainInk('name')).toBe('var(--color-sf-ink)')
   })
 
   it('classifyDomain 返回正确域', () => {
@@ -45,6 +45,6 @@ describe('inkForCell 方向降级', () => {
   it('正值/非数字沿用域 up 墨色', () => {
     expect(inkForCell('price', 1.2)).toBe('var(--ss-up-ink)')
     expect(inkForCell('price', null)).toBe('var(--ss-up-ink)')
-    expect(inkForCell('foo', 1)).toBe('var(--sf-ink)')
+    expect(inkForCell('foo', 1)).toBe('var(--color-sf-ink)')
   })
 })

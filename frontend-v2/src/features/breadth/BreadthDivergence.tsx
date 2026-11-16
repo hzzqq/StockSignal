@@ -24,7 +24,7 @@ const CELL_CLS = 'h-7 min-w-9 border border-sf-line text-center text-[11px] tabu
 /** 红盘率越高越偏红（A 股语义）；null 用中性底 + 「—」，绝不按 0 上色。 */
 function heatStyle(v: number | null): CSSProperties {
   if (typeof v !== 'number' || !Number.isFinite(v)) {
-    return { backgroundColor: 'transparent', color: 'var(--sf-ink-3, #64748b)' }
+    return { backgroundColor: 'transparent', color: 'var(--color-sf-ink-3)' }
   }
   const a = Math.max(0, Math.min(1, (v - 20) / 60))
   return { backgroundColor: `rgba(220, 38, 38, ${(0.12 + a * 0.68).toFixed(2)})`, color: '#fff' }

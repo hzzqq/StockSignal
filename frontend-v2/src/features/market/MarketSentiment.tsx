@@ -20,7 +20,7 @@ function Spark({ values }: { values: Array<number | null> }) {
   const d = pts.map((p) => `${sx(p.i).toFixed(1)},${sy(p.v).toFixed(1)}`).join(' ')
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible" aria-hidden="true">
-      <polyline points={d} fill="none" stroke="var(--sf-accent, #2b8aef)" strokeWidth={1.5} />
+      <polyline points={d} fill="none" stroke="var(--color-sf-accent)" strokeWidth={1.5} />
     </svg>
   )
 }

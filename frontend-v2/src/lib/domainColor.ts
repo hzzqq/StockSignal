@@ -56,13 +56,13 @@ export function classifyDomain(field: string): DomainKind {
 
 /**
  * 域级墨色：价格域返回交易屏 up 墨色（红），业绩域返回报告体 up 墨色（绿），
- * 未知域返回中性 --sf-ink。仅作域区分，不表达单值涨跌方向。
+ * 未知域返回中性 --color-sf-ink。仅作域区分，不表达单值涨跌方向。
  */
 export function domainInk(field: string): string {
   const d = classifyDomain(field)
   if (d === 'price') return 'var(--ss-up-ink)'
   if (d === 'report') return 'var(--doc-up-ink)'
-  return 'var(--sf-ink)'
+  return 'var(--color-sf-ink)'
 }
 
 /**
@@ -72,7 +72,7 @@ export function domainInk(field: string): string {
  */
 export function inkForCell(field: string, value: unknown): string {
   const d = classifyDomain(field)
-  if (d === 'neutral') return 'var(--sf-ink)'
+  if (d === 'neutral') return 'var(--color-sf-ink)'
   if (typeof value === 'number' && value < 0) {
     return d === 'price' ? 'var(--ss-down-ink)' : 'var(--doc-down-ink)'
   }
