@@ -1319,7 +1319,7 @@ export const diagnosticsProbe = {
     available: true,
     levels: [
       { level: 'L1', ok: true, detail: '30 行 / 600519', latency_ms: 176 },
-      { level: 'L2', ok: false, detail: '依赖缺失', latency_ms: -1 },
+      { level: 'L2', ok: false, detail: 'BaoStock: 无数据（模拟夹具）', latency_ms: -1 },
       { level: 'L3', ok: true, detail: '30 行 / 600519', latency_ms: 312 },
       { level: 'L4', ok: false, detail: '连接超时', latency_ms: 10000 },
     ],

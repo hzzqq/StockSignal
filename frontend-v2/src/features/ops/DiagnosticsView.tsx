@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useDiagnostics } from '@/lib/queries'
 import { probeEndpoints, mocksEnabled } from '@/api/diagnostics'
-import { probeKind } from '@/api/schemas/diagnostics'
+import { probeKind, sourceProbeKind } from '@/api/schemas/diagnostics'
 import type { EndpointProbeResult } from '@/api/schemas/diagnostics'
 import type { DiagnosticsFreshnessRow, DiagnosticsProbe } from '@/api/schemas/diagnostics'
 import { Card } from '@/shared/ui/Card'
@@ -29,9 +29,19 @@ const PROBE_LABEL: Record<string, string> = {
 
 function statusText(status: string): string {
   if (status === 'ok' || status === 'fresh') return '正常'
-  if (status === 'stale' || status === 'warn') return '滞后'
+  // 与 lib/freshness.ts 的 freshnessLabel 同源：warn=偏旧（封顶 60%）/ stale=陈旧（封顶 40%）。
+  // 旧实现把两档压成同一个「滞后」且同色，用户看不出严重度差别。
+  if (status === 'stale') return '陈旧'
+  if (status === 'warn') return '偏旧'
   if (status === 'unknown') return '未知'
   return status
+}
+
+function freshnessClass(status: string): string {
+  if (status === 'ok' || status === 'fresh') return 'text-sf-ok'
+  if (status === 'stale') return 'text-sf-danger'
+  if (status === 'warn') return 'text-sf-warn'
+  return 'text-sf-ink-3'
 }
 
 function statusClass(ok: boolean | null): string {
@@ -109,7 +119,7 @@ export function DiagnosticsView() {
                 label="数据源时效"
                 value={data.freshness.available ? `${data.freshness.rows.length} 源` : '不可用'}
                 sub={data.freshness.available
-                  ? `正常 ${data.freshness.rows.filter((r) => r.status === 'ok').length} · 滞后 ${data.freshness.rows.filter((r) => r.status !== 'ok' && r.status !== 'unknown').length}`
+                  ? `正常 ${data.freshness.rows.filter((r) => r.status === 'ok').length} · 偏旧 ${data.freshness.rows.filter((r) => r.status === 'warn').length} · 陈旧 ${data.freshness.rows.filter((r) => r.status === 'stale').length}`
                   : '检测失败'}
               />
               <Stat label="只读端点" value={endpoints.length} sub={`${autoPaths.length} 个可自动探测`} />
@@ -191,10 +201,15 @@ export function DiagnosticsView() {
                   </button>
                 }
               >
-                <p className="text-label text-sf-ink-3 mb-3">
+                <p className="text-label text-sf-ink-3 mb-2">
                   {mocked
                     ? '当前为 Mock 环境：点击只会读取 MSW 夹具里的模拟结果，不会发出任何真实网络请求；下方通断与耗时均不代表真实数据源状态。'
                     : '默认不触网；点击后后端对 akshare / BaoStock / 新浪 / 东方财富各发一次真实日线请求（约数秒），如实报告通断与耗时。'}
+                </p>
+                <p className="text-label text-sf-ink-3 mb-3">
+                  结论分三态：「通」（拿到有效 K 线）、「无数据」（请求已完成但源返回空，非网络故障）、
+                  「不通」（连接失败或异常，明细带真实原因）。注意 akshare 与东方财富共用东方财富行情接口
+                  （push2his.eastmoney.com），两者同时失败可能只是同一个上游故障，四源并非四个独立上游。
                 </p>
                 {mocked && data.probe !== null ? (
                   <p role="note" className="text-label text-sf-warn mb-2">
@@ -293,17 +308,14 @@ function FreshnessTable({ rows }: { rows: DiagnosticsFreshnessRow[] }) {
           </tr>
         </thead>
         <tbody className="text-sf-ink-2">
-          {rows.map((r) => {
-            const ok = r.status === 'ok' ? true : r.status === 'unknown' ? null : false
-            return (
-              <tr key={r.key} className="border-b border-sf-line last:border-0">
-                <td className="py-1.5 pr-3">{r.name}</td>
-                <td className="py-1.5 pr-3 tabular-nums">{r.as_of ?? '—'}</td>
-                <td className="py-1.5 pr-3 text-right tabular-nums">{fmtNum(r.lag_days)}</td>
-                <td className={`py-1.5 ${statusClass(ok)}`}>{statusText(r.status)}</td>
-              </tr>
-            )
-          })}
+          {rows.map((r) => (
+            <tr key={r.key} className="border-b border-sf-line last:border-0">
+              <td className="py-1.5 pr-3">{r.name}</td>
+              <td className="py-1.5 pr-3 tabular-nums">{r.as_of ?? '—'}</td>
+              <td className="py-1.5 pr-3 text-right tabular-nums">{fmtNum(r.lag_days)}</td>
+              <td className={`py-1.5 ${freshnessClass(r.status)}`}>{statusText(r.status)}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -319,23 +331,28 @@ function ProbeBody({ probe, pending, mocked }: { probe: DiagnosticsProbe; pendin
   if (probe.levels.length === 0) return <p className="text-body text-sf-ink-3">探测未返回任何结果。</p>
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      {probe.levels.map((lv) => (
-        <div key={lv.level} className="rounded-tile bg-sf-surface-2 border border-sf-line px-3.5 py-3">
-          <div className="text-label text-sf-ink-3">
-            {PROBE_LABEL[lv.level] ?? lv.level}
-            {mocked ? <span className="ml-1 text-sf-warn">· 模拟</span> : null}
+      {probe.levels.map((lv) => {
+        const kind = sourceProbeKind(lv)
+        const label = kind === 'ok' ? '通' : kind === 'no_data' ? '无数据' : '不通'
+        const tone = kind === 'ok' ? 'text-sf-ok' : kind === 'no_data' ? 'text-sf-warn' : 'text-sf-danger'
+        return (
+          <div key={lv.level} className="rounded-tile bg-sf-surface-2 border border-sf-line px-3.5 py-3">
+            <div className="text-label text-sf-ink-3">
+              {PROBE_LABEL[lv.level] ?? lv.level}
+              {mocked ? <span className="ml-1 text-sf-warn">· 模拟</span> : null}
+            </div>
+            <div className={`text-kpi font-semibold leading-tight mt-0.5 ${tone}`}>
+              {label}
+            </div>
+            <div className="text-label text-sf-ink-3 mt-1 tabular-nums">
+              {lv.latency_ms === null || lv.latency_ms < 0 ? '—' : `${lv.latency_ms} ms`}
+            </div>
+            <div className="text-label text-sf-ink-3 mt-1 break-all" title={lv.detail ?? undefined}>
+              {lv.detail ?? '—'}
+            </div>
           </div>
-          <div className={`text-kpi font-semibold leading-tight mt-0.5 ${statusClass(lv.ok)}`}>
-            {lv.ok ? '通' : '不通'}
-          </div>
-          <div className="text-label text-sf-ink-3 mt-1 tabular-nums">
-            {lv.latency_ms === null || lv.latency_ms < 0 ? '—' : `${lv.latency_ms} ms`}
-          </div>
-          <div className="text-label text-sf-ink-3 mt-1 break-all" title={lv.detail ?? undefined}>
-            {lv.detail ?? '—'}
-          </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

@@ -1527,3 +1527,36 @@ v2 前端组件级测试治理已于 §40 **收官**：`stock/`、`analytics/`�
 - **B 段实证**：本地真实 Flask 后端（5052 + 独立探针库）跑 `contract-drift.test.ts`，
   `[OK] decision-loop-health`，52/52 通过，`checkedCount >= 80%` 门禁未被新增 liveCase 稀释。
 - 红线：零 Streamlit 新增页；不碰 `43_实盘交易`；不碰主区在途改动。
+
+## 44. 四源探网结果诚实性收口（2026-11-16，截图反馈）
+
+> 老板贴诊断页截图：akshare / 东方财富大字「不通」、小字却是「无数据」，自相矛盾，
+> 运维无从判断是网络故障还是源返回空。
+
+**取证**：实证 `_probe_sources_network()` 与单源 `_fetch_level()`，两源底层都打
+`push2his.eastmoney.com`（akshare `stock_zh_a_hist` 与自建 urllib 同源），
+当前环境因代理 `ProxyError` / `RemoteDisconnected` 连不上 —— **是环境网络限制，
+不是行情数据 bug，不假装修好四源全通**。
+
+**根因（两层异常吞噬）**：
+1. `modules/_feed_io.observe_source()` 把异常记进 `SOURCE_METRICS` 后返回 None，
+   不抛给调用方；`_fetch_level()` 再把 None 一律写成「<源>: 无数据」。
+2. `_BaoStockFetcher` / `_SinaFetcher` / `_UrllibFetcher` 的 `fetch_kline`
+   内部 `except` 又各自吞一层，同样返回 None。
+已有守卫 `test_health_realtime_probe.py` 只覆盖「异常穿透到探测层」，
+覆盖不到这两条真实路径（守卫盲区）。
+
+**修复**：
+- 给 `observe_source` 与三个 fetcher 加可选 `error_out`（旧调用零影响），
+  `_fetch_level._call` 合并两层原因，`_fail` 有异常带出类型与原因、真·空数据才写「无数据」。
+- 前端 `sourceProbeKind()` 纯函数三态：「通」/「无数据」（业务降级，橙）/「不通」
+  （真故障，红，明细带真实原因）；异常类名优先判定，避免异常消息里含「无数据」被误判。
+- 时效表 `statusText` 对齐 `lib/freshness.ts` 单一真理源：
+  `warn→偏旧`、`stale→陈旧`（danger 色），不再把「封顶 60%」与「封顶 40%」
+  压成同一个「滞后」；汇总卡同步按三档计数。
+- 说明文案明示 L1/L4 共用东财上游，四源并非四个独立上游（冗余度不虚高）。
+
+**验收**：真实链路复跑 L1=`akshare: ProxyError: ...`、
+L4=`东方财富: RemoteDisconnected: ...`、L2/L3=`20 行`；
+TDD 红灯 2 红 1 绿 → 绿灯；mutation M1–M3 全变红、还原全绿；
+MSW 夹具同步；tsc / vitest / build / 后端相关守卫 / 静态守卫全量。

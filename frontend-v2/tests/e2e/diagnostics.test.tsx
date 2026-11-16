@@ -65,13 +65,13 @@ describe('W4-D · 数据源与接口检测页', () => {
     expect(screen.getByText(/不代表真实后端连通性/)).toBeTruthy()
   })
 
-  it('数据源逐项与时效如实渲染：失败项显示「不可用」、滞后显示「滞后」、null 显示「—」', async () => {
+  it('数据源逐项与时效如实渲染：失败项「不可用」、stale 显示「陈旧」、null 显示「—」', async () => {
     mount()
     expect(await screen.findByText('BaoStock')).toBeTruthy()
     expect(screen.getAllByText('不可用').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('P1 事件因子')).toBeTruthy()
     expect(screen.getByText('2026-10-16')).toBeTruthy()
-    expect(screen.getAllByText('滞后').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('陈旧').length).toBeGreaterThanOrEqual(1)
     // 市场温度 as_of=null / lag_days=null → 两个 —
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2)
   })
@@ -87,7 +87,11 @@ describe('W4-D · 数据源与接口检测页', () => {
     // 负耗时（-1 ms）是假数据，必须显示为「—」而不是负数
     expect(screen.queryByText('-1 ms')).toBeNull()
     expect(screen.getAllByText('通').length).toBe(2)
-    expect(screen.getAllByText('不通').length).toBe(2)
+    expect(screen.getAllByText('无数据').length).toBe(1)
+    expect(screen.getAllByText('不通').length).toBe(1)
+    expect(screen.getByText('BaoStock: 无数据（模拟夹具）')).toBeTruthy()
+    // 真故障必须与「无数据」分开，且用 danger 色
+    expect(screen.getByText('不通').className).toContain('text-sf-danger')
     // 四张卡片逐卡标「模拟」+ 整体提示，绝不冒充真实探网结果
     expect(screen.getAllByText('· 模拟').length).toBe(4)
     expect(screen.getByText(/以下四源结果来自 MSW 模拟夹具/)).toBeTruthy()

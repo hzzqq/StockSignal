@@ -1,18 +1,18 @@
 {
   "meta": {
-    "generated_at": "2026-11-16 14:04",
-    "git_head": "f088643"
+    "generated_at": "2026-11-16 15:14",
+    "git_head": "e8abc91"
   },
   "stats": {
     "py_files_total": 932,
     "py_files_tests": 514,
     "src_files": 348,
-    "src_loc": 105169,
+    "src_loc": 105217,
     "test_files": 509,
-    "test_loc": 73720,
+    "test_loc": 73816,
     "pages": 74,
     "modules": 206,
-    "test_defs_static": 4656,
+    "test_defs_static": 4661,
     "tests_collected": null,
     "guard_files": 103,
     "flask_routes": 146,

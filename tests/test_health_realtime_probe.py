@@ -180,3 +180,99 @@ def test_realtime_probe_defaults_false():
     default = fn.args.defaults[fn.args.args.index(arg) - (len(fn.args.args) - len(fn.args.defaults))]
     assert isinstance(default, ast.Constant) and default.value is False, \
         "realtime_probe 默认值必须为 False（否则全站健康探测都会触网）"
+
+
+# ───────────────────── 6. 异常保真（截图缺陷：大字「不通」+ 小字「无数据」）─────────────────────
+# 现状：observe_source 把 ProxyError 记进 SOURCE_METRICS 后返回 None（不抛给调用方），
+# _fetch_level 再把 None 一律写成「<源>: 无数据」→ 真实网络故障原因彻底丢失，
+# 前端于是出现「不通 / 无数据」自相矛盾，运维无从判断该修什么。
+# 已有 test_probe_exception_is_reported_not_swallowed 只覆盖「异常穿透到 _one」，
+# 覆盖不到「异常被 observe_source 内部吞掉」这条真实路径，故补以下守卫。
+
+
+def _mock_swallowed_observe(monkeypatch, detail="ProxyError: Unable to connect to proxy"):
+    """精确复现 observe_source 真实行为：内部记异常、返回 None，不向上抛。"""
+    import modules.fetcher_kline as fk
+
+    def _observe(source, level, func, validate=None, error_out=None):
+        if error_out is not None:
+            error_out.append(detail)
+        return None
+
+    monkeypatch.setattr(fk, "observe_source", _observe)
+    monkeypatch.setattr(fetcher_mod, "_AK_OK", True)
+
+
+def test_swallowed_akshare_exception_is_not_washed_to_no_data(tmp_path, monkeypatch):
+    """L1：真实网络异常必须带出异常类型，不得洗成「无数据」。"""
+    f = _fetcher(tmp_path)
+    _mock_swallowed_observe(monkeypatch)
+    df, err = f._fetch_level("L1", "600519", "2026-10-17", "2026-11-16", "qfq")
+    assert df is None
+    assert "ProxyError" in (err or ""), f"真实网络异常被洗成「无数据」：{err}"
+    assert "无数据" not in (err or ""), f"异常与「无数据」语义矛盾：{err}"
+
+
+def test_swallowed_eastmoney_exception_is_not_washed_to_no_data(tmp_path, monkeypatch):
+    """L4：东方财富同理（实证 L1/L4 共用 push2his.eastmoney.com 上游）。"""
+    f = _fetcher(tmp_path)
+    _mock_swallowed_observe(monkeypatch, "ProxyError: push2his.eastmoney.com 不可达")
+    df, err = f._fetch_level("L4", "600519", "2026-10-17", "2026-11-16", "qfq")
+    assert df is None
+    assert "ProxyError" in (err or ""), f"真实网络异常被洗成「无数据」：{err}"
+
+
+def test_truly_empty_response_still_reports_no_data(tmp_path, monkeypatch):
+    """真·空响应（无异常）仍诚实写「无数据」，不得反向虚报成故障（防过度告警）。"""
+    import modules.fetcher_kline as fk
+
+    f = _fetcher(tmp_path)
+    monkeypatch.setattr(
+        fk, "observe_source",
+        lambda source, level, func, validate=None, error_out=None: None,
+    )
+    monkeypatch.setattr(fetcher_mod, "_AK_OK", True)
+    df, err = f._fetch_level("L1", "600519", "2026-10-17", "2026-11-16", "qfq")
+    assert df is None
+    assert err == "akshare: 无数据", f"空响应被误报成故障：{err}"
+
+
+# ───────────────────── 7. 第二层吞噬（各 fetcher 内部 except 也吞异常）─────────────────────
+
+
+def _fake_urllib(error=None):
+    """桩：模拟 _UrllibFetcher.fetch_kline 内部 except 后返回 None 的真实行为。"""
+    class _Fake:
+        @staticmethod
+        def fetch_kline(symbol, start_date, end_date, adjust="qfq",
+                        is_index=False, error_out=None):
+            if error is not None and error_out is not None:
+                error_out.append(error)
+            return None
+
+    return _Fake
+
+
+def test_nested_fetcher_exception_is_not_swallowed(tmp_path, monkeypatch):
+    """L4 内层异常（实测 RemoteDisconnected）必须带出，不能只修到 observe_source 这一层。"""
+    import modules.fetcher_kline as fk
+
+    f = _fetcher(tmp_path)
+    monkeypatch.setattr(
+        fk, "_UrllibFetcher",
+        _fake_urllib("RemoteDisconnected: Remote end closed connection without response"),
+    )
+    df, err = f._fetch_level("L4", "600519", "2026-10-17", "2026-11-16", "qfq")
+    assert df is None
+    assert "RemoteDisconnected" in (err or ""), f"内层异常仍被洗成「无数据」：{err}"
+
+
+def test_eastmoney_empty_klines_still_reports_no_data(tmp_path, monkeypatch):
+    """东方财富真·空 klines（无异常）仍诚实写「无数据」，不反向虚报成故障。"""
+    import modules.fetcher_kline as fk
+
+    f = _fetcher(tmp_path)
+    monkeypatch.setattr(fk, "_UrllibFetcher", _fake_urllib())
+    df, err = f._fetch_level("L4", "600519", "2026-10-17", "2026-11-16", "qfq")
+    assert df is None
+    assert err == "东方财富: 无数据", f"空响应被误报成故障：{err}"

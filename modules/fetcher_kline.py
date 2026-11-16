@@ -110,7 +110,9 @@ class KlineMixin:
         返回 (df_or_None, error_or_None)。L1=akshare / L2=BaoStock / L3=新浪 / L4=东方财富。
         每个源独立在子线程中执行，先成功者胜出，避免「顺序降级逐个网络超时」的累加等待。
         每个源调用均经 ``observe_source`` 记录成功率/耗时，供数据源健康度横幅使用。
-        任何单源的异常（含 TypeError）都会在此被吞掉并降级为「无数据」，由上层继续尝试其余源。
+        任何单源的异常（含 TypeError）都在此降级；但**真实异常原因必须带进 err**，
+        不得一律写成「无数据」——历史缺陷：observe_source 吞掉 ProxyError 后，
+        四源探测页出现「大字不通 / 小字无数据」，运维无从判断是网络故障还是源返回空。
         """
         rename_map = {
             "日期": "date", "开盘": "open", "收盘": "close",
@@ -128,11 +130,30 @@ class KlineMixin:
         except Exception as e:
             logger.warning(f"[fetcher] 处理异常: {e}")
             _ed = pd.Timestamp.max
+
+        def _call(source, fn, inner_errors=None):
+            """带出两层吞噬的真实异常：observe_source 层 + 各 fetcher 内部 except 层。
+
+            真·空数据（源返回空表 / klines 为空）时两处都不会写入 → (None, None)，
+            绝不把「没数据」虚报成「网络故障」。
+            """
+            errors: list[str] = []
+            res = observe_source(source, level, fn, error_out=errors)
+            if inner_errors:
+                errors.extend(inner_errors)
+            return res, (errors[0] if errors else None)
+
+        def _fail(label, err, fallback="无数据"):
+            """有异常如实带出类型与原因（截断防超长 URL 撑爆 UI）；无异常才是「无数据」。"""
+            if err:
+                return None, f"{label}: {str(err)[:180]}"
+            return None, f"{label}: {fallback}"
+
         try:
             if level == "L1" and _fetcher_mod._AK_OK:
                 import akshare as ak  # 局部导入：与 _AK_OK 同源，可用时才引用
-                df = observe_source(
-                    "akshare", level,
+                df, call_err = _call(
+                    "akshare",
                     lambda: _retry_request(
                         lambda: ak.stock_zh_a_hist(
                             symbol=symbol, period="daily",
@@ -148,23 +169,28 @@ class KlineMixin:
                     df = self._safe_kline_df(df)
                     if df is not None:
                         return df, None
-                return None, "akshare: 无数据"
+                return _fail("akshare", call_err)
 
             if level == "L2":
-                df = observe_source(
-                    "baostock", level,
-                    lambda: _BaoStockFetcher.fetch_kline(symbol, start, end, adjust=adjust),
+                bs_err: list[str] = []
+                df, call_err = _call(
+                    "baostock",
+                    lambda: _BaoStockFetcher.fetch_kline(
+                        symbol, start, end, adjust=adjust, error_out=bs_err),
+                    bs_err,
                 )
                 if df is not None:
                     df = self._safe_kline_df(df)
                     if df is not None:
                         return df, None
-                return None, "BaoStock: 无数据"
+                return _fail("BaoStock", call_err)
 
             if level == "L3":
-                df = observe_source(
-                    "sina", level,
-                    lambda: _SinaFetcher.fetch_kline(symbol, start, end),
+                sina_err: list[str] = []
+                df, call_err = _call(
+                    "sina",
+                    lambda: _SinaFetcher.fetch_kline(symbol, start, end, error_out=sina_err),
+                    sina_err,
                 )
                 if df is not None:
                     df = self._safe_kline_df(df)
@@ -173,18 +199,21 @@ class KlineMixin:
                         df = df[(df["date"] >= _sd) & (df["date"] <= _ed)]
                         if not df.empty:
                             return df, None
-                return None, "新浪: 日期范围外/无数据"
+                return _fail("新浪", call_err, "日期范围外/无数据")
 
             if level == "L4":
-                df = observe_source(
-                    "eastmoney", level,
-                    lambda: _UrllibFetcher.fetch_kline(symbol, start, end, adjust=adjust),
+                em_err: list[str] = []
+                df, call_err = _call(
+                    "eastmoney",
+                    lambda: _UrllibFetcher.fetch_kline(
+                        symbol, start, end, adjust=adjust, error_out=em_err),
+                    em_err,
                 )
                 if df is not None:
                     df = self._safe_kline_df(df)
                     if df is not None:
                         return df, None
-                return None, "东方财富: 无数据"
+                return _fail("东方财富", call_err)
         except Exception as e:  # noqa: BLE001
             logger.warning(f"[fetcher] 处理异常: {e}")
             return None, f"{level}: {type(e).__name__}"

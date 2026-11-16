@@ -4,6 +4,7 @@ import type { ReactElement } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DiagnosticsView } from './DiagnosticsView'
 import type { Diagnostics } from '@/api/schemas/diagnostics'
+import { sourceProbeKind } from '@/api/schemas/diagnostics'
 
 vi.mock('@/api/diagnostics', () => ({
   getDiagnostics: vi.fn(),
@@ -34,6 +35,7 @@ function makeDiag(overrides: Record<string, unknown> = {}): Diagnostics {
       rows: [
         { key: 'p1', name: 'P1 信号', as_of: '2026-10-16', lag_days: 2, status: 'ok' },
         { key: 'breadth', name: '广度', as_of: '2026-09-01', lag_days: 10, status: 'stale' },
+        { key: 'warn_src', name: '偏旧源', as_of: '2026-10-10', lag_days: 5, status: 'warn' },
         { key: 'x', name: '未知源', as_of: null, lag_days: null, status: 'unknown' },
       ],
       reason: null,
@@ -124,14 +126,19 @@ describe('DiagnosticsView · 数据源与接口检测 · 零网络 + 诚实降�
     expect(screen.getByText('只读端点连通性')).toBeTruthy()
   })
 
-  it('freshness 状态文字如实：ok→正常 / stale→滞后 / unknown→未知；缺失 as_of 显「—」', async () => {
+  it('freshness 严重度如实：ok→正常 / warn→偏旧 / stale→陈旧 / unknown→未知', async () => {
     renderWithClient(<DiagnosticsView />)
     expect(await screen.findByText('各数据源时效')).toBeTruthy()
     expect(screen.getByText('正常')).toBeTruthy()
-    expect(screen.getByText('滞后')).toBeTruthy()
+    expect(screen.getByText('偏旧')).toBeTruthy()
+    expect(screen.getByText('陈旧')).toBeTruthy()
     expect(screen.getByText('未知')).toBeTruthy()
     expect(screen.getByText('2026-10-16')).toBeTruthy()
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1)
+    // 旧实现把 warn/stale 压成同词同色；现在严重度必须能从颜色区分
+    expect(screen.getByText('陈旧').className).toContain('text-sf-danger')
+    expect(screen.getByText('偏旧').className).toContain('text-sf-warn')
+    expect(screen.queryByText('滞后')).toBeNull()
   })
 
   it('点击「开始检测」→ 对可探测端点发起真实 GET 并如实记录结果', async () => {
@@ -175,5 +182,35 @@ describe('DiagnosticsView · 数据源与接口检测 · 零网络 + 诚实降�
     expect(await screen.findByText('HTTP 500')).toBeTruthy()
     expect(screen.getByText('0/1')).toBeTruthy()
     expect(screen.getByText(/业务降级 0 项（非接口故障）/)).toBeTruthy()
+  })
+
+  it('四源探测三态：通 / 无数据 / 不通；真实异常原因不得被洗成「无数据」', async () => {
+    diagMock.mockResolvedValue(makeDiag({
+      probe: {
+        available: true, reason: null,
+        levels: [
+          { level: 'L1', ok: true, detail: '20 行 / 600519', latency_ms: 59 },
+          { level: 'L2', ok: false, detail: 'BaoStock: 无数据', latency_ms: 120 },
+          { level: 'L4', ok: false, detail: '东方财富: ProxyError: Unable to connect to proxy', latency_ms: 254 },
+        ],
+      },
+    }))
+    renderWithClient(<DiagnosticsView />)
+    expect(await screen.findByText('通')).toBeTruthy()
+    expect(screen.getByText('无数据')).toBeTruthy()
+    expect(screen.getByText('不通')).toBeTruthy()
+    expect(screen.getByText(/ProxyError/)).toBeTruthy()
+    expect(screen.getByText('不通').className).toContain('text-sf-danger')
+    expect(screen.getByText('无数据').className).toContain('text-sf-warn')
+  })
+
+  it('sourceProbeKind：异常类名优先于「无数据」字样，空 detail 不虚报故障', () => {
+    expect(sourceProbeKind({ ok: true, detail: null })).toBe('ok')
+    expect(sourceProbeKind({ ok: false, detail: 'akshare: 无数据' })).toBe('no_data')
+    expect(sourceProbeKind({ ok: false, detail: 'akshare: ProxyError: ... 无数据' })).toBe('failure')
+    expect(sourceProbeKind({ ok: false, detail: '东方财富: RemoteDisconnected: ... 无数据' })).toBe('failure')
+    expect(sourceProbeKind({ ok: false, detail: '' })).toBe('no_data')
+    expect(sourceProbeKind({ ok: false, detail: '连接超时' })).toBe('failure')
+    expect(sourceProbeKind({ ok: false, detail: 'BaoStock: 无数据（模拟夹具）' })).toBe('no_data')
   })
 })

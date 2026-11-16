@@ -223,13 +223,18 @@ def _observe_log(source, level, ok, latency_ms, detail=""):
     logger.debug("[OBS] " + json.dumps(rec, ensure_ascii=False))
 
 
-def observe_source(source, level, func, validate=None):
+def observe_source(source, level, func, validate=None, error_out=None):
     """
     执行单数据源调用并记录成功率/耗时埋点。
 
     - 异常安全：数据源抛错仅记录埋点并返回 None，不拖垮调用方降级链。
     - validate: 可选函数，对返回结果二次校验（如板块数据合理性）。
       返回 True 视为成功，否则按失败记录并置空结果。
+    - error_out: 可选 ``list[str]``；单源异常时把 ``"Type: msg"`` 追加进去，
+      供调用方把真实失败原因带进降级链。历史缺陷：异常在此被吞后返回 None，
+      上层一律写成「无数据」，四源探测页于是出现「大字不通 / 小字无数据」
+      的自相矛盾，运维无从判断是网络故障还是源确实返回空。
+      该参数不改变返回值与其它调用方行为（缺省时与旧版完全一致）。
     """
     t0 = time.time()
     try:
@@ -238,6 +243,8 @@ def observe_source(source, level, func, validate=None):
         logger.warning(f"[_feed_io] 处理异常: {e}")
         dt = (time.time() - t0) * 1000
         detail = f"{type(e).__name__}: {e}"
+        if error_out is not None:
+            error_out.append(detail)
         _record_source_metric(source, False, dt, detail)
         _observe_log(source, level, False, dt, detail)
         return None
@@ -481,13 +488,15 @@ class _BaoStockFetcher:
             cls._login_done = False
 
     @classmethod
-    def fetch_kline(cls, symbol, start_date, end_date, adjust="qfq"):
+    def fetch_kline(cls, symbol, start_date, end_date, adjust="qfq", error_out=None):
         """
         获取个股/指数日 K 线。
         adjust: qfq=前复权(2), hfq=后复权(1), none=不复权(3)
-        返回 DataFrame 或 None。
+        返回 DataFrame 或 None；error_out 可选，写入真实失败原因（供四源探网如实报告）。
         """
         if not _is_bs_available():
+            if error_out is not None:
+                error_out.append("BaoStock 依赖不可用")
             return None
 
         # 调整复权类型
@@ -496,6 +505,8 @@ class _BaoStockFetcher:
         bs_code = _symbol_to_bs(symbol)
         try:
             if not cls._ensure_login():
+                if error_out is not None:
+                    error_out.append("BaoStock 登录失败")
                 return None
 
             fields = "date,open,high,low,close,volume,amount"
@@ -528,6 +539,8 @@ class _BaoStockFetcher:
         except Exception as e:
             logger.warning(f"[BaoStockFetcher] 异常 ({bs_code}): {type(e).__name__}: {e}")
             # 异常时也不要 logout，下次复用即可
+            if error_out is not None:
+                error_out.append(f"{type(e).__name__}: {e}")
             return None
 
     @classmethod
@@ -628,7 +641,7 @@ class _SinaFetcher:
     }
 
     @classmethod
-    def fetch_kline(cls, symbol, _start_date=None, _end_date=None):
+    def fetch_kline(cls, symbol, _start_date=None, _end_date=None, error_out=None):
         """
         获取个股日 K 线（最近 N 条，新浪接口默认返回全部可用数据）。
         注意：新浪接口不支持按日期范围过滤，返回最近约 2000 条。
@@ -644,12 +657,16 @@ class _SinaFetcher:
                 raw = resp.read().decode("utf-8", errors="replace")
         except Exception as e:
             logger.info(f"[SinaFetcher] 请求失败 ({sina_code}): {type(e).__name__}: {e}")
+            if error_out is not None:
+                error_out.append(f"{type(e).__name__}: {e}")
             return None
 
         try:
             data = json.loads(raw)
         except json.JSONDecodeError as e:
             logger.info(f"[SinaFetcher] JSON 解析失败 ({sina_code}): {e}")
+            if error_out is not None:
+                error_out.append(f"JSONDecodeError: {e}")
             return None
 
         if not data or not isinstance(data, list):
@@ -695,7 +712,7 @@ class _UrllibFetcher:
     }
 
     @classmethod
-    def fetch_kline(cls, symbol, start_date, end_date, adjust="qfq", is_index=False):
+    def fetch_kline(cls, symbol, start_date, end_date, adjust="qfq", is_index=False, error_out=None):
         """东方财富 K 线接口，返回 DataFrame 或 None。"""
         secid = _index_to_secid(symbol) if is_index else _symbol_to_secid(symbol)
         fqt = {"qfq": "1", "hfq": "2"}.get(adjust, "0")
@@ -715,6 +732,8 @@ class _UrllibFetcher:
                 data = json.loads(resp.read().decode("utf-8"))
         except Exception as e:
             logger.info(f"[UrllibFetcher] K线失败 ({symbol}): {type(e).__name__}: {e}")
+            if error_out is not None:
+                error_out.append(f"{type(e).__name__}: {e}")
             return None
 
         klines = data.get("data", {}).get("klines", [])

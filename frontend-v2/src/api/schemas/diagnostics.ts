@@ -65,6 +65,28 @@ export const DiagnosticsProbeLevelSchema = z.object({
 })
 export type DiagnosticsProbeLevel = z.infer<typeof DiagnosticsProbeLevelSchema>
 
+export type SourceProbeKind = 'ok' | 'no_data' | 'failure'
+
+/**
+ * 四源真实探网结果的三态语义（UI 与测试共用，禁止各处靠文案猜）。
+ *  - ok      ：拿到有效 K 线；
+ *  - no_data ：请求已完成但源确实返回空（业务降级，不是网络不通）；
+ *  - failure ：连接失败 / 异常 / 超时（真故障，detail 带真实原因）。
+ *
+ * 后端 `_fetch_level` 现已把 `observe_source` 吞掉的真实异常带进 detail，
+ * 因此异常类名优先判定：异常消息里即便恰好含「无数据」也不能误判成业务空数据。
+ * 历史缺陷：旧实现把 ok=false 一律显示「不通」，而 detail 写「无数据」，自相矛盾。
+ */
+export function sourceProbeKind(
+  lv: Pick<DiagnosticsProbeLevel, 'ok' | 'detail'>,
+): SourceProbeKind {
+  if (lv.ok) return 'ok'
+  const d = lv.detail ?? ''
+  if (/\b[A-Za-z][A-Za-z0-9_]*(?:Error|Exception|Timeout|Refused|Disconnected)\b/.test(d)) return 'failure'
+  if (d === '' || /无数据|空数据|校验未通过|日期范围外/.test(d)) return 'no_data'
+  return 'failure'
+}
+
 export const DiagnosticsProbeSchema = z.object({
   available: z.boolean(),
   levels: z.array(DiagnosticsProbeLevelSchema),
