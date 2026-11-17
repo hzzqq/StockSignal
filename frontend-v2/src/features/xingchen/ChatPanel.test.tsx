@@ -21,7 +21,9 @@ describe('ChatPanel', () => {
       <ChatPanel
         messages={[]}
         style="quick"
+        mode="quick"
         onStyleChange={() => {}}
+        onModeChange={() => {}}
         onSend={() => {}}
       />,
     )
@@ -34,7 +36,9 @@ describe('ChatPanel', () => {
       <ChatPanel
         messages={[]}
         style="quick"
+        mode="quick"
         onStyleChange={() => {}}
+        onModeChange={() => {}}
         onSend={() => {}}
         onPickChip={onPickChip}
       />,
@@ -46,7 +50,7 @@ describe('ChatPanel', () => {
 
   it('渲染消息流', () => {
     render(
-      <ChatPanel messages={msgs} style="quick" onStyleChange={() => {}} onSend={() => {}} />,
+      <ChatPanel messages={msgs} style="quick" mode="quick" onStyleChange={() => {}} onModeChange={() => {}} onSend={() => {}} />,
     )
     expect(screen.getByText('茅台怎么看')).toBeTruthy()
     expect(screen.getByText('结论是看好')).toBeTruthy()
@@ -54,7 +58,7 @@ describe('ChatPanel', () => {
 
   it('顶部显示模型徽标（诚实态）', () => {
     const { rerender } = render(
-      <ChatPanel messages={[]} style="quick" onStyleChange={() => {}} onSend={() => {}} />,
+      <ChatPanel messages={[]} style="quick" mode="quick" onStyleChange={() => {}} onModeChange={() => {}} onSend={() => {}} />,
     )
     expect(screen.getByText('规则引擎模式')).toBeTruthy()
     rerender(
@@ -62,7 +66,9 @@ describe('ChatPanel', () => {
         messages={[]}
         model="gpt-4o"
         style="quick"
+        mode="quick"
         onStyleChange={() => {}}
+        onModeChange={() => {}}
         onSend={() => {}}
       />,
     )
@@ -72,7 +78,7 @@ describe('ChatPanel', () => {
   it('在输入框发送 → onSend 被调用', () => {
     const onSend = vi.fn()
     render(
-      <ChatPanel messages={msgs} style="quick" onStyleChange={() => {}} onSend={onSend} />,
+      <ChatPanel messages={msgs} style="quick" mode="quick" onStyleChange={() => {}} onModeChange={() => {}} onSend={onSend} />,
     )
     const ta = screen.getByPlaceholderText(/问点什么/) as HTMLTextAreaElement
     fireEvent.change(ta, { target: { value: '再问一句' } })

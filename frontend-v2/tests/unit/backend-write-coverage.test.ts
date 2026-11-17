@@ -118,9 +118,12 @@ describe('后端写端点 ↔ v2 API 层覆盖率', () => {
   })
 
   it('所有写请求都走统一写层 apiMutate（防三套分裂回潮）', () => {
-    const apiFiles = walk(join(ROOT, 'frontend-v2/src/api'), ['.ts'])
     // 历史遗留：endpoints.ts(login) / client.ts(refresh 递归) / admin.ts / chat.ts
     // 在本批之前已有裸 apiFetch 写操作；本批新增的写模块必须走 apiMutate。
+    // 测试文件不是生产写模块（其中必然有 method:'POST' 断言字面量），必须排除，
+    // 否则新增一个 API 契约测试就会被误判成「绕过统一写层」。
+    const apiFiles = walk(join(ROOT, 'frontend-v2/src/api'), ['.ts'])
+      .filter((f) => !f.endsWith('.test.ts'))
     const LEGACY = new Set(['endpoints.ts', 'client.ts', 'admin.ts', 'chat.ts', 'write.ts', 'schema.ts', 'read.ts', 'diagnostics.ts', 'stock.ts', 'stockSearch.ts'])
     const offenders: string[] = []
     for (const f of apiFiles) {

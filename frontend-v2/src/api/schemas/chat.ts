@@ -57,6 +57,20 @@ export const AiConsultSubmitSchema = z.object({
 })
 export type AiConsultSubmit = z.infer<typeof AiConsultSubmitSchema>
 
+/**
+ * 提交 ai_research 的入参（parity AI Copilot · 深度研究模式）。
+ * 对齐 backend/tasks/worker.py:_handle_ai_research 与
+ * .workbuddy/specs/ai_research_agent_contract.md：
+ *   question 必填 / max_steps ≤8 / history ≤8 条 / style 仅 quick|report。
+ */
+export const AiResearchSubmitSchema = z.object({
+  question: z.string().min(1, '问题不能为空'),
+  max_steps: z.number().int().min(1).max(8).default(8),
+  history: z.array(z.object({ role: z.string(), content: z.string() })).max(8).optional(),
+  style: z.enum(['quick', 'report']).default('report'),
+})
+export type AiResearchSubmit = z.infer<typeof AiResearchSubmitSchema>
+
 /** 提交任务返回（POST /api/tasks/ 解包后的 data） */
 export const TaskSubmitResultSchema = z.object({
   task_id: z.string(),

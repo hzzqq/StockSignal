@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { classifyIntent, extractTopic, STYLE_LABELS, DIMENSIONS, type XcStyle } from './intent'
 import {
   submitAiConsult,
+  submitAiResearch,
   getAiConsultTask,
   cancelAiConsult,
   listConversations,
@@ -90,12 +91,15 @@ interface XingchenState {
   order: string[]
   activeId: string
   style: XcStyle
+  /** 咨询模式：quick=单轮 ai_consult；research=多步工具调用 ai_research（引用溯源） */
+  mode: 'quick' | 'research'
   model: string | undefined
   runningTaskId: string | null
   runningMsgId: string | null
   booting: boolean
 
   setStyle: (s: XcStyle) => void
+  setMode: (m: 'quick' | 'research') => void
   setModel: (m?: string) => void
   createSession: (title?: string) => string
   deleteSession: (id: string) => void
@@ -150,12 +154,14 @@ export const useXingchenStore = create<XingchenState>((set, get) => ({
   order: [],
   activeId: '',
   style: 'quick',
+  mode: 'quick',
   model: undefined,
   runningTaskId: null,
   runningMsgId: null,
   booting: false,
 
   setStyle: (s) => set({ style: s }),
+  setMode: (m) => set({ mode: m }),
   setModel: (m) => set({ model: m }),
 
   createSession: (title) => {
@@ -421,7 +427,14 @@ export const useXingchenStore = create<XingchenState>((set, get) => ({
 
     let taskId: string
     try {
-      taskId = await submitAiConsult({ question, style: get().style, model: get().model })
+      if (get().mode === 'research') {
+        // 深度研究：多步工具调用 + 引用溯源（style=report 输出研报结构）。
+        // 用当前页面风格决定合成方式：report→研报结构，其余→简洁。
+        const researchStyle = get().style === 'report' ? 'report' : 'quick'
+        taskId = await submitAiResearch({ question, style: researchStyle, max_steps: 8 })
+      } else {
+        taskId = await submitAiConsult({ question, style: get().style, model: get().model })
+      }
     } catch (e) {
       get().updateMessage(sid, aId, {
         status: 'error',
@@ -514,6 +527,7 @@ export function resetXingchen(): void {
     order: [],
     activeId: '',
     style: 'quick',
+    mode: 'quick',
     model: undefined,
     runningTaskId: null,
     runningMsgId: null,
@@ -528,6 +542,8 @@ export function useXingchen() {
   const activeId = useXingchenStore((s) => s.activeId)
   const style = useXingchenStore((s) => s.style)
   const model = useXingchenStore((s) => s.model)
+  const mode = useXingchenStore((s) => s.mode)
+  const setMode = useXingchenStore((s) => s.setMode)
   const booting = useXingchenStore((s) => s.booting)
   const runningTaskId = useXingchenStore((s) => s.runningTaskId)
   const setStyle = useXingchenStore((s) => s.setStyle)
@@ -550,10 +566,12 @@ export function useXingchen() {
     activeId,
     active,
     style,
+    mode,
     model,
     booting,
     isRunning: !!runningTaskId,
     setStyle,
+    setMode,
     setModel,
     submitQuestion,
     cancelCurrent,

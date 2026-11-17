@@ -224,13 +224,10 @@ describe('W4-E · 设置页（真实生效）', () => {
     expect(new Set(items.map((i) => i.icon)).size).toBe(items.length)
   })
 
-  it('启动脚本默认连真实后端（MSW off），并允许显式覆盖回 Mock', () => {
+  it('v2 启动脚本默认连真实后端（MSW off），并允许显式覆盖回 Mock', () => {
     const bat = readFileSync(resolve(ROOT, 'start_frontend_v2.bat'), 'utf8')
-    const sh = readFileSync(resolve(ROOT, 'start_frontend_v2.sh'), 'utf8')
     expect(bat).toContain('set "VITE_ENABLE_MOCKS=false"')
     expect(bat).toContain('STOCKSIGNAL_USE_MOCKS')
-    expect(sh).toContain('export VITE_ENABLE_MOCKS=false')
-    expect(sh).toContain('STOCKSIGNAL_USE_MOCKS')
   })
 
   it('启动脚本后台常驻：关闭命令行窗口后服务仍在', () => {

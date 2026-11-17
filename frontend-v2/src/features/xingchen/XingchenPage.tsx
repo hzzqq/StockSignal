@@ -6,7 +6,7 @@ import { RetestButton } from '@/shared/ui/RetestButton'
 
 /** 星辰 AI 页面容器：左侧会话侧栏 + 右侧对话面板。 */
 export function XingchenPage() {
-  const { bootstrap, active, style, model, isRunning, booting, setStyle, submitQuestion, cancelCurrent } =
+  const { bootstrap, active, style, mode, model, isRunning, booting, setStyle, setMode, submitQuestion, cancelCurrent } =
     useXingchen()
   const booted = useRef(false)
 
@@ -43,8 +43,10 @@ export function XingchenPage() {
             messages={messages}
             model={model}
             style={style}
+            mode={mode}
             isRunning={isRunning}
             onStyleChange={setStyle}
+            onModeChange={setMode}
             onSend={submitQuestion}
             onStop={cancelCurrent}
             onPickChip={(c) => submitQuestion(c)}

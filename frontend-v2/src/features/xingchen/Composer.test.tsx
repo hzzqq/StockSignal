@@ -5,7 +5,7 @@ import { Composer } from './Composer'
 describe('Composer', () => {
   it('输入 + Enter 发送', () => {
     const onSend = vi.fn()
-    render(<Composer style="quick" onStyleChange={() => {}} onSend={onSend} />)
+    render(<Composer style="quick" mode="quick" onStyleChange={() => {}} onModeChange={() => {}} onSend={onSend} />)
     const ta = screen.getByPlaceholderText(/问点什么/) as HTMLTextAreaElement
     fireEvent.change(ta, { target: { value: '茅台怎么看' } })
     fireEvent.keyDown(ta, { key: 'Enter' })
@@ -14,7 +14,7 @@ describe('Composer', () => {
 
   it('点击发送按钮发送', () => {
     const onSend = vi.fn()
-    render(<Composer style="quick" onStyleChange={() => {}} onSend={onSend} />)
+    render(<Composer style="quick" mode="quick" onStyleChange={() => {}} onModeChange={() => {}} onSend={onSend} />)
     const ta = screen.getByPlaceholderText(/问点什么/) as HTMLTextAreaElement
     fireEvent.change(ta, { target: { value: '大盘' } })
     fireEvent.click(screen.getByText('发送'))
@@ -26,7 +26,9 @@ describe('Composer', () => {
     render(
       <Composer
         style="quick"
+        mode="quick"
         onStyleChange={() => {}}
+        onModeChange={() => {}}
         onSend={() => {}}
         onStop={onStop}
         isRunning
@@ -39,10 +41,22 @@ describe('Composer', () => {
 
   it('聚焦弹出快捷指令，点击直接发送', () => {
     const onSend = vi.fn()
-    render(<Composer style="quick" onStyleChange={() => {}} onSend={onSend} />)
+    render(<Composer style="quick" mode="quick" onStyleChange={() => {}} onModeChange={() => {}} onSend={onSend} />)
     const ta = screen.getByPlaceholderText(/问点什么/) as HTMLTextAreaElement
     fireEvent.focus(ta)
     fireEvent.click(screen.getByText('半导体板块有哪些机会？'))
     expect(onSend).toHaveBeenCalledWith('半导体板块有哪些机会？')
   })
 })
+
+  it('深度研究模式：点击切换 → aria-pressed 变化并回调', () => {
+    const onModeChange = vi.fn()
+    render(
+      <Composer style="quick" mode="quick" onStyleChange={() => {}}
+        onModeChange={onModeChange} onSend={() => {}} />,
+    )
+    const btn = screen.getByRole('button', { name: '深度研究模式' })
+    expect(btn.getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(btn)
+    expect(onModeChange).toHaveBeenCalledWith('research')
+  })

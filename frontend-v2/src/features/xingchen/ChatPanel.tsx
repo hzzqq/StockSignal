@@ -28,8 +28,10 @@ export function ChatPanel({
   messages,
   model,
   style,
+  mode,
   isRunning = false,
   onStyleChange,
+  onModeChange,
   onSend,
   onStop,
   onPickChip,
@@ -38,8 +40,10 @@ export function ChatPanel({
   messages: ChatMessage[]
   model?: string
   style: XcStyle
+  mode: 'quick' | 'research'
   isRunning?: boolean
   onStyleChange: (s: XcStyle) => void
+  onModeChange: (m: 'quick' | 'research') => void
   onSend: (q: string) => void
   onStop?: () => void
   onPickChip?: (c: string) => void
@@ -110,7 +114,9 @@ export function ChatPanel({
       <div className="shrink-0 border-t border-sf-line p-3">
         <Composer
           style={style}
+          mode={mode}
           onStyleChange={onStyleChange}
+          onModeChange={onModeChange}
           onSend={onSend}
           onStop={onStop}
           isRunning={isRunning}

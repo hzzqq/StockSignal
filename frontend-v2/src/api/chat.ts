@@ -1,7 +1,9 @@
 import { z } from 'zod'
 import { apiFetch, ApiError } from './client'
+import { apiMutate } from './write'
 import {
   AiConsultSubmitSchema,
+  AiResearchSubmitSchema,
   TaskSubmitResultSchema,
   AiConsultTaskSchema,
   type AiConsultTask,
@@ -37,6 +39,20 @@ export async function submitAiConsult(input: z.input<typeof AiConsultSubmitSchem
     body: JSON.stringify({ type: 'ai_consult', payload: body }),
   })
   const parsed = TaskSubmitResultSchema.parse(data)
+  return parsed.task_id
+}
+
+/** POST /api/tasks/ —— 提交 ai_research 深度研究任务（多步工具调用 + 引用溯源）。
+ *  后端已允许该类型（task_routes._ALLOWED_TASK_TYPES），payload 仅需为对象。 */
+export async function submitAiResearch(input: z.input<typeof AiResearchSubmitSchema>): Promise<string> {
+  const body = AiResearchSubmitSchema.parse(input)
+  // 新增写操作必须走统一写层，不搭 chat.ts 历史遗留豁免的便车
+  const parsed = await apiMutate(
+    '/tasks/',
+    'POST',
+    { type: 'ai_research', payload: body },
+    TaskSubmitResultSchema,
+  )
   return parsed.task_id
 }
 
