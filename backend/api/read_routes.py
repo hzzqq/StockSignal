@@ -196,6 +196,42 @@ def daily_snapshot():
     return _serve_whitelist_json("daily_snapshot", "daily_snapshot.json")
 
 
+@bp.get("/public-overview")
+def public_overview():
+    """登录页公开摘要（无鉴权）—— 资金温度 / 今日市场涨跌 / AI 信号计数。
+
+    背景：登录页左栏行情台此前调用 daily-snapshot（需鉴权），未登录永远拿不到，
+    三个面板全部「—」（2026-11-17 老板截图报修）。本端点只透传展示必需的
+    脱敏字段（无持仓 / 推荐 / 明细），数据缺失字段为 None，前端诚实显示「—」，
+    绝不编造（与 daily-snapshot 语义一致）。
+    """
+    status, data = _read_json(_FILE_WHITELIST["daily_snapshot"])
+    if status != "ok" or not isinstance(data, dict):
+        return _not_found("public_overview")
+    ind = data.get("indicators") if isinstance(data.get("indicators"), dict) else {}
+    ef = data.get("event_factor") if isinstance(data.get("event_factor"), dict) else {}
+    overview = {
+        "date": data.get("date"),
+        "as_of": data.get("as_of"),
+        "cycle": data.get("cycle"),
+        "temperature": data.get("temperature"),
+        "indicators": {
+            "up_count": ind.get("up_count"),
+            "down_count": ind.get("down_count"),
+            "limit_up": ind.get("limit_up"),
+            "limit_down": ind.get("limit_down"),
+            "red_ratio": ind.get("red_ratio"),
+            "median_chg": ind.get("median_chg"),
+        },
+        "event_factor": {
+            "long_count": ef.get("long_count"),
+            "adj": ef.get("adj"),
+            "as_of": ef.get("as_of"),
+        },
+    }
+    return ok(data=_sanitize(overview), message="登录页公开摘要（脱敏只读）")
+
+
 @bp.get("/daily-recommendation")
 @jwt_required
 def daily_recommendation():

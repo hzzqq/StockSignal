@@ -83,6 +83,37 @@ export const DailySnapshotSchema = z.object({
 })
 export type DailySnapshot = z.infer<typeof DailySnapshotSchema>
 
+/**
+ * 登录页公开摘要（GET /api/v2/read/public-overview，无鉴权）—— 2026-11-17 修复
+ * 登录页「资金温度/今日市场/AI 信号」全空：旧实现调 daily-snapshot（需鉴权），
+ * 未登录永远拿不到。本端点只透传展示必需的脱敏字段；数据缺失字段为 null，
+ * 页面诚实显示「—」，不编造。Zod 宽松 nullable/optional 是设计内（缺失=降级路径）。
+ */
+export const PublicOverviewSchema = z.object({
+  date: z.string().nullish(),
+  as_of: z.string().nullish(),
+  cycle: z.string().nullish(),
+  temperature: z.number().nullish(),
+  indicators: z
+    .object({
+      up_count: z.number().nullish(),
+      down_count: z.number().nullish(),
+      limit_up: z.number().nullish(),
+      limit_down: z.number().nullish(),
+      red_ratio: z.number().nullish(),
+      median_chg: z.number().nullish(),
+    })
+    .optional(),
+  event_factor: z
+    .object({
+      long_count: z.number().nullish(),
+      adj: z.number().nullish(),
+      as_of: z.string().nullish(),
+    })
+    .optional(),
+})
+export type PublicOverview = z.infer<typeof PublicOverviewSchema>
+
 // ───────── P1 量化信号（p1_signals/signal_*.json）─────────
 export const P1TopItemSchema = z.object({
   symbol: z.string(),

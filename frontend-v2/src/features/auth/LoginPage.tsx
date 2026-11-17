@@ -3,7 +3,7 @@ import { useNavigate, useSearch } from '@tanstack/react-router'
 import { login } from '@/api/endpoints'
 import { clearAuth } from '@/app/guards'
 import { NAV, UTILITY_PATHS } from '@/nav/nav'
-import { getDailySnapshot } from '@/api/read'
+import { getPublicOverview } from '@/api/read'
 import { useQuery } from '@tanstack/react-query'
 import { LoginWelcome } from './LoginWelcome'
 
@@ -15,8 +15,8 @@ import { LoginWelcome } from './LoginWelcome'
  *      （Hero 渐变大标题 + 品牌卡 + 演示账号徽章 + 渐变主按钮 + 脚注）。
  *      → 见 `LoginWelcome.tsx`。
  *   2. **登录态**：v1 `pages/90_登录.py` 的「左行情台 ｜ 右表单」分栏。
- *      左栏 = 资金温度仪表 + 今日市场涨跌 + AI 信号（数据取 v2 已有
- *      `GET /api/v2/read/daily-snapshot`，零网络优先、缺失如实显「—」）；
+ *      左栏 = 资金温度仪表 + 今日市场涨跌 + AI 信号（数据取公开摘要端点
+ *      `GET /api/v2/read/public-overview`，无鉴权脱敏只读；缺失如实显「—」）；
  *      右栏 = 用户名/密码表单 + 演示账号一键填充。
  *
  * 与 v1 的差异（有意为之）：
@@ -204,16 +204,17 @@ export function LoginPage() {
 /**
  * 左栏行情台：资金温度 + 今日市场涨跌 + AI 信号。
  *
- * 数据源：v2 已有 `GET /api/v2/read/daily-snapshot`（今日快照，单一真理源）。
+ * 数据源：公开摘要端点 `GET /api/v2/read/public-overview`（无鉴权，脱敏只读）。
  * 诚实红线：
- *   - 端点需鉴权，未登录时取不到 → 全部显示「—」，**不编造任何数字**；
+ *   - 未登录也能取（2026-11-17 修复：此前调 daily-snapshot 需鉴权，未登录三面板全「—」）；
+ *   - 端点失败或字段缺失 → 全部显示「—」，**不编造任何数字**；
  *   - 涨跌配色用交易屏语义（涨红跌绿）：`--color-ss-up` / `--color-ss-down`；
  *   - 温度缺失显示「—」，进度条宽度取 0，不虚构。
  */
 function MarketDesk() {
   const { data } = useQuery({
-    queryKey: ['read', 'daily-snapshot'],
-    queryFn: getDailySnapshot,
+    queryKey: ['read', 'public-overview'],
+    queryFn: getPublicOverview,
     retry: false,
   })
 

@@ -24,6 +24,7 @@ import {
   PositionAllocationSchema,
   NlScreenSchema,
   DecisionLoopHealthSchema,
+  PublicOverviewSchema,
   FundFlowSchema,
   TradingAccountSchema,
   MacroDataSchema,
@@ -82,6 +83,7 @@ import {
   type LimitUpReview,
   type MarketSentiment,
   type DecisionLoopHealth,
+  type PublicOverview,
 } from './schemas/read'
 
 /**
@@ -103,6 +105,11 @@ async function readValidated<T>(
 /** GET /api/v2/read/daily-snapshot —— 今日决策快照（54/90/98 页「今日」单一真理源） */
 export function getDailySnapshot(): Promise<DailySnapshot> {
   return readValidated('daily-snapshot', DailySnapshotSchema)
+}
+
+/** GET /api/v2/read/public-overview —— 登录页公开摘要（无鉴权，脱敏只读） */
+export function getPublicOverview(): Promise<PublicOverview> {
+  return readValidated('public-overview', PublicOverviewSchema)
 }
 
 /** GET /api/v2/read/snapshot-dates —— 可回放归档日期清单（97 页下拉源） */

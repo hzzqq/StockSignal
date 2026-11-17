@@ -289,6 +289,7 @@ def _schema_info(name: str) -> dict:
 # 纯离线能力端点（本地 json/db，绝不触网），严格 key 对齐
 OBJ_ENDPOINTS = [
     ("/api/v2/read/daily-snapshot", "DailySnapshotSchema"),
+    ("/api/v2/read/public-overview", "PublicOverviewSchema"),
     ("/api/v2/read/daily-recommendation", "DailyRecommendationSchema"),
     ("/api/v2/read/user-dashboard", "UserDashboardSchema"),
     ("/api/v2/read/paper-trades?user=admin", "PaperTradeSchema"),
