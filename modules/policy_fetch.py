@@ -56,6 +56,7 @@ def _http_get(url: str, timeout: int = REQ_TIMEOUT) -> str:
         try:
             return raw.decode(enc)
         except UnicodeDecodeError:
+            # ui_audit_exempt: 编码回退探测，UnicodeDecodeError 属预期，continue 尝试下一编码
             continue
     return raw.decode("utf-8", errors="replace")
 
