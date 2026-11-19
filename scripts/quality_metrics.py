@@ -44,6 +44,11 @@ EXCLUDE_DIRS = {
     ".git", ".venv", "venv", "build", "dist", "__pycache__",
     ".pytest_cache", ".ruff_cache", ".mypy_cache", ".trae", "node_modules",
     "backups", "screenshots", "data",  # data=运行数据，backups/screenshots=产物快照
+    # 运行产物/本地状态：自驱临时脚本(self-driving)与日志(logs)不属工程源码。
+    # 注意：不能排除整个 .workbuddy —— 其下 skills/ 有 8 个 tracked 技能脚本属工程资产。
+    # 排除 self-driving/logs 可让「Python 文件全仓」不受工作区临时脚本漂移
+    # （否则主区959 vs 干净基线949，守卫在不同工作区实测不一致）。2026-11-19 收口。
+    "self-driving", "logs",
 }
 
 # 业务源码范围（"自研源码"口径）：前端页面 + 业务模块 + 后端 + 增量试点 + MCP

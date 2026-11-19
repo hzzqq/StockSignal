@@ -31,7 +31,7 @@ def _backtest() -> dict:
 # ── 6.2 决策闭环评估（n=17）──
 def test_62_snapshot_stats():
     m, md = _metrics(), _md()
-    assert "n = 17" in md
+    assert f"n = {m['snapshot_count']}" in md  # 数据日驱动，不硬编码样本数
     assert f"[{m['temperature_min_max'][0]}, {m['temperature_min_max'][1]}]" in md
     assert f"[{m['position_min_max'][0]}, {m['position_min_max'][1]}]" in md
     cyc = m["cycle_distribution"]

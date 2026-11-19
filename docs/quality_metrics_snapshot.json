@@ -1,23 +1,23 @@
 {
   "meta": {
-    "generated_at": "2026-11-16 16:46",
-    "git_head": "37a4373"
+    "generated_at": "2026-11-19 13:05",
+    "git_head": "714ad18"
   },
   "stats": {
-    "py_files_total": 934,
-    "py_files_tests": 515,
-    "src_files": 349,
-    "src_loc": 105349,
-    "test_files": 510,
-    "test_loc": 73950,
+    "py_files_total": 949,
+    "py_files_tests": 523,
+    "src_files": 356,
+    "src_loc": 107198,
+    "test_files": 518,
+    "test_loc": 76180,
     "pages": 74,
-    "modules": 206,
-    "test_defs_static": 4668,
+    "modules": 208,
+    "test_defs_static": 4765,
     "tests_collected": null,
     "guard_files": 103,
-    "flask_routes": 146,
+    "flask_routes": 159,
     "fastapi_routes": 9,
-    "rest_routes_total": 155,
+    "rest_routes_total": 168,
     "exclude_dirs": [
       ".git",
       ".mypy_cache",
@@ -30,8 +30,10 @@
       "build",
       "data",
       "dist",
+      "logs",
       "node_modules",
       "screenshots",
+      "self-driving",
       "venv"
     ]
   }
