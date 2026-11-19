@@ -8,6 +8,7 @@ import { ThemeToggle } from '@/shared/ui/ThemeToggle'
 import { ZenToggle } from '@/shared/ui/ZenToggle'
 import { DecisionLoopAlarm } from './DecisionLoopAlarm'
 import { PageErrorBoundary } from './PageErrorBoundary'
+import { GlobalKLineOverlay } from '@/features/stock/charts/GlobalKLineOverlay'
 
 /**
  * 轻量卡片流 · 鉴权后应用外壳（DESIGN.md §3）。
@@ -155,6 +156,9 @@ export function AppShell() {
           </PageErrorBoundary>
         </main>
       </div>
+
+      {/* 全局 K 线浮层：挂在 PageErrorBoundary 之外，任意页面一行 openKLine() 即可弹出。 */}
+      <GlobalKLineOverlay />
 
       {/* 专注模式浮动开关：常驻右下角，Zen 下仍可退出，且提供主题切换（顶栏隐藏时唯一入口）。 */}
       <div className="zen-fab">

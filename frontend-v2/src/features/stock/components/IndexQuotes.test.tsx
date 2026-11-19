@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { handlers } from '@/mocks/handlers'
 import { Providers } from '@/app/providers'
+import { GlobalKLineOverlay } from '@/features/stock/charts/GlobalKLineOverlay'
+import { useKLineOverlayStore } from '@/features/stock/charts/klineOverlayStore'
+
+const closeKLine = () => useKLineOverlayStore.getState().closeKLine()
 import { IndexQuotes } from './IndexQuotes'
 
 /**
@@ -23,9 +27,11 @@ vi.mock('@/shared/charts/EChart', () => ({
 const server = setupServer(...handlers)
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }))
+beforeEach(() => closeKLine())
 afterEach(() => {
   server.resetHandlers()
   cleanup()
+  closeKLine()
 })
 afterAll(() => server.close())
 
@@ -41,6 +47,8 @@ function renderView() {
   return render(
     <Providers>
       <IndexQuotes />
+      {/* 全局浮层由 AppShell 挂载；此处一并挂上以验证「点击卡片 → 全局弹窗」闭环 */}
+      <GlobalKLineOverlay />
     </Providers>,
   )
 }
