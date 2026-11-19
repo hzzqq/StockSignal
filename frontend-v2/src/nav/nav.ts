@@ -18,6 +18,7 @@ export type AppPath =
   | '/ladder'
   | '/events'
   | '/event-backtest'
+  | '/policy-transmission'
   | '/predictions'
   | '/ops'
   | '/diagnostics'
@@ -87,6 +88,7 @@ export const NAV: NavGroup[] = [
       { to: '/p1-construction', label: 'P1 组合构建诊断', icon: '📐' },
       // 事件因子与校准属决策支持，从广度组迁入以腾出位置给新的分化/回测页
       { to: '/event-backtest', label: '事件因子回测', icon: '⌖' },
+      { to: '/policy-transmission', label: '政策传导', icon: '📜' },
       { to: '/predictions', label: '预测校准日志', icon: '◴' },
     ],
   },

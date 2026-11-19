@@ -1060,6 +1060,104 @@ export const ThemeTransmissionSchema = z
   .catchall(z.unknown())
 export type ThemeTransmission = z.infer<typeof ThemeTransmissionSchema>
 
+// ───────── 政策事件传导工作台（policy-documents / policy-transmission / sector-map）─────────
+// 所有业务字段 nullable().optional()，不给默认值：缺失由页面显式显示「—」，绝不补 0 / now()。
+export const PolicyDocumentSchema = z
+  .object({
+    policy_id: z.string().nullable().optional(),
+    title: z.string().nullable().optional(),
+    issuing_body: z.string().nullable().optional(),
+    doc_number: z.string().nullable().optional(),
+    publish_date: z.string().nullable().optional(),
+    source: z.string().nullable().optional(),
+    source_url: z.string().nullable().optional(),
+    body_source: z.string().nullable().optional(),
+    content_hash: z.string().nullable().optional(),
+    crawled_at: z.string().nullable().optional(),
+    body_excerpt: z.string().nullable().optional(),
+    body_text: z.string().nullable().optional(),
+    is_fresh: z.boolean().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type PolicyDocument = z.infer<typeof PolicyDocumentSchema>
+
+export const PolicyDocumentsSchema = z
+  .object({
+    items: z.array(PolicyDocumentSchema).optional(),
+    stats: z.record(z.string(), z.unknown()).nullable().optional(),
+    unavailable: z.array(z.unknown()).optional(),
+    note: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type PolicyDocuments = z.infer<typeof PolicyDocumentsSchema>
+
+export const PolicyTransmissionSectorSchema = z
+  .object({
+    name: z.string().nullable().optional(),
+    source: z.string().nullable().optional(),
+    member_count: z.number().nullable().optional(),
+    stock_codes_count: z.number().nullable().optional(),
+    derived: z.boolean().nullable().optional(),
+    matched_by: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type PolicyTransmissionSector = z.infer<typeof PolicyTransmissionSectorSchema>
+
+export const PolicyTransmissionEntrySchema = z
+  .object({
+    name: z.string().nullable().optional(),
+    code: z.string().nullable().optional(),
+    score: z.number().nullable().optional(),
+    direction: z.string().nullable().optional(),
+    dir_color: z.string().nullable().optional(),
+    concepts: z.string().nullable().optional(),
+    evidence: z.string().nullable().optional(),
+    direct: z.boolean().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type PolicyTransmissionEntry = z.infer<typeof PolicyTransmissionEntrySchema>
+
+export const PolicyTransmissionSchema = z
+  .object({
+    status: z.string().optional(),
+    policy: PolicyDocumentSchema.nullable().optional(),
+    sectors: z.array(PolicyTransmissionSectorSchema).optional(),
+    entries: z.array(PolicyTransmissionEntrySchema).optional(),
+    concepts_hit: z.array(z.unknown()).optional(),
+    members_unavailable: z.array(z.unknown()).optional(),
+    basis: z.string().nullable().optional(),
+    disclaimer: z.string().nullable().optional(),
+    derived_note: z.string().nullable().optional(),
+    unavailable: z.array(z.unknown()).optional(),
+    reason: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type PolicyTransmission = z.infer<typeof PolicyTransmissionSchema>
+
+export const SectorMapItemSchema = z
+  .object({
+    board_name: z.string().nullable().optional(),
+    board_code: z.string().nullable().optional(),
+    board_type: z.string().nullable().optional(),
+    keywords: z.string().nullable().optional(),
+    stock_codes: z.string().nullable().optional(),
+    member_count: z.number().nullable().optional(),
+    source: z.string().nullable().optional(),
+    fetch_status: z.string().nullable().optional(),
+    updated_at: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type SectorMapItem = z.infer<typeof SectorMapItemSchema>
+
+export const SectorMapSchema = z
+  .object({
+    items: z.array(SectorMapItemSchema).optional(),
+    stats: z.record(z.string(), z.unknown()).nullable().optional(),
+    note: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type SectorMap = z.infer<typeof SectorMapSchema>
+
 // ───────── 实时强势榜（76 页 V2 化）─────────
 export const StrongItemSchema = z
   .object({

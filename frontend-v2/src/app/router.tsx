@@ -72,6 +72,7 @@ const LazyLimitUpReview = lazyRouteComponent(() => import('@/features/breadth/Li
 const LazyMarketSentiment = lazyRouteComponent(() => import('@/features/market/MarketSentiment'), 'MarketSentiment')
 const LazyXingchen = lazyRouteComponent(() => import('@/features/xingchen/XingchenPage'), 'XingchenPage')
 const LazyEventBacktest = lazyRouteComponent(() => import('@/features/eventbacktest/EventFactorBacktest'), 'EventFactorBacktest')
+const LazyPolicyTransmission = lazyRouteComponent(() => import('@/features/policy/PolicyTransmission'), 'PolicyTransmission')
 const LazyScreener = lazyRouteComponent(() => import('@/features/screener/Screener'), 'Screener')
 // 52 股吧社区 V2 化：后端 /api/forum 完整 CRUD，v1 也是同一套后端（非社区抓取遗留）
 const LazyForumView = lazyRouteComponent(() => import('@/features/community/ForumView'), 'ForumView')
@@ -230,6 +231,12 @@ const eventBacktestRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/event-backtest',
   component: LazyEventBacktest,
+})
+
+const policyTransmissionRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/policy-transmission',
+  component: LazyPolicyTransmission,
 })
 
 const predictionsRoute = createRoute({
@@ -613,6 +620,7 @@ const routeTree = rootRoute.addChildren([
     ladderRoute,
     eventsRoute,
     eventBacktestRoute,
+    policyTransmissionRoute,
     predictionsRoute,
     opsRoute,
     diagnosticsRoute,

@@ -46,6 +46,7 @@ from flask import Blueprint, request
 
 from ..auth.decorators import jwt_required
 from ..utils.response import fail, ok
+from modules import policy_store, sector_map
 from modules.site_config import CALL_TIMEOUT_CAP
 
 # T-245：六维排雷「高危」等级字面量（与 modules.stock_risk.RISK_HIGH 对齐）
@@ -71,6 +72,8 @@ _FILE_WHITELIST = {
 
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _USER_RE = re.compile(r"^[A-Za-z0-9_]{1,64}$")
+# 政策原文 policy_id = md5(source_url)，严格 32 位小写 hex 白名单（防注入 / 路径穿越）
+_POLICY_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
 
 def _valid_date(date: str) -> bool:
@@ -3790,6 +3793,210 @@ def theme_transmission():
             "entries": [], "concepts_hit": [], "members_unavailable": [],
             "n_titles": 0, "n_concepts": 0,
         }), message="theme-transmission")
+
+
+# ───────────────────────── 政策事件传导工作台（只读三层）─────────────────────────
+@bp.get("/policy-documents")
+@jwt_required
+def policy_documents():
+    """政策原文清单（data/policy.db）。列表**不返回完整 body_text**，只给派生 200 字摘录。
+
+    诚实红线：publish_date 原样透出（缺失为 None，绝不 now()/crawled_at 兜底）；
+    is_fresh 按数据原文日期判定（派生）；空库 items=[] + unavailable=['policy_db_empty']，不 500。
+    """
+    try:
+        from ..utils.params import parse_limit_param
+
+        limit = parse_limit_param("limit", default=20, hi=100)
+        rows = policy_store.read_recent(limit)
+        stats = policy_store.policy_store_stats()
+        items = []
+        for d in (rows or []):
+            if not isinstance(d, dict):
+                continue
+            body = d.get("body_text")
+            excerpt = body[:200] if isinstance(body, str) else ""
+            items.append({
+                "policy_id": d.get("policy_id"),
+                "title": d.get("title"),
+                "issuing_body": d.get("issuing_body"),
+                "doc_number": d.get("doc_number"),
+                "publish_date": d.get("publish_date"),
+                "source": d.get("source"),
+                "source_url": d.get("source_url"),
+                "body_source": d.get("body_source"),
+                "content_hash": d.get("content_hash"),
+                "crawled_at": d.get("crawled_at"),
+                "body_excerpt": excerpt,
+                "is_fresh": bool(policy_store.is_fresh(d.get("publish_date"))),
+            })
+        unavailable = []
+        if not items:
+            unavailable.append("policy_db_empty")
+        data = {
+            "items": items,
+            "stats": stats if isinstance(stats, dict) else {},
+            "unavailable": unavailable,
+            "note": "body_excerpt 为正文前 200 字截断（派生，非完整原文）；is_fresh 为按数据原文 publish_date "
+                    "判定的派生布尔值，与 crawled_at 抓取时间语义分离；列表不返回完整 body_text。",
+        }
+        return ok(data=_sanitize(data), message="policy-documents")
+    except Exception as e:  # noqa: BLE001 - 读库异常仍 200 降级，不 500
+        logging.getLogger(__name__).warning("[policy] documents failed: %s", e)
+        return ok(data=_sanitize({
+            "items": [], "stats": {}, "unavailable": ["policy_store_error"],
+            "note": f"政策库读取失败，已诚实降级：{e}",
+        }), message="policy-documents")
+
+
+@bp.get("/policy-transmission")
+@jwt_required
+def policy_transmission():
+    """单条政策的本地传导链：标题 × 行业映射 → 标的关联度（纯本地，绝不触网）。
+
+    policy_id 严格 32 位小写 hex 白名单，非法 → 400 validation_error（先于取数）。
+    不调用 event_graph.build_index_for_titles（它会触网），只用 sector_map 的本地
+    name/keywords 命中 + resolve_sector 的 stock_codes 建临时索引。
+    fetch_status=failed / member_count=0 的命中行业列 members_unavailable，不展开成分股、不显示成 0 只。
+    """
+    pid = request.args.get("policy_id", "")
+    if not (isinstance(pid, str) and _POLICY_ID_RE.fullmatch(pid)):
+        return fail(message="policy_id 非法（须为 32 位小写 hex）", code="validation_error", http_status=400)
+    try:
+        from modules import event_graph as evg
+
+        rows = policy_store.read_recent(limit=200)
+        doc = None
+        for d in (rows or []):
+            if isinstance(d, dict) and d.get("policy_id") == pid:
+                doc = d
+                break
+        if doc is None:
+            return ok(data=_sanitize({
+                "status": "unavailable",
+                "policy": None,
+                "sectors": [], "entries": [], "concepts_hit": [], "members_unavailable": [],
+                "basis": None, "disclaimer": None, "derived_note": None,
+                "unavailable": ["policy_not_found"],
+            }), message="policy-transmission")
+
+        title = str(doc.get("title") or "").strip()
+        sectors_out = []
+        members_unavailable = []
+        idx = {}
+        for s in (sector_map.list_sectors() or []):
+            if not isinstance(s, dict):
+                continue
+            name = str(s.get("board_name") or "").strip()
+            if not name:
+                continue
+            matched_by = None
+            if name and name in title:
+                matched_by = "name"
+            else:
+                for kw in str(s.get("keywords") or "").split(","):
+                    kw = kw.strip()
+                    if len(kw) >= 2 and kw in title:
+                        matched_by = "keyword"
+                        break
+            if not matched_by:
+                continue
+            resolved = sector_map.resolve_sector(name)
+            if not isinstance(resolved, dict):
+                continue
+            codes = [c.strip() for c in str(resolved.get("stock_codes") or "").split(",") if c.strip()]
+            sname = str(resolved.get("name") or name)
+            sector_info = {
+                "name": sname,
+                "source": resolved.get("source"),
+                "member_count": resolved.get("member_count"),
+                "stock_codes_count": len(codes),
+                "derived": True,
+                "matched_by": matched_by,
+            }
+            sectors_out.append(sector_info)
+
+            fetch_status = str(resolved.get("fetch_status") or "")
+            mc = resolved.get("member_count")
+            try:
+                mc_int = int(mc) if mc is not None else 0
+            except (TypeError, ValueError):
+                mc_int = 0
+            if fetch_status == "failed" or mc_int <= 0 or not codes:
+                members_unavailable.append({
+                    "name": sname,
+                    "fetch_status": fetch_status or None,
+                    "member_count": mc,
+                    "matched_by": matched_by,
+                    "derived": True,
+                    "reason": "命中行业成分股不可用（fetch_status=failed 或 member_count=0），未展开成分股、未编造标的",
+                })
+                continue
+            # 纯本地索引：name 用 code 占位（derived，非真实证券简称）
+            idx[sname] = [{"code": c, "name": c} for c in codes]
+
+        res = evg.build_transmission([title], idx) if idx else {
+            "status": "empty", "entries": [], "concepts_hit": [], "members_unavailable": [],
+        }
+        entries = evg.display_rows(res)
+        for miss in (res.get("members_unavailable") or []):
+            members_unavailable.append({
+                "name": miss, "fetch_status": None, "derived": True,
+                "reason": "命中行业成分股取不到，未展开成分股",
+            })
+
+        policy_out = dict(doc)
+        policy_out["publish_date"] = doc.get("publish_date")  # 原文缺失为 None，绝不 now() 兜底
+        policy_out["is_fresh"] = bool(policy_store.is_fresh(doc.get("publish_date")))
+        data = {
+            "status": res.get("status", "empty"),
+            "policy": policy_out,
+            "sectors": sectors_out,
+            "entries": entries,
+            "concepts_hit": res.get("concepts_hit") or [],
+            "members_unavailable": members_unavailable,
+            "basis": res.get("basis"),
+            "disclaimer": res.get("disclaimer"),
+            "derived_note": "行业由政策标题与 list_sectors 的 name/keywords 本地关键词命中派生；"
+                            "成分股来自 resolve_sector 的 stock_codes，展示 name 以代码占位（非原文证券简称，derived）；"
+                            "关联度 = 文本共现，非收益预测。build_index_for_titles 会触网，本端点不调用。",
+            "unavailable": [],
+        }
+        return ok(data=_sanitize(data), message="policy-transmission")
+    except Exception as e:  # noqa: BLE001 - 计算异常仍 200 降级，不 500
+        logging.getLogger(__name__).warning("[policy] transmission failed: %s", e)
+        return ok(data=_sanitize({
+            "status": "unavailable", "policy": None, "sectors": [], "entries": [],
+            "concepts_hit": [], "members_unavailable": [],
+            "basis": None, "disclaimer": None, "derived_note": None,
+            "unavailable": ["policy_transmission_failed"],
+            "reason": f"生成失败：{e}",
+        }), message="policy-transmission")
+
+
+@bp.get("/sector-map")
+@jwt_required
+def policy_sector_map():
+    """行业映射覆盖（data/news.db 的 sector_entity_map + sectors 精编表）。status 非法 → 400。"""
+    status = request.args.get("status")
+    if status is not None and status not in ("ok", "failed", "stale"):
+        return fail(message="status 非法（仅 ok|failed|stale）", code="validation_error", http_status=400)
+    try:
+        items = sector_map.list_sectors(status=status or None) or []
+        stats = sector_map.sector_map_stats()
+        data = {
+            "items": items,
+            "stats": stats if isinstance(stats, dict) else {},
+            "note": "行业映射来自 data/news.db 的 sector_entity_map（L0 板块名 / L1 少量同义词，规则派生）与 "
+                    "sectors 精编表；keywords 非 LLM 全量精编。fetch_status=failed / member_count=0 的行业未展开成分股，未编造标的。",
+        }
+        return ok(data=_sanitize(data), message="sector-map")
+    except Exception as e:  # noqa: BLE001 - 读库异常仍 200 降级，不 500
+        logging.getLogger(__name__).warning("[policy] sector-map failed: %s", e)
+        return ok(data=_sanitize({
+            "items": [], "stats": {},
+            "note": f"行业映射读取失败，已诚实降级：{e}",
+        }), message="sector-map")
 
 
 @bp.get("/strong")

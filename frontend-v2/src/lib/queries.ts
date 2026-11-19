@@ -38,6 +38,9 @@ import type {
   DragonTiger,
   Theme,
   ThemeTransmission,
+  PolicyDocuments,
+  PolicyTransmission,
+  SectorMap,
   Strong,
   SectorRotation,
   Watch,
@@ -371,6 +374,33 @@ export function useThemeTransmission(limit = 60, enabled = false): UseQueryResul
     queryFn: () => api.getThemeTransmission(limit),
     staleTime: 0,
     enabled,
+  })
+}
+
+// ───────── 政策事件传导工作台（只读三层）─────────
+export function usePolicyDocuments(limit = 30): UseQueryResult<PolicyDocuments> {
+  return useQuery({
+    queryKey: ['read', 'policy-documents', limit],
+    queryFn: () => api.getPolicyDocuments(limit),
+    staleTime: FIVE_MIN,
+  })
+}
+
+// 单条政策传导链：policyId 为空默认不请求，选中政策后才按 policyId 拉取。
+export function usePolicyTransmission(policyId: string | null | undefined, enabled = !!policyId): UseQueryResult<PolicyTransmission> {
+  return useQuery({
+    queryKey: ['read', 'policy-transmission', policyId ?? ''],
+    queryFn: () => api.getPolicyTransmission(policyId ?? ''),
+    staleTime: FIVE_MIN,
+    enabled: enabled && !!policyId,
+  })
+}
+
+export function useSectorMap(status?: string): UseQueryResult<SectorMap> {
+  return useQuery({
+    queryKey: ['read', 'sector-map', status ?? 'all'],
+    queryFn: () => api.getSectorMap(status),
+    staleTime: THIRTY_MIN,
   })
 }
 

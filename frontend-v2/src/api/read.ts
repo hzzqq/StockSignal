@@ -31,6 +31,9 @@ import {
   DragonTigerSchema,
   ThemeSchema,
   ThemeTransmissionSchema,
+  PolicyDocumentsSchema,
+  PolicyTransmissionSchema,
+  SectorMapSchema,
   StrongSchema,
   SectorRotationSchema,
   WatchSchema,
@@ -71,6 +74,9 @@ import {
   type DragonTiger,
   type Theme,
   type ThemeTransmission,
+  type PolicyDocuments,
+  type PolicyTransmission,
+  type SectorMap,
   type Strong,
   type SectorRotation,
   type Watch,
@@ -393,6 +399,22 @@ export function getTheme(): Promise<Theme> {
 /** GET /api/v2/read/theme-transmission?limit=N —— 题材事件传导图谱（75 ④，按需触发） */
 export function getThemeTransmission(limit = 60): Promise<ThemeTransmission> {
   return readValidated(`theme-transmission?limit=${encodeURIComponent(String(limit))}`, ThemeTransmissionSchema)
+}
+
+/** GET /api/v2/read/policy-documents?limit=N —— 政策原文清单（列表不含完整正文，仅派生摘录） */
+export function getPolicyDocuments(limit = 30): Promise<PolicyDocuments> {
+  return readValidated(`policy-documents?limit=${encodeURIComponent(String(limit))}`, PolicyDocumentsSchema)
+}
+
+/** GET /api/v2/read/policy-transmission?policy_id=<32hex> —— 单条政策的本地传导链（纯只读，不触网） */
+export function getPolicyTransmission(policyId: string): Promise<PolicyTransmission> {
+  return readValidated(`policy-transmission?policy_id=${encodeURIComponent(policyId)}`, PolicyTransmissionSchema)
+}
+
+/** GET /api/v2/read/sector-map?status=<ok|failed|stale> —— 行业映射覆盖 */
+export function getSectorMap(status?: string): Promise<SectorMap> {
+  const suffix = status ? `?status=${encodeURIComponent(status)}` : ''
+  return readValidated(`sector-map${suffix}`, SectorMapSchema)
 }
 
 /** GET /api/v2/read/strong —— 实时强势榜（76 页 V2 化，多因子评分，启发式非预测） */
