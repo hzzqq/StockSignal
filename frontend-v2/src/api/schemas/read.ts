@@ -25,6 +25,7 @@ export const EventFactorSchema = z.object({
   long_count: z.number().optional(),
   adj: z.number().optional(),
   as_of: z.string().optional(),
+  policy: z.unknown().optional(),
 })
 export type EventFactor = z.infer<typeof EventFactorSchema>
 

@@ -787,6 +787,17 @@ def build_snapshot(date: str, indicators: dict, temp, forecast: dict | None,
         logger.warning(f"[decision] 宏观上下文取数失败: {e}")
         _macro_ctx = {"available": False, "reason": f"宏观上下文异常: {e}"}
     ev_info["macro"] = _macro_ctx
+    # ── 政策原文上下文留痕（仅活跃度/新鲜度，绝不进 score/adj/仓位）──
+    # 与 macro 同理：政策原文是全局背景，不是标的方向判定；
+    # 现有字段只有标题/部分正文，无情绪分/行业标签，故只能记录客观统计，
+    # 绝不把派生行业标签当政策点名、绝不编造政策利好利空。
+    try:
+        from modules.policy_store import policy_context
+        _policy_ctx = policy_context()
+    except Exception as e:  # noqa: BLE001 - 政策上下文失败不影响快照主体
+        logger.warning(f"[decision] 政策上下文取数失败: {e}")
+        _policy_ctx = {"available": False, "reason": f"政策上下文异常: {e}"}
+    ev_info["policy"] = _policy_ctx
     if ev:
         event_adj = ev["adj"]
 

@@ -209,3 +209,54 @@ def is_fresh(date_str: str | None, ttl_days: int = 45) -> bool:
         # ui_audit_exempt: 日期解析失败判过期，宁可重取也不吃坏数据
         return False
     return (datetime.now() - d) <= timedelta(days=ttl_days)
+
+
+def policy_context(limit: int = 20, ttl_days: int = 45) -> dict:
+    """政策原文上下文留痕（仅活跃度/新鲜度本地客观统计，绝不进 score/adj/仓位）。
+
+    与 macro 的 min(dates) 保守口径对齐：as_of 取非缺失 publish_date 中最旧
+    原文日，缺失不兜底 now()/crawled_at。整包为派生统计（derived），不含任何
+    方向性判断键（利好/利空/score/direction 等一律不出现）。
+    """
+    try:
+        rows = read_recent(limit=limit)
+        stats = policy_store_stats()
+    except Exception as e:  # noqa: BLE001 - 政策上下文失败不影响快照主体
+        logger.warning(f"[policy_store] 政策上下文异常: {e}")
+        return {"available": False, "reason": f"政策上下文异常: {e}"}
+
+    if not rows:
+        return {"available": False, "reason": "政策库为空"}
+
+    dates = [d.get("publish_date") for d in rows if d.get("publish_date") is not None]
+    as_of = min(dates) if dates else None
+    fresh_count = sum(1 for d in rows if is_fresh(d.get("publish_date")))
+    recent_count = len(rows)
+
+    by_issuing_body: dict[str, int] = {}
+    for d in rows:
+        body = d.get("issuing_body") or "未标注"
+        by_issuing_body[body] = by_issuing_body.get(body, 0) + 1
+
+    note = (
+        "政策活跃度/新鲜度的本地客观统计（non-model、非政策面利好利空判断）；"
+        "as_of 取非缺失 publish_date 中最旧原文日，缺失不兜底 now()/crawled_at；"
+        "计数/占比/分布均为派生(derived)；行业映射为关键词命中派生，非政策点名。"
+    )
+    return {
+        "available": True,
+        "total_documents": int(stats["total"]),
+        "recent_count": recent_count,
+        "latest_publish_date": stats["latest_publish_date"],
+        "as_of": as_of,
+        "fresh_count": fresh_count,
+        "fresh_ratio": fresh_count / recent_count if recent_count else None,
+        "date_missing_count": sum(1 for d in rows if d.get("publish_date") is None),
+        "by_source": dict(stats["by_source"]),
+        "by_issuing_body": by_issuing_body,
+        "body_missing_count": sum(1 for d in rows if not d.get("body_text")),
+        "limit_applied": limit,
+        "source": "policy_store:data/policy.db",
+        "derived": True,
+        "note": note,
+    }

@@ -243,3 +243,91 @@ def test_no_conn_leak_in_policy_modules():
                         and node.func.attr == "close" and isinstance(node.func.value, ast.Name)):
                     closed.add(node.func.value.id)
             assert assigned <= closed, f"{mod.__name__}:{fn.name} 连接未关闭: {assigned - closed}"
+
+
+# ── policy_context 契约：派生统计只进展示层，绝不进仓位 ────────────────────────
+
+def _patch_ctx(monkeypatch, rows, stats=None, fresh=None):
+    """把 policy_context 的三个取数依赖全部钉死，零真实库访问。"""
+    if stats is None:
+        stats = {"total": len(rows), "by_source": {}, "latest_publish_date": None}
+    if fresh is None:
+        fresh = lambda d: False  # noqa: E731 - 测试桩，确定性
+    monkeypatch.setattr(ps, "read_recent", lambda limit=20: rows)
+    monkeypatch.setattr(ps, "policy_store_stats", lambda: stats)
+    monkeypatch.setattr(ps, "is_fresh", fresh)
+
+
+def test_policy_context_full_contract(monkeypatch):
+    """有数据：所有字段口径逐项一致，as_of=min、latest=max、derived=True。"""
+    rows = [
+        {"publish_date": "2026-11-10", "issuing_body": "国务院", "body_text": "正文", "source": "gov.cn"},
+        {"publish_date": "2026-11-05", "issuing_body": None, "body_text": None, "source": "ndrc"},
+        {"publish_date": None, "issuing_body": "国家发展改革委", "body_text": "", "source": "ndrc"},
+    ]
+    stats = {"total": 9, "by_source": {"gov.cn": 5, "ndrc": 4}, "latest_publish_date": "2026-11-15"}
+    _patch_ctx(monkeypatch, rows, stats, fresh=lambda d: d in ("2026-11-10", "2026-11-05"))
+    r = ps.policy_context()
+    assert r["available"] is True
+    assert r["total_documents"] == 9
+    assert r["recent_count"] == 3
+    assert r["latest_publish_date"] == "2026-11-15"
+    assert r["as_of"] == "2026-11-05"  # min 非缺失 publish_date
+    assert r["fresh_count"] == 2
+    assert abs(r["fresh_ratio"] - 2 / 3) < 1e-9
+    assert r["date_missing_count"] == 1
+    assert r["by_source"] == {"gov.cn": 5, "ndrc": 4}
+    assert r["by_issuing_body"] == {"国务院": 1, "未标注": 1, "国家发展改革委": 1}
+    assert r["body_missing_count"] == 2  # None 与空串
+    assert r["limit_applied"] == 20
+    assert r["source"] == "policy_store:data/policy.db"
+    assert r["derived"] is True
+
+
+def test_policy_context_empty_store_has_no_synthetic_fields(monkeypatch):
+    """空库：只返 available+reason，不含任何合成统计字段。"""
+    _patch_ctx(monkeypatch, [], {"total": 0, "by_source": {}, "latest_publish_date": None})
+    assert ps.policy_context() == {"available": False, "reason": "政策库为空"}
+
+
+def test_policy_context_all_dates_missing_as_of_none(monkeypatch):
+    """全缺日期：as_of=None、fresh_count=0、date_missing_count=全量，note 声明不兜底。"""
+    rows = [
+        {"publish_date": None, "issuing_body": None, "body_text": None},
+        {"publish_date": None, "issuing_body": None, "body_text": None},
+    ]
+    _patch_ctx(monkeypatch, rows, {"total": 2, "by_source": {}, "latest_publish_date": None})
+    r = ps.policy_context()
+    assert r["as_of"] is None
+    assert r["fresh_count"] == 0
+    assert r["date_missing_count"] == 2
+    assert "不兜底 now" in r["note"]
+
+
+def test_policy_context_no_directional_keys(monkeypatch):
+    """硬红线：返回 dict 的键不含任何多空方向判断字段。"""
+    _patch_ctx(monkeypatch, [{"publish_date": "2026-11-10", "issuing_body": "国务院", "body_text": "正文"}])
+    banned = {"sentiment", "impact", "bullish", "bearish", "利好", "利空", "score", "direction"}
+    assert set(ps.policy_context().keys()) & banned == set()
+
+
+def test_policy_context_db_error_degrades(monkeypatch):
+    """读库异常：available=False + reason，不崩。"""
+    monkeypatch.setattr(ps, "read_recent", lambda limit=20: [])
+
+    def boom():
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr(ps, "policy_store_stats", boom)
+    r = ps.policy_context()
+    assert r["available"] is False
+    assert "政策上下文异常" in r["reason"]
+    assert "db down" in r["reason"]
+
+
+def test_policy_context_note_declares_honesty(monkeypatch):
+    """note 完整性：声明 non-model/非利好利空/派生/行业非点名/不兜底。"""
+    _patch_ctx(monkeypatch, [{"publish_date": "2026-11-10", "issuing_body": "国务院", "body_text": "正文"}])
+    note = ps.policy_context()["note"]
+    for frag in ("non-model", "非政策面利好利空判断", "派生", "非政策点名", "不兜底 now()/crawled_at"):
+        assert frag in note, frag
