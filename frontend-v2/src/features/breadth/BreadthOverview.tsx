@@ -28,6 +28,30 @@ function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null
 }
 
+/**
+ * v1 modules/market_temperature.py BANDS 的五档阈值（静态常量，非数据）：
+ * 冰点[0,20) / 偏冷[20,40) / 中性[40,60) / 活跃[60,80) / 狂热[80,100]。
+ * 用当前快照温度派生档位标签，绝不在数据层缺字段时凭空编造指标贡献或信号。
+ */
+const V1_TEMP_BANDS = [
+  { lo: 0, hi: 20, label: '冰点' },
+  { lo: 20, hi: 40, label: '偏冷' },
+  { lo: 40, hi: 60, label: '中性' },
+  { lo: 60, hi: 80, label: '活跃' },
+  { lo: 80, hi: 100, label: '狂热' },
+] as const
+
+function v1BandOf(temp: number | null | undefined): { label: string; range: string } | null {
+  if (typeof temp !== 'number' || !Number.isFinite(temp)) return null
+  const t = Math.max(0, Math.min(100, temp))
+  for (const b of V1_TEMP_BANDS) {
+    if (t >= b.lo && t < b.hi) {
+      return { label: b.label, range: `${b.lo}–${b.hi - 1}°` }
+    }
+  }
+  return null
+}
+
 export function BreadthOverview() {
   const daily = useDailySnapshot()
   const breadth = useBreadthTimeseries()
@@ -137,6 +161,31 @@ function BreadthBody({ snapshot }: { snapshot: DailySnapshot }) {
         <Stat label="中位涨跌幅" value={fmtNum(ind.median_chg)} />
         <Stat label="成交额(亿)" value={fmtNum(ind.turnover_amt)} />
       </div>
+
+      <Card title="温度档位（按 v1 阈值派生）">
+        <div className="text-body text-sf-ink-2">
+          当前快照温度 <span className="tabular-nums font-semibold">{fmtNum(snapshot.temperature)}</span>
+          {' → 档位 '}
+          <span className="font-semibold">
+            {v1BandOf(snapshot.temperature)?.label ?? '—'}
+          </span>
+          <span className="text-label text-sf-ink-3">
+            （{v1BandOf(snapshot.temperature)?.range ?? '温度不可得，不派生档位'}）
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-3 mt-2 text-label text-sf-ink-3">
+          {V1_TEMP_BANDS.map((b) => (
+            <span key={b.label}>{b.label} {b.lo}–{b.hi - 1}°</span>
+          ))}
+        </div>
+        <p className="text-label text-sf-ink-3 mt-2">
+          档位由快照温度按 v1 五档阈值派生（非 v1 八指标合成口径）。v1《市场温度计》的牧羊人 8 指标贡献分解、
+          极端区信号、历史情境类比与侧栏基准窗口切换<strong>尚未迁移到 v2</strong>，未在本页编造对应展示；
+          指标级热度见 <a href="/market-sentiment" className="text-sf-accent underline underline-offset-4">市场情绪温度计</a>，
+          五档历史回测见 <a href="/temperature-backtest" className="text-sf-accent underline underline-offset-4">温度档回测</a>，
+          历史相似日见 <a href="/similar-days" className="text-sf-accent underline underline-offset-4">历史相似日</a>。
+        </p>
+      </Card>
 
       <Card title="涨跌家数分布">
         <EChart option={breadthOption} height={240} ariaLabel="当日涨跌家数分布柱状图：上涨、下跌、涨停、跌停四类" />

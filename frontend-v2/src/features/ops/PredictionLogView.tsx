@@ -125,6 +125,19 @@ function PredictionBody({ rows }: { rows: PredictionLogRow[] }) {
         </p>
       </Card>
 
+      <Card title="v1 投研圆桌静态报告（未迁移）">
+        <p className="text-body text-sf-ink-2">
+          本页数据源是 <code>prediction_log</code> 校准日志与温度时序，与 v1《投研圆桌》的静态交付物
+          <strong>不是同一数据源、也不是同一功能</strong>：v1 读取
+          <code> deliverables/stock-partner/2026-09-11/ </code> 下的 Markdown 报告正文与内嵌 HTML 仪表盘片段，
+          提供 MD / HTML 双下载与 KPI 带。v2 目前没有承接该静态报告的读取端点，
+          因此报告展示与双下载<strong>尚未迁移</strong>，此处不以校准日志冒充等价功能。
+        </p>
+        <p className="text-label text-sf-ink-3 mt-2">
+          如需查看 2026-09-11 收盘的投研圆桌原文，请从 v1 页面打开；本页仅作决策闭环的历史自评记录。
+        </p>
+      </Card>
+
       <Card title="温度与建议仓位时序">
         <EChart option={trendOption} height={260} ariaLabel="预测校准日志的市场温度与建议仓位逐日时序图" />
       </Card>

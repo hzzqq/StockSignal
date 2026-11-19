@@ -70,6 +70,8 @@ const LazyRegimeDuration = lazyRouteComponent(() => import('@/features/analytics
 const LazyMomentumResonance = lazyRouteComponent(() => import('@/features/breadth/MomentumResonance'), 'MomentumResonance')
 const LazyLimitUpReview = lazyRouteComponent(() => import('@/features/breadth/LimitUpReview'), 'LimitUpReview')
 const LazyMarketSentiment = lazyRouteComponent(() => import('@/features/market/MarketSentiment'), 'MarketSentiment')
+// 15 市场驱动力（2026-11-19）：五维归一化 / 相关热力 / CSV 派生页，复用 /market-sentiment 数据
+const LazyMarketDrivers = lazyRouteComponent(() => import('@/features/market/MarketDrivers'), 'MarketDrivers')
 const LazyXingchen = lazyRouteComponent(() => import('@/features/xingchen/XingchenPage'), 'XingchenPage')
 const LazyEventBacktest = lazyRouteComponent(() => import('@/features/eventbacktest/EventFactorBacktest'), 'EventFactorBacktest')
 const LazyPolicyTransmission = lazyRouteComponent(() => import('@/features/policy/PolicyTransmission'), 'PolicyTransmission')
@@ -473,6 +475,14 @@ const marketSentimentRoute = createRoute({
   component: LazyMarketSentiment,
 })
 
+// 15 市场驱动力（v2 native /market-drivers）：复用同一端点的 21 指标五维数据，
+// 五维归一化叠加 / 相关热力 / CSV 导出均为派生视图（端点无上证参考线与全量面板，页面如实标注）。
+const marketDriversRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/market-drivers',
+  component: LazyMarketDrivers,
+})
+
 // 53 星辰 AI 助手（v2 native /xingchen）：多会话 + 后端持久化 + 404 回退旧单记录。
 const xingchenRoute = createRoute({
   getParentRoute: () => appRoute,
@@ -656,6 +666,7 @@ const routeTree = rootRoute.addChildren([
     momentumResonanceRoute,
     limitUpReviewRoute,
     marketSentimentRoute,
+    marketDriversRoute,
     xingchenRoute,
     forumRoute,
     dataRoute,

@@ -21,6 +21,13 @@ import { V1_PAGES, type V1Page } from './v1Pages.generated'
  *    已由 /temperature-backtest 真承接 modules/temperature_backtest.py，升回 native；
  *    61 广度分化亦由 /breadth-divergence 承接分化维度算法，不再只是广度总览。
  *    并为 42/11/14/20/40/41/45/46/95 等只读缩水页补齐诚实 note，杜绝「标 native 却零说明」。
+ *
+ * 2026-11-19 迁移与诚实校正：
+ *  - 59 市场温度计 / 64 投研圆桌此前「标 native 无 note」属台账失真：59 仅部分迁移（8 指标分解/
+ *    极端区信号/历史类比/基准窗口未迁），64 的 /predictions 是 prediction_log 而非静态报告，
+ *    两者均补 note 明示能力边界；
+ *  - 15 市场驱动力由 v1-pinned 升 native → /market-drivers，复用 /api/v2/read/market-sentiment，
+ *    归一化/相关/CSV 为派生并如实标注（无上证参考线）。
  */
 
 export type V2Status = 'native' | 'data' | 'v1-only' | 'v1-pinned'
@@ -78,7 +85,20 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   // 广度·温度簇
   '56_市场状态机.py': { to: '/regime' },
   '57_市场全景.py': { to: '/panorama' },
-  '59_市场温度计.py': { to: '/breadth' },
+  // 2026-11-19 诚实标注：/breadth 只承接广度总览与快照温度数字（并按 v1 阈值派生五档分档标签）；
+  // v1 的牧羊人 8 指标贡献分解、极端区信号（sentiment_edge）、历史情境类比（market_regime 无前视）
+  // 与侧栏温度基准窗口切换**未迁移**，本档不是 59 的完整等价。/market-sentiment 对应的是 50，不是 59。
+  '59_市场温度计.py': {
+    to: '/breadth',
+    note: '部分迁移：/breadth 承接广度总览与快照温度数字，并按 v1 五档阈值（冰点/偏冷/中性/活跃/狂热）派生当前档位；v1 的牧羊人 8 指标贡献分解、极端区信号（sentiment_edge）、历史情境类比（market_regime 无前视检索）与侧栏基准窗口切换未迁移，详见 v1 / 口径说明。/market-sentiment 是 50 的等价页，不是 59',
+  },
+  // 2026-11-19：15 市场驱动力由 v1-pinned 跨档为 native（新页 /market-drivers）。
+  // 复用 /api/v2/read/market-sentiment 的 21 指标五维 dims；归一化子图/相关热力/CSV 均由端点 spark 派生，
+  // 端点未提供上证参考线与全 180 天原始面板，页面如实标注「派生、口径不同」。
+  '15_市场驱动力.py': {
+    to: '/market-drivers',
+    note: '已迁移：/market-drivers 复用 /api/v2/read/market-sentiment 的 21 指标五维数据，五维归一化叠加、相关性热力与 CSV 导出均由端点近 40 点 spark 派生并显式标注；v1 的上证参考线与全 180 天原始归一化面板端点未提供，未编造',
+  },
   // parity B：/breadth-divergence 已承接分化维度算法（日历热力 + 分化检测 + 双轴趋势）。
   '61_广度分化.py': { to: '/breadth-divergence', note: 'v2 由 /breadth-divergence 承接 modules/breadth_divergence.py 的日历热力、分化检测与趋势（真实离线广度序列）' },
   '58_连板龙头共振.py': { to: '/ladder' },
@@ -87,7 +107,13 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   '76_实时强势榜.py': { to: '/strong' },
   '84_宏观数据.py': { to: '/macro-data' },
   '85_龙虎榜.py': { to: '/dragon-tiger' },
-  '64_投研圆桌.py': { to: '/predictions' },
+  // 2026-11-19 诚实标注：/predictions 是 prediction_log 校准日志 + 温度时序，
+  // 与 v1 的静态投研圆桌交付物（本地 MD 报告 + 内嵌 HTML 仪表盘片段 + MD/HTML 双下载 + KPI 带）
+  // 数据源与功能完全不同。静态报告位于 deliverables/stock-partner/2026-09-11/，v2 无对应端点，未迁移。
+  '64_投研圆桌.py': {
+    to: '/predictions',
+    note: '部分迁移（数据源不同）：/predictions 是 prediction_log 校准日志 + 温度时序，非 v1 的静态投研圆桌报告；v1 读取 deliverables/stock-partner/2026-09-11/ 的 MD 正文 + 内嵌 HTML 仪表盘 + MD/HTML 双下载 + KPI 带，v2 无对应端点，该静态报告展示与双下载未迁移，详见 v1',
+  },
   // 告警 / 系统 / 教学
   '74_告警引擎.py': { to: '/alerts' },
   '82_数据时效性看板.py': { to: '/ops', note: '以数据与运维状态视图承载' },
@@ -165,7 +191,7 @@ const DATA: Record<string, { path: string; label: string }> = {}
  *  不提供任何交易能力，符合「实盘交易最好不要放在 v2」的红线。 */
 const PINNED: Record<string, { note: string }> = {
   '13_市场强弱.py': { note: '与广度·温度簇高度重叠且依赖 v1 实时行情单例，留 v1' },
-  '15_市场驱动力.py': { note: '实验性视图，v2 暂无等价计划' },
+  // 15 市场驱动力已于 2026-11-19 迁移至 native /market-drivers（见 NATIVE 段），不再 pinned。
   '17_市场魔方.py': { note: '展示性视图，v2 不做等价实现' },
   '25_QuantAgent投研.py': { note: '实验性 Agent 流程，留 v1 观察' },
   '33_ETF筛选.py': { note: '小众筛选器，v2 不做等价实现；已在 /stock/screener 如实登记并给出 v1 直达' },

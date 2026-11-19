@@ -18,7 +18,7 @@
 | 本批把 **A 类（后端已有 REST 写端点）全量补齐**：自选股、垃圾股、用户打分、四类价格预警、市场告警、股吧社区、账户设置/头像/注册/登出 | 真 Flask 探针 `E:/tmp/ss_parity_api_probe.log`（probe5 独立库）+ 新增 3 组 API/Query/MSW handler |
 | 映射表存在**双向失真**：低报 53 星辰 AI / 52 股吧；高报 11/20/40/41/42/44/46 等只读壳 | 逐页源码取证，见 §2 |
 | C 类实盘红线明确不做，v2 API 层零路径字面量 | 新守卫硬断言 `/cond-orders`、`/trade/orders`、`action=buy` 绝不出现 |
-| 当前四档实时统计：**65 native + 0 data + 0 v1-only + 9 v1-pinned = 74**（D 批后：77/95 由诚实 note 升级为真承接未跨档；**81 从 v1-pinned 跨档为 native**——执行链路真落地后「不做等价实现」的架构决策不再成立；至此 B 类延后项全部清零） | `statusCounts()` 实测输出（vitest 日志实打印） |
+| 当前四档实时统计：**66 native + 0 data + 0 v1-only + 8 v1-pinned = 74**（D 批后：77/95 由诚实 note 升级为真承接未跨档；81 从 v1-pinned 跨档为 native；2026-11-19：15 市场驱动力由 pinned 跨档为 native `/market-drivers`，故 native 65→66、pinned 9→8） | `statusCounts()` 实测输出（vitest 日志实打印） |
 
 ---
 
@@ -131,8 +131,9 @@
 
 ## 7. 口径校正记录（以源码实测推翻旧表述）
 
-- `64_投研圆桌.py` **不是**多角色讨论，是读本地 HTML 仪表盘片段 + MD/HTML 双导出；v2 `/predictions` 只有 prediction-log 校准日志。
-- `59_市场温度计.py` 是牧羊人 8 指标 0–100 + 五档 + 极端区信号 + 历史情境类比 + 侧栏基准窗口；`50_市场情绪.py` 才是 12–15 个 `_*_sig` 信号函数。v2 `/market-sentiment` 对应 50，不是 59。
+- `64_投研圆桌.py` **不是**多角色讨论，是读本地 HTML 仪表盘片段 + MD/HTML 双导出；v2 `/predictions` 只有 prediction-log 校准日志。（2026-11-19 收口：`v2Mapping.ts` 已为 64 补 note，明示「数据源不同、静态报告展示与双下载未迁移」；`/predictions` 页面新增同款诚实说明，不再标 native 零说明。）
+- `59_市场温度计.py` 是牧羊人 8 指标 0–100 + 五档 + 极端区信号 + 历史情境类比 + 侧栏基准窗口；`50_市场情绪.py` 才是 12–15 个 `_*_sig` 信号函数。v2 `/market-sentiment` 对应 50，不是 59。（2026-11-19 收口：`v2Mapping.ts` 已为 59 补 note；`/breadth` 只按 v1 五档阈值从快照温度**派生**当前档位标签，8 指标贡献分解 / 极端区信号 / 历史情境类比 / 基准窗口切换仍未迁移，页面如实标注并给出相关 v2 视角链接。）
+- `15_市场驱动力.py`（2026-11-19 由 v1-pinned 升 native）：新页 `/market-drivers` 复用现成端点 `/api/v2/read/market-sentiment` 的 21 指标五维 `dims`；五维归一化叠加、相关性热力、CSV 导出均由端点近 40 点 `spark` **派生**（起点=100 / Pearson / 本地 Blob），页面与映射 note 均显式标注「派生、口径不同」；v1 的上证参考线与全 180 天原始归一化面板端点未提供，未编造。`v2Mapping.test.ts` 新增守卫锁 59/64 note 非空与 15 的 native 派生口径。
 - `22↔24` 深链**已闭合**：`/legacy?pick_stock=...` → `lib/deeplink.ts` → `/stock/research?code=...`；出边回 `/stock/fundamentals?code=...`。缺口是 11/20 子页算法能力，不是深链。
 - `95` 六类产物、`53` 剩余项（模型选择器 / 归档分组 + TTL=300 导出缓存 / popover、重试、清空二次确认、404 自愈落库）均为真实剩余，不宣称完成。
 - `52` 不是「社区抓取遗留」——v1 与 v2 都走同一套后端 `/api/forum` CRUD。

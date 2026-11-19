@@ -61,6 +61,8 @@ export type AppPath =
   | '/momentum-resonance'
   | '/limit-up-review'
   | '/market-sentiment'
+  // 15 市场驱动力（2026-11-19 由 v1-pinned 升 native）：复用 /market-sentiment 数据的五维派生页
+  | '/market-drivers'
   | '/xingchen'
   // 股吧社区（52 页 V2 化）：后端 /api/forum 完整 CRUD，非 v1「社区抓取」遗留
   | '/forum'
@@ -139,6 +141,7 @@ export const NAV: NavGroup[] = [
       { to: '/strong', label: '实时强势榜', icon: '🏅' },
       { to: '/sector-rotation', label: '板块轮动', icon: '🔥' },
       { to: '/watch', label: '智能盯盘', icon: '👁️' },
+      { to: '/market-drivers', label: '市场驱动力', icon: '🧮' },
     ],
   },
   {

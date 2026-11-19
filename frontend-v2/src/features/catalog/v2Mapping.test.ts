@@ -163,4 +163,35 @@ describe('v2Mapping · v1→v2 双向失真防复发守卫', () => {
       expect(PINNED_FILES, `${f} 同时登记在 NATIVE 与 PINNED`).not.toContain(f)
     }
   })
+
+  it('2026-11-19 伪等价页防复发：59/64 为 native 但必带诚实 note（杜绝标 native 零说明）', () => {
+    const t = mappingOf(mustPage('59_市场温度计.py'))
+    expect(t.status).toBe('native')
+    expect(t.to).toBe('/breadth')
+    expect(t.note, '59 缺诚实 note').toBeTruthy()
+    expect(t.note).toMatch(/部分迁移|未迁移/)
+    expect(t.note).toMatch(/8 指标|极端区|历史情境类比|基准窗口/)
+    expect(t.note).toMatch(/50/)
+
+    const r = mappingOf(mustPage('64_投研圆桌.py'))
+    expect(r.status).toBe('native')
+    expect(r.to).toBe('/predictions')
+    expect(r.note, '64 缺诚实 note').toBeTruthy()
+    expect(r.note).toMatch(/数据源不同|非 v1/)
+    expect(r.note).toMatch(/prediction_log/)
+    expect(r.note).toMatch(/MD|HTML/)
+    expect(r.note).toMatch(/未迁移/)
+  })
+
+  it('2026-11-19 迁移：15 市场驱动力为 native /market-drivers，不再 pinned，note 标明派生', () => {
+    const d = mappingOf(mustPage('15_市场驱动力.py'))
+    expect(d.status, '15 应为 native').toBe('native')
+    expect(d.to).toBe('/market-drivers')
+    expect(d.note).toMatch(/已迁移/)
+    expect(d.note).toMatch(/market-sentiment/)
+    expect(d.note).toMatch(/派生/)
+    expect(PINNED_BLOCK).not.toContain('15_市场驱动力.py')
+    // native 目标必须是真实 AppPath（/market-drivers 由本批在 nav.ts 注册）
+    expect(APP_PATHS).toContain('/market-drivers')
+  })
 })
