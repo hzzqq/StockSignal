@@ -40,7 +40,7 @@ def _nan_to_none(v):
     try:
         if bool(pd.isna(v)):
             return None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError):  # ui_audit_exempt(T-239R3): pd.isna 对非标量抛错原样透传-已审
         pass  # 非标量（如嵌套容器被 pandas 拒绝）原样透传，交给 ok() 兜底
     return v
 

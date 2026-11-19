@@ -337,7 +337,7 @@ def _json_cell(v):
     try:
         if bool(pd.isna(v)):
             return None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError):  # ui_audit_exempt(T-239R3): pd.isna 判别失败保留原值透传-已审
         pass
     if isinstance(v, (pd.Timestamp, datetime, date)):
         return v.isoformat()

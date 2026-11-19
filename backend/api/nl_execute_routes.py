@@ -80,7 +80,7 @@ def _register_real_sources() -> None:
         try:
             return float(v)
         except (TypeError, ValueError):
-            return None
+            return None  # ui_audit_exempt(T-239R2): except 内数值解析失败降级 None-已审
 
     def _spot_map() -> dict:
         """行情快照（涨跌幅/换手率/量比/振幅/流通市值）；失败→空 map（技术面维度诚实降级为 None）。"""
@@ -244,7 +244,7 @@ def _nan_to_none(v):
         f = float(v)
         if math.isnan(f) or math.isinf(f):
             return None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError):  # ui_audit_exempt(T-239R3): float 判别失败保留原值透传-已审
         pass
     return v
 
