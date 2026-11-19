@@ -320,7 +320,7 @@ def main():
     else:
         if ev_stale:
             down_pct = (pos_with_event["pct"] - pos_no_event["pct"])
-            lines.append(f"> ⚠️ **诚实口径（事件因子降权）**：事件因子截至 **{ev_as_of}**（滞后 **{ev_lag}** 天，远超 8 天陈旧阈值），"
+            lines.append(f"> ⚠️ **诚实口径（事件因子降权）**：事件因子截至 **{ev_as_of}**（滞后 **{ev_lag}** 天，{'超过' if ev_lag > FRESH_STALE_DAYS else '已达'} {FRESH_STALE_DAYS} 天陈旧阈值），"
                          f"其名义 +{ev_adj_nominal}pt 催化基于过期数据。本早报将其**视为降权至≈失效（贡献≈0）**。"
                          f"对照：施加陈旧催化仓位={pos_with_event['pct']}%，剔除后={pos_no_event['pct']}%，"
                          f"差值 {down_pct}pt——**防御结论（{pos_no_event['band']} {pos_no_event['pct']}%）不变**，"
@@ -335,7 +335,7 @@ def main():
             if _p1_stalled:
                 _down_tags.append("被 detect_stall 判停更")
             lines.append(f"> ⚠️ **诚实口径（事件因子降权）**：事件因子截至 **{ev_as_of}**（{('、'.join(_down_tags))}），"
-                         f"虽滞后未达 8 天陈旧阈值，但已落入「已降权/停更」区间，方向信号当日不可信。"
+                         f"虽滞后未达 {FRESH_STALE_DAYS} 天陈旧阈值，但已落入「已降权/停更」区间，方向信号当日不可信。"
                          f"本早报将其**视为降权至≈失效（贡献≈0）**，不计入共振、亦不施加其名义 +{ev_adj_nominal}pt 催化。"
                          f"对照：施加催化仓位={pos_with_event['pct']}%，剔除后={pos_no_event['pct']}%，"
                          f"差值 {down_pct}pt——**防御结论（{pos_no_event['band']} {pos_no_event['pct']}%）不变**。"
@@ -447,8 +447,10 @@ def main():
                      f"**最新每日快照 `{os.path.basename(snap_path)}`（快照数据日 {fmt(snap_date)}，当日实时抓取）**；"
                      f"而 health 口径的「牧羊人情绪」源 `shepherd_history.csv` 末行仅到 **{fmt(_sh_asof)}**（滞后 {fmt(_sh_lag)} 天，{_sh_down_tag}）——"
                      f"**快照的牧羊人读数（{fmt(snap_date)}）比底层广度历史 CSV（{fmt(_sh_asof)}）新 {_gap} 天**。这意味着 "
-                     f"`derive_position` 内由 `compute_dual_factor_inputs()` 计算的 regime/herd 拥挤因子基于落后的广度历史（{fmt(_sh_asof)}），"
-                     f"当日仓位已据此整体陈旧封顶，未误用过期广度抬高建议。")
+                     f"`derive_position` 内由 `compute_dual_factor_inputs()` 计算的 regime/herd 拥挤因子基于落后的广度历史（{fmt(_sh_asof)}）；"
+                     f"当前整体新鲜度判定为 **{freshness_status}**（决策输入源最大滞后 {fmt(fresh.get('max_lag_days'))} 天），"
+                     f"{'已据此触发陈旧封顶' if freshness_status in ('warn', 'stale') else '未触发陈旧封顶'}；"
+                     f"regime/herd 因子本身基于落后 {fmt(_sh_lag)} 天的广度已如实标注，未误用过期广度抬高建议。")
     else:
         lines.append(f"> ⚠️ **注意（决策读数来源 vs 底层历史）**：本早报喂进 `derive_position` 的 score/bias/cycle/temp 取自"
                      f"**最新每日快照 `{os.path.basename(snap_path)}`（快照数据日 {fmt(snap_date)}）**；"
@@ -462,7 +464,9 @@ def main():
     lines.append(f"**判定：{resonance}**")
     lines.append("")
     lines.append(f"- 牧羊人情绪方向：**{fmt(shepherd_dir)}**（bias={fmt(bias)} + cycle={fmt(cycle)}）")
-    lines.append(f"- 事件因子方向：**{fmt(ev_dir)}**（名义偏多，但数据截至 {fmt(ev_as_of)}，滞后 {fmt(ev_lag)} 天）")
+    _ev_dir_lag_note = (f"数据截至 {fmt(ev_as_of)}，滞后 {fmt(ev_lag)} 天，已失效" if ev_failed
+                        else f"数据截至 {fmt(ev_as_of)}，滞后 {fmt(ev_lag)} 天，新鲜")
+    lines.append(f"- 事件因子方向：**{fmt(ev_dir)}**（{_ev_dir_lag_note}）")
     lines.append("")
     if resonance.startswith("同向"):
         lines.append("**可执行解读**：两信号同向偏多，可互为印证；但需注意——当前推荐仓位 60% 是**被整体数据偏旧（warn）封顶压低**"
@@ -479,14 +483,18 @@ def main():
                          "**今日决策以牧羊人情绪为唯一有效信号**。事件因子的陈旧信号不参与当日共振，"
                          "避免用过期催化抬高仓位。")
         else:
-            # 真实背离：双方信号均新鲜，方向相反——不是陈旧误判。牧羊人推导主导（-8/-5/-6），
-            # 事件因子 +1pt 仅小幅对冲，未改变中性偏防守方向；背离本身提示"消息面催化与盘面
-            # 情绪打架"，应降低对任一单一信号的置信度，不盲目跟随任一方。
-            lines.append("**可执行解读**：牧羊人情绪（偏空）与事件因子（偏多）方向相反，且**双方信号均新鲜**——"
-                         "这是**真实背离**，不是陈旧误判。当前仓位由牧羊人推导主导"
-                         "（方向-8 / 周期-5 / 梯队断档-6 共 -19pt），事件因子 +1pt 仅小幅对冲、未改变中性偏防守方向。"
-                         "背离提示「消息面催化与盘面情绪打架」，应降低对任一单一信号的置信度、不盲目跟随任一方；"
-                         "建议维持中性仓位、等待方向收敛。")
+            # 真实背离：双方信号均新鲜，方向相反——不是陈旧误判。
+            # 红线：牧羊人负向因子、事件催化幅度、档位一律取自当日真实推导
+            # （p["reasons"] / ev_adj_nominal / eff_pos），不得硬编码 -8/-5/-6/-19pt/+1pt/中性
+            # —— 那些是 10-29 高潮分化场景残留，退潮/梯队偏薄日全对不上（11-18 实测失真）。
+            _neg_reasons = [r for r in p["reasons"] if "减仓" in r]
+            _neg_desc = "、".join(_neg_reasons) if _neg_reasons else "牧羊人负向因子"
+            lines.append(f"**可执行解读**：牧羊人情绪（{fmt(shepherd_dir)}）与事件因子（{fmt(ev_dir)}）方向相反，"
+                         f"且**双方信号均新鲜**——这是**真实背离**，不是陈旧误判。"
+                         f"当前仓位由牧羊人推导主导（{_neg_desc}），事件因子 +{fmt(ev_adj_nominal)}pt 仅小幅对冲、"
+                         f"未改变 {eff_pos['band']} 档位的方向。"
+                         f"背离提示「消息面催化与盘面情绪打架」，应降低对任一单一信号的置信度、不盲目跟随任一方；"
+                         f"建议维持 {eff_pos['band']} 仓位、等待方向收敛。")
     elif resonance == "事件因子缺位":
         lines.append("**可执行解读**：事件因子缺位，仓位完全由牧羊人情绪驱动；未施加任何事件催化（不臆造）。")
     elif resonance.startswith("事件因子陈旧失效"):
@@ -532,7 +540,7 @@ def main():
         note = "；".join(notes) if notes else "新鲜"
         lines.append(f"| {r.get('name')} | {asof} | {lag_s} | {status} | {note} |")
     lines.append("")
-    lines.append("**跨模型事件信号 latest_date（同源陈旧，验证事件因子整体过期）：**")
+    lines.append("**跨模型事件信号 latest_date（逐模型核对；主源新鲜度见第二节，离群模型单独标注）：**")
     for cm in cross_models:
         _q = cm.get("quality")
         _q_tag = ""
@@ -613,8 +621,8 @@ def main():
             # 真实背离（双方均新鲜）：事件因子新鲜但其方向与牧羊人相反，+1pt 已计入当日仓位，
             # 未改变由牧羊人推导主导的中性偏防守方向；不强行合成共振。
             _res4 = ("事件因子新鲜（lag%d）但其方向与牧羊人相反，构成**真实背离**；"
-                     "其 +%spt 催化已计入当日仓位，未改变由牧羊人推导主导的中性偏防守方向。"
-                     % (ev_lag, ev_adj_nominal))
+                     "其 +%spt 催化已计入当日仓位，未改变由牧羊人推导主导的%s方向。"
+                     % (ev_lag, ev_adj_nominal, eff_pos["band"]))
     elif resonance == "事件因子缺位":
         _res4 = "事件因子缺位，仓位完全由牧羊人情绪驱动，未施加任何事件催化（不臆造）。"
     elif resonance.startswith("事件因子陈旧失效"):
@@ -622,7 +630,11 @@ def main():
     else:
         _res4 = "一方缺位/中性，决策以有效信号为准，不强行合成共振。"
     lines.append(f"4. **共振**：{resonance}——{_res4}")
-    lines.append(f"5. **诚实提示**：事件因子、各源时效已逐源摊开；陈旧源已显式降权，未用合成/示例数据填充。")
+    _downgraded_src = [r.get("name") for r in rows
+                       if (r.get("lag_days") is not None and r["lag_days"] > 4) or r.get("stalled")]
+    _honest5 = (f"已降权/停更源（{'、'.join(_downgraded_src)}）逐项标注" if _downgraded_src
+                else "本次各源 lag 均≤4 且无源被判停更，无源需降权")
+    lines.append(f"5. **诚实提示**：事件因子、各源时效已逐源摊开；{_honest5}，未用合成/示例数据填充。")
     lines.append("")
 
     md = "\n".join(lines)

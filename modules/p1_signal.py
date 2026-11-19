@@ -65,6 +65,9 @@ MODEL_LABELS = {
     "gru": "GRU",
     "fusion": "regime 融合",
     "baseline": "基线 LightGBM",
+    # h20 强信号（2026-11-13 部署）：更长持有期(20日) baseline，IC 0.064 vs h10 0.060，
+    # 低波动 regime 下信号更强更稳；独立 model key(baseline20) 不覆盖现有 baseline(h10)。
+    "baseline20": "基线 LGB·h20(强信号)",
     # 主推候选（2026-11-13 起设为默认/主推；recommend=False，系老板 override 谨慎闸）：
     # v41 估值因子小权重融合，净夏普 +1.490 跑赢现役 A(+1.354)；近期段弱于早期段(P3 未过)。
     "v41blend_w30": "v41 融合(w0.30)·主推",
