@@ -347,3 +347,29 @@ def test_write_series_uses_single_connection(monkeypatch):
     assert macro_store.write_macro_series("perf", pts) == 100
     assert calls["n"] == 1, f"写 100 点只应建 1 次连接，实测 {calls['n']} 次（N+1 未修复）"
     assert len(macro_store.read_macro_series("perf")) == 100
+
+
+# ── 2026-11-19 回填脚本：写入 0 行不得谎报成功 ─────────────────────────────
+def test_backfill_reports_failure_when_zero_rows_written(monkeypatch):
+    """单事务回滚 → write_macro_series 返 0；回填脚本必须报 ok=False 且带原因。"""
+    from scripts import backfill_macro_history as bf
+
+    monkeypatch.setattr(bf, "extract_points", lambda spec: [
+        {"date": "2026-01-01", "value": 1.0},
+        {"date": "2026-01-02", "value": 2.0},
+    ])
+    # 模拟 DB 层报错导致整批回滚：返回 0 行
+    monkeypatch.setattr(bf.macro_store, "write_macro_series", lambda *a, **k: 0)
+
+    stats = bf.backfill(["pmi"], dry_run=False)
+    assert stats["pmi"]["ok"] is False
+    assert stats["pmi"]["written"] == 0
+    assert "写入0行" in stats["pmi"]["reason"]
+    assert "输入 2 点" in stats["pmi"]["reason"]
+
+    # 正向对照：确有写入时仍报成功，且不附失败原因
+    monkeypatch.setattr(bf.macro_store, "write_macro_series", lambda *a, **k: 1)
+    ok_stats = bf.backfill(["pmi"], dry_run=False)
+    assert ok_stats["pmi"]["ok"] is True
+    assert ok_stats["pmi"]["written"] == 1
+    assert "reason" not in ok_stats["pmi"]

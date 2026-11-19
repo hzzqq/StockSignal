@@ -315,11 +315,15 @@ def backfill(keys: list[str], dry_run: bool = False) -> dict:
             continue
         n = macro_store.write_macro_series(key, points, source=spec.get("source", ""))
         stats[key] = {
-            "ok": True,
+            "ok": n > 0,
             "written": n,
             "from": points[0]["date"],
             "to": points[-1]["date"],
         }
+        if n <= 0:
+            # 单事务批量写：DB 层报错会整批回滚返回 0，全部数据无效也会返回 0。
+            # 绝不把「写入 0 行」谎报成成功（main() 的退出码依赖 ok 判定）。
+            stats[key]["reason"] = f"写入0行（DB错误或全部数据无效），输入 {len(points)} 点"
     return stats
 
 
