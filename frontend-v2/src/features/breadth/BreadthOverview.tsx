@@ -30,7 +30,9 @@ function num(v: unknown): number | null {
 
 /**
  * v1 modules/market_temperature.py BANDS 的五档阈值（静态常量，非数据）：
- * 冰点[0,20) / 偏冷[20,40) / 中性[40,60) / 活跃[60,80) / 狂热[80,100]。
+ * 冰点[0,20) / 偏冷[20,40) / 中性[40,60) / 活跃[60,80) / 狂热[80,101)。
+ * 末档上界取 v1 真值 101（显示区间仍为 80–100°），且 v1 在 temperature_band:63 有
+ * `return BANDS[-1]` 兜底，故数值可得但越界时也落末档，不返回「不可得」。
  * 用当前快照温度派生档位标签，绝不在数据层缺字段时凭空编造指标贡献或信号。
  */
 const V1_TEMP_BANDS = [
@@ -38,10 +40,13 @@ const V1_TEMP_BANDS = [
   { lo: 20, hi: 40, label: '偏冷' },
   { lo: 40, hi: 60, label: '中性' },
   { lo: 60, hi: 80, label: '活跃' },
-  { lo: 80, hi: 100, label: '狂热' },
+  { lo: 80, hi: 101, label: '狂热' },
 ] as const
 
-function v1BandOf(temp: number | null | undefined): { label: string; range: string } | null {
+/** 按 v1 五档阈值派生档位；温度缺失（null/undefined/非有限数）返回 null 供页面显「—」。 */
+export function v1BandOf(
+  temp: number | null | undefined,
+): { label: string; range: string } | null {
   if (typeof temp !== 'number' || !Number.isFinite(temp)) return null
   const t = Math.max(0, Math.min(100, temp))
   for (const b of V1_TEMP_BANDS) {
@@ -49,7 +54,10 @@ function v1BandOf(temp: number | null | undefined): { label: string; range: stri
       return { label: b.label, range: `${b.lo}–${b.hi - 1}°` }
     }
   }
-  return null
+  // 忠实 v1 `return BANDS[-1]`：仅当温度数值可得却越出所有档位时兜底末档（狂热）。
+  // 缺失温度已在上面提前返回 null，不在此兜底，保持「缺失显—不补零」的诚实红线。
+  const last = V1_TEMP_BANDS[V1_TEMP_BANDS.length - 1]
+  return { label: last.label, range: `${last.lo}–${last.hi - 1}°` }
 }
 
 export function BreadthOverview() {
