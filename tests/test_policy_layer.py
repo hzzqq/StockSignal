@@ -252,7 +252,7 @@ def _patch_ctx(monkeypatch, rows, stats=None, fresh=None):
     if stats is None:
         stats = {"total": len(rows), "by_source": {}, "latest_publish_date": None}
     if fresh is None:
-        fresh = lambda d: False  # noqa: E731 - 测试桩，确定性
+        fresh = lambda d, ttl_days=45: False  # noqa: E731 - 测试桩，确定性
     monkeypatch.setattr(ps, "read_recent", lambda limit=20: rows)
     monkeypatch.setattr(ps, "policy_store_stats", lambda: stats)
     monkeypatch.setattr(ps, "is_fresh", fresh)
@@ -266,7 +266,7 @@ def test_policy_context_full_contract(monkeypatch):
         {"publish_date": None, "issuing_body": "国家发展改革委", "body_text": "", "source": "ndrc"},
     ]
     stats = {"total": 9, "by_source": {"gov.cn": 5, "ndrc": 4}, "latest_publish_date": "2026-11-15"}
-    _patch_ctx(monkeypatch, rows, stats, fresh=lambda d: d in ("2026-11-10", "2026-11-05"))
+    _patch_ctx(monkeypatch, rows, stats, fresh=lambda d, ttl_days=45: d in ("2026-11-10", "2026-11-05"))
     r = ps.policy_context()
     assert r["available"] is True
     assert r["total_documents"] == 9
@@ -280,7 +280,7 @@ def test_policy_context_full_contract(monkeypatch):
     assert r["by_issuing_body"] == {"国务院": 1, "未标注": 1, "国家发展改革委": 1}
     assert r["body_missing_count"] == 2  # None 与空串
     assert r["limit_applied"] == 20
-    assert r["source"] == "policy_store:data/policy.db"
+    assert r["source"] == f"policy_store:{ps._db_path()}"
     assert r["derived"] is True
 
 
@@ -331,3 +331,28 @@ def test_policy_context_note_declares_honesty(monkeypatch):
     note = ps.policy_context()["note"]
     for frag in ("non-model", "非政策面利好利空判断", "派生", "非政策点名", "不兜底 now()/crawled_at"):
         assert frag in note, frag
+
+
+def test_policy_context_ttl_days_param_is_honored(monkeypatch):
+    """D1: ttl_days 形参真正透传给 is_fresh —— 10 天前的行在 ttl=7 不计、ttl=45 计入。"""
+    pub = (datetime.now() - timedelta(days=10)).strftime("%Y-%m-%d")
+    rows = [{"publish_date": pub, "issuing_body": "国务院", "body_text": "正文"}]
+
+    # 真实复刻 is_fresh 的 TTL 判定，并把 ttl_days 纳入计算（验证参数确实透传）
+    def real_fresh(date_str, ttl_days=45):
+        if not date_str:
+            return False
+        d = datetime.strptime(str(date_str)[:10], "%Y-%m-%d")
+        return (datetime.now() - d) <= timedelta(days=ttl_days)
+
+    _patch_ctx(monkeypatch, rows, fresh=real_fresh)
+    assert ps.policy_context(ttl_days=7)["fresh_count"] == 0
+    assert ps.policy_context(ttl_days=45)["fresh_count"] == 1
+
+
+def test_policy_context_source_reflects_db_path_override(monkeypatch, tmp_path):
+    """D2: source 动态取真实库路径，POLICY_DB_PATH 覆盖后标注随之变化。"""
+    custom = str(tmp_path / "custom_policy.db")
+    monkeypatch.setenv("POLICY_DB_PATH", custom)
+    _patch_ctx(monkeypatch, [{"publish_date": "2026-11-10", "issuing_body": "国务院", "body_text": "正文"}])
+    assert ps.policy_context()["source"] == f"policy_store:{custom}"

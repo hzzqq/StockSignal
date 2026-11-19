@@ -230,7 +230,7 @@ def policy_context(limit: int = 20, ttl_days: int = 45) -> dict:
 
     dates = [d.get("publish_date") for d in rows if d.get("publish_date") is not None]
     as_of = min(dates) if dates else None
-    fresh_count = sum(1 for d in rows if is_fresh(d.get("publish_date")))
+    fresh_count = sum(1 for d in rows if is_fresh(d.get("publish_date"), ttl_days))
     recent_count = len(rows)
 
     by_issuing_body: dict[str, int] = {}
@@ -256,7 +256,7 @@ def policy_context(limit: int = 20, ttl_days: int = 45) -> dict:
         "by_issuing_body": by_issuing_body,
         "body_missing_count": sum(1 for d in rows if not d.get("body_text")),
         "limit_applied": limit,
-        "source": "policy_store:data/policy.db",
+        "source": f"policy_store:{_db_path()}",
         "derived": True,
         "note": note,
     }

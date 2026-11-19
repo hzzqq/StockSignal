@@ -41,6 +41,29 @@ def _patch_deps(monkeypatch, policy_value):
     )
 
 
+def _patch_explain(monkeypatch):
+    """让 build_snapshot 内部的 derive_position 产出 contributions/sensitivity 真值。
+
+    build_snapshot 未暴露 explain 参数、产品代码不改（提交范围外），故在测试层
+    包装 derive_position：仅最外层调用注入 explain=True。_position_sensitivity
+    内部二次调用 derive_position 时用深度计数短路，避免 explain=True 递归展开。
+    """
+    real = decision.derive_position
+    depth = {"n": 0}
+
+    def derive_with_explain(*args, **kwargs):
+        if depth["n"]:
+            return real(*args, **kwargs)  # 内部敏感度计算：原样调用，不递归
+        depth["n"] += 1
+        try:
+            kwargs["explain"] = True
+            return real(*args, **kwargs)
+        finally:
+            depth["n"] -= 1
+
+    monkeypatch.setattr("modules.decision.derive_position", derive_with_explain)
+
+
 _INPUTS = ("2026-08-21", {}, 50.0, {"bias": "偏多", "score": 0.5}, None, None)
 
 
@@ -65,17 +88,22 @@ def test_dirty_policy_fields_are_isolated_from_position(monkeypatch):
         "impact": "利好",
     }
     _patch_deps(monkeypatch, clean)
+    _patch_explain(monkeypatch)  # 注入 explain=True，令 contributions/sensitivity 产出真值
     a = build_snapshot(*_INPUTS)
     _patch_deps(monkeypatch, dirty)
-    b = build_snapshot(*_INPUTS)
+    b = build_snapshot(*_INPUTS)  # derive_position wrapper 仍生效，explain 注入持续有效
 
     # 先证明脏值确实进了展示层（排除 patch 未生效导致的假绿）
     assert b["event_factor"]["policy"] == dirty
-    # 再证明仓位链路逐字节一致。contributions/sensitivity 仅 explain=True 才产出，
-    # 当前 build_snapshot 未启用 explain，用 .get() 比较（两侧同为 None 亦属一致）。
+    # 真值守卫：contributions/sensitivity 必须非空，杜绝"两侧均 None"的空一致假绿
+    assert a["position"]["contributions"], "contributions 必须为真值（非空）"
+    assert a["position"]["sensitivity"], "sensitivity 必须为真值（非空）"
+    assert len(a["position"]["contributions"]) == 4
+    assert len(a["position"]["sensitivity"]) == 3
+    # 再证明仓位链路在真值下逐字节一致
     assert a["position"]["pct"] == b["position"]["pct"]
-    assert a["position"].get("contributions") == b["position"].get("contributions")
-    assert a["position"].get("sensitivity") == b["position"].get("sensitivity")
+    assert a["position"]["contributions"] == b["position"]["contributions"]
+    assert a["position"]["sensitivity"] == b["position"]["sensitivity"]
     assert a["data_freshness"] == b["data_freshness"]
 
 
