@@ -180,7 +180,13 @@ def _parse_sina_us_index(df):
 
 
 def _parse_hk_spot_sina(df):
-    """T-260 备源解析：新浪港股现货 → 恒生指数行（最新价/涨跌额/涨跌幅）。"""
+    """T-260 备源解析：新浪港股现货 → 恒生指数行（最新价/涨跌额/涨跌幅）。
+
+    诚实红线：``date`` 只取数据行**自带的真实日期字段**（date / 日期 /
+    更新时间 / update_time 等），归一化为 YYYY-MM-DD；取不到一律
+    ``date=None``。**绝不用 now() 兜底**——date 是 macro_history 主键的
+    一部分，用抓取时间冒充会把历史污染成"今天"，与其余源的可复现口径冲突。
+    """
     if df is None or getattr(df, "empty", True):
         return None
     name_col = next((c for c in df.columns if "名称" in str(c)), None)
@@ -198,8 +204,14 @@ def _parse_hk_spot_sina(df):
         return None
     chg = _to_float(r.get("涨跌额"))
     prev = round(px - chg, 2) if chg is not None else None
+    # 仅认数据行自带的日期列；不认任何"当前时间"来源。
+    raw_date = None
+    for col in ("date", "日期", "更新时间", "update_time", "time", "timestamp"):
+        if col in r.index and pd.notna(r.get(col)):
+            raw_date = r.get(col)
+            break
     return {"value": px, "prev": prev,
-            "date": str(pd.Timestamp.now())[:10]}
+            "date": _normalize_macro_date(raw_date) if raw_date is not None else None}
 
 
 def _parse_fed_funds_series(series):
@@ -615,6 +627,10 @@ def _read_cached_indicator(key: str) -> dict | None:
 def _persist_indicator(key: str, result: dict) -> None:
     """把一次成功取数回写到宏观历史库（失败只记日志，不影响主流程）。"""
     if not _macro_store_enabled():
+        return
+    if not result.get("date"):
+        # 诚实红线：取不到真实数据日期就不落库，绝不用 now() 兜底写假日期。
+        logger.warning(f"[macro_data] 指标 {key} 无真实数据日期，跳过入库（不写 now() 假日期）")
         return
     try:
         from modules import macro_store

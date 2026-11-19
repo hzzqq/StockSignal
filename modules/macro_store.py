@@ -177,21 +177,54 @@ def write_macro_point(key: str, date: str, value, prev=None, source: str = "") -
         return False
 
 
+def _write_many(conn: sqlite3.Connection, rows: list[tuple]) -> int:
+    """单连接 + 单事务批量写（executemany）。rows 为已过滤/归一化的六元组。
+
+    幂等语义与 ``write_macro_point`` 一致：PRIMARY KEY(key, date) 冲突 →
+    ``INSERT OR REPLACE``（同 key/date 保留最后一条，不产生重复行）。
+    """
+    if not rows:
+        return 0
+    with conn:
+        conn.executemany(
+            "INSERT OR REPLACE INTO macro_history"
+            "(key, date, value, prev, source, fetched_at) VALUES (?, ?, ?, ?, ?, ?)",
+            rows,
+        )
+    return len(rows)
+
+
 def write_macro_series(key: str, points: list[dict], source: str = "") -> int:
     """批量写入宏观序列（回填用）。points 每项须含 date / value（prev 可选）。
 
-    返回实际写入条数。**逐条独立提交**：单条坏数据不影响其余条目。
+    返回实际写入条数。**单连接 + 单事务 + executemany**：修复此前逐条调
+    ``write_macro_point`` 的 N+1（每条 = 1 建连 + 全 schema + 2 PRAGMA + 1 关闭）。
+    跳过规则与单点一致：非 dict / 无日期 / value 与 prev 皆缺 → 不写。
     """
-    n = 0
+    rows: list[tuple] = []
     for pt in points or []:
         if not isinstance(pt, dict):
             continue
         d = pt.get("date")
         if not d:
             continue
-        if write_macro_point(key, str(d), pt.get("value"), pt.get("prev"), source):
-            n += 1
-    return n
+        v = _to_float(pt.get("value"))
+        p = _to_float(pt.get("prev"))
+        if v is None and p is None:
+            continue
+        rows.append((key, str(d)[:10], v, p, source or None,
+                     datetime.now().isoformat()))
+    if not rows:
+        return 0
+    try:
+        conn = _get_conn()
+        try:
+            return _write_many(conn, rows)
+        finally:
+            conn.close()
+    except sqlite3.Error as e:  # noqa: BLE001 - 落盘失败不阻断回填主流程
+        logger.warning(f"[macro_store] 批量写入宏观历史失败 key={key} n={len(rows)}: {e}")
+        return 0
 
 
 # ── 读 ──────────────────────────────────────────────────────────────────────

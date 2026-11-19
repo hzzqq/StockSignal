@@ -484,6 +484,74 @@ def test_yield_curve_slope_normal_and_inverted(fake_ak, monkeypatch):
     assert s2["inverted"] is True
 
 
+# ── 2026-11-19 缺口2：恒生指数备源 date 不得 now() 兜底 ────────────────────
+def test_hk_spot_fallback_uses_real_date_from_data(fake_ak, monkeypatch):
+    """数据行自带真实日期 → date 用真实值，且不等于抓取当天。"""
+    ak = fake_ak(raise_on={"index_global_hist_em"})  # 主源挂掉 → 走新浪备源
+    real_date = "2026-03-02"
+    today = pd.Timestamp.now().strftime("%Y-%m-%d")
+    assert real_date != today  # 固定一个与今天不同的历史日期
+
+    def _hk_with_date():
+        return pd.DataFrame({
+            "名称": ["恒生指数"], "最新价": [24211.35], "涨跌额": [425.56],
+            "日期": [real_date],  # 数据自带的真实数据日期
+        })
+
+    monkeypatch.setattr(ak, "stock_hk_index_spot_sina", _hk_with_date)
+    got = md.fetch_indicator("hsi")
+    assert got is not None
+    assert got["value"] == 24211.35
+    assert got["date"] == real_date
+    assert got["date"] != today, "备源 date 不能用 now() 兜底"
+
+    # 格式归一化：带时间戳的字符串也归一为 YYYY-MM-DD
+    def _hk_with_ts():
+        return pd.DataFrame({
+            "名称": ["恒生指数"], "最新价": [24211.35], "涨跌额": [425.56],
+            "日期": ["2026/03/02 16:08:00"],
+        })
+
+    monkeypatch.setattr(ak, "stock_hk_index_spot_sina", _hk_with_ts)
+    got2 = md.fetch_indicator("hsi")
+    assert got2 is not None and got2["date"] == "2026-03-02"
+
+
+def test_hk_spot_fallback_without_date_returns_none_date(fake_ak, monkeypatch):
+    """数据无日期字段 → date=None（诚实，不兜底 now）。"""
+    ak = fake_ak(raise_on={"index_global_hist_em"})
+    monkeypatch.setattr(ak, "stock_hk_index_spot_sina", lambda: pd.DataFrame({
+        "名称": ["恒生指数"], "最新价": [24211.35], "涨跌额": [425.56],
+    }))
+    # 直接解析层：不得带 now()
+    parsed = md._parse_hk_spot_sina(ak.stock_hk_index_spot_sina())
+    assert parsed is not None
+    assert parsed["date"] is None
+    # 完整取数链路：date 仍为 None
+    got = md.fetch_indicator("hsi")
+    assert got is not None
+    assert got["date"] is None
+
+
+def test_hk_spot_fallback_no_date_never_pollutes_macro_history(fake_ak, monkeypatch, tmp_path):
+    """无真实日期的备源点绝不写入 macro_history（不落 now() 假日期）。"""
+    from modules import macro_store
+
+    db = tmp_path / "macro_hk_nodate.db"
+    monkeypatch.setenv("MACRO_DB_PATH", str(db))
+    monkeypatch.setenv("MACRO_STORE_ENABLED", "1")
+    macro_store.init_macro_db()
+
+    ak = fake_ak(raise_on={"index_global_hist_em"})
+    monkeypatch.setattr(ak, "stock_hk_index_spot_sina", lambda: pd.DataFrame({
+        "名称": ["恒生指数"], "最新价": [24211.35], "涨跌额": [425.56],
+    }))
+    got = md.fetch_indicator("hsi")
+    assert got is not None and got["date"] is None
+    assert macro_store.read_macro_latest("hsi") is None
+    assert macro_store.macro_store_stats()["total"] == 0
+
+
 def test_yield_curve_slope_missing_returns_none(fake_ak, monkeypatch):
     monkeypatch.setattr(md, "fetch_indicator", lambda k: None)
     assert md.yield_curve_slope() is None

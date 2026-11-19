@@ -281,3 +281,69 @@ def test_normalize_macro_date_unparseable_returns_none(raw):
 def test_normalize_macro_date_accepts_datetime():
     from datetime import date
     assert _normalize_macro_date(date(2026, 11, 6)) == "2026-11-06"
+
+
+# ── 2026-11-19 缺口3：批量写入 N+1 修复 ────────────────────────────────────
+def test_write_series_batch_writes_all_points_order_independent():
+    """批量写入 N 点结果正确，且与传入顺序无关（按 date 升序读出）。"""
+    pts = [
+        {"date": "2026-03-01", "value": 3.0, "prev": 2.0},
+        {"date": "2026-01-01", "value": 1.0},
+        {"date": "2026-02-01", "value": 2.0},
+    ]
+    assert macro_store.write_macro_series("batch", pts, source="s") == 3
+    got = macro_store.read_macro_series("batch")
+    assert [r["date"] for r in got] == ["2026-01-01", "2026-02-01", "2026-03-01"]
+    assert [r["value"] for r in got] == [1.0, 2.0, 3.0]
+    assert all(r["source"] == "s" for r in got)
+
+
+def test_write_series_idempotent_same_key_date():
+    """幂等：重复写同 key/date 不重复、不报错，保留最后一次值（INSERT OR REPLACE）。"""
+    assert macro_store.write_macro_series("idem", [{"date": "2026-01-01", "value": 1.0}]) == 1
+    assert macro_store.write_macro_series("idem", [{"date": "2026-01-01", "value": 9.0}]) == 1
+    assert macro_store.write_macro_series("idem", [{"date": "2026-01-01", "value": 1.0}]) == 1
+    got = macro_store.read_macro_series("idem")
+    assert len(got) == 1
+    assert got[0]["value"] == 1.0  # 最后写入生效，且不产生重复行
+
+
+def test_write_series_none_and_nan_match_single_point():
+    """None / NaN / 无日期 / 非法项处理与单点 write_macro_point 一致。"""
+    bad = [
+        {"date": "2026-01-01", "value": None},
+        {"date": "2026-01-02", "value": float("nan")},
+        {"date": "", "value": 2.0},
+        {"date": None, "value": 3.0},
+        {"not_dict": 1},
+    ]
+    assert macro_store.write_macro_series("bad", bad) == 0
+    assert macro_store.read_macro_series("bad") == []
+
+    # prev=NaN 但 value 有效：单点与批量都写，且 prev 都归一为 None
+    assert macro_store.write_macro_point("single", "2026-01-02", 1.0, float("nan")) is True
+    assert macro_store.write_macro_series(
+        "batchbad", [{"date": "2026-01-02", "value": 1.0, "prev": float("nan")}]) == 1
+    s = macro_store.read_macro_series("single")[0]
+    b = macro_store.read_macro_series("batchbad")[0]
+    assert s["value"] == b["value"] == 1.0
+    assert s["prev"] is None and b["prev"] is None
+
+
+def test_write_series_uses_single_connection(monkeypatch):
+    """性能守卫：写 100 点只建 1 次连接（N+1 修复的直接证据）。"""
+    real_get_conn = macro_store._get_conn
+    calls = {"n": 0}
+
+    def _counting_get_conn():
+        calls["n"] += 1
+        return real_get_conn()
+
+    monkeypatch.setattr(macro_store, "_get_conn", _counting_get_conn)
+    from datetime import datetime, timedelta
+    base = datetime(2026, 1, 1)
+    pts = [{"date": (base + timedelta(days=i)).strftime("%Y-%m-%d"), "value": float(i)}
+           for i in range(100)]  # 100 个互不相同的日期
+    assert macro_store.write_macro_series("perf", pts) == 100
+    assert calls["n"] == 1, f"写 100 点只应建 1 次连接，实测 {calls['n']} 次（N+1 未修复）"
+    assert len(macro_store.read_macro_series("perf")) == 100
