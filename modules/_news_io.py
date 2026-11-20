@@ -552,7 +552,8 @@ class NewsFetcher:
                 title = re.sub(r"<[^>]+>", "", item.get("title", "")).strip()
                 content = re.sub(r"<[^>]+>", "", item.get("content", "")).strip()
                 url = item.get("url", "")
-                date_str = item.get("date", "") or now_cst_str("%Y-%m-%d")
+                # 数据日期必须来自源；源缺失就留空，禁止用 today 兜底（诚实红线）
+                date_str = str(item.get("date", "") or "").strip()[:19]
                 if title and url:
                     items.append({
                         "date": date_str,
@@ -619,12 +620,12 @@ class NewsFetcher:
                 r'(\d{4}-\d{2}-\d{2}(?:\s+\d{2}:\d{2}(?::\d{2})?)?|\d{2}-\d{2}\s+\d{2}:\d{2}|\d{2}-\d{2})',
                 nearby,
             )
-            date_str = date_m.group(1) if date_m else now_cst_str("%Y-%m-%d")
+            # 源页面附近无日期则留空，禁止用 today 兜底（诚实红线）
+            date_str = date_m.group(1) if date_m else ""
 
-            if re.match(r"^\d{2}-\d{2}\s+\d{2}:\d{2}$", date_str):
-                date_str = f"{now_cst().year}-{date_str}"
-            elif re.match(r"^\d{2}-\d{2}$", date_str):
-                date_str = f"{now_cst().year}-{date_str}"
+            # 源仅给 MM-DD（缺年份）时无法判定真实年份，跨年会补错，
+            # 按诚实红线留空，不用 now().year 推断补全。
+            # 完整 YYYY-MM-DD 由上方正则优先命中，不受影响。
 
             items.append({
                 "date": date_str,
@@ -652,7 +653,9 @@ class NewsFetcher:
 
             df["title"] = df["content"].str.split(r"[\n。，；]", n=1).str[0].str.strip()
             df["title"] = df["title"].str.slice(0, 80)
-            df["date"] = now_cst_str("%Y-%m-%d")
+            # 财新接口只返回 tag/summary/url，无发布日期字段；源缺失就留空，
+            # 禁止用 today 兜底（诚实红线）。NaT 会在 save_news 统一转空串。
+            df["date"] = ""
             df["url"] = df.get("url", "")
 
             if keyword:

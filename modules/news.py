@@ -243,6 +243,24 @@ class NewsDatabase:
                 sentiment = row.get("type", row.get("sentiment", "中性"))
                 score = row.get("sentiment_score", row.get("score", 0.0))
 
+                # 重大标记：sentiment 分析产出 abs(score)>=0.4，此前 INSERT 漏列导致
+                # 全库 is_major=0，alert_check 永远查不到重大新闻。容错缺失键/NaN。
+                major = row.get("is_major", False)
+                if isinstance(major, str):
+                    major = major.strip().lower() in ("1", "true", "yes")
+                elif major is None or (isinstance(major, float) and pd.isna(major)):
+                    major = False
+                major = 1 if bool(major) else 0
+
+                # 日期诚实：源无日期时上游留空/NaT，入库统一为空串，
+                # 禁止把 "NaT" 当发布日期落库。
+                raw_date = row.get("date", "")
+                if raw_date is None or (isinstance(raw_date, float) and pd.isna(raw_date)) \
+                        or str(raw_date) == "NaT":
+                    date_val = ""
+                else:
+                    date_val = str(raw_date).strip()[:19]
+
                 # 序列化 keywords
                 kws = row.get("keywords", "")
                 if isinstance(kws, list):
@@ -251,19 +269,20 @@ class NewsDatabase:
                 conn.execute("""
                     INSERT INTO news (title, content, url, source, date,
                                       fingerprint, sentiment, sentiment_score,
-                                      keywords, search_keyword)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                      keywords, search_keyword, is_major)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     title,
                     str(row.get("content", ""))[:2000],
                     str(row.get("url", ""))[:500],
                     str(row.get("source", "")),
-                    str(row.get("date", ""))[:19],
+                    date_val,
                     fp,
                     str(sentiment),
                     float(score) if score else 0.0,
                     kws,
                     search_keyword,
+                    major,
                 ))
                 new_count += 1
 
@@ -278,7 +297,7 @@ class NewsDatabase:
         """
         多维度查询新闻。
         支持 filters: keyword, sentiment, source, date_from, date_to,
-                       stock_code, is_major, limit, offset, order_by
+                       inserted_from, stock_code, is_major, limit, offset, order_by
         """
         conn = self._get_conn()
         try:
@@ -305,6 +324,12 @@ class NewsDatabase:
             if filters.get("date_to"):
                 where.append("date <= ?")
                 params.append(filters["date_to"])
+
+            # inserted_from 按真实入库时刻过滤（带时分），用于预警/新鲜度场景；
+            # 与 date_from（数据日期，可能为纯日期无时分）严格区分。
+            if filters.get("inserted_from"):
+                where.append("inserted_at >= ?")
+                params.append(filters["inserted_from"])
 
             if filters.get("is_major"):
                 where.append("is_major = 1")
@@ -597,7 +622,9 @@ class EventMiner:
         :return: list of alert dicts
         """
         since = (now_cst() - timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M")
-        query_params = {"date_from": since, "is_major": True, "limit": 20}
+        # 预警按「真实入库时刻」过滤：新闻 date 是发布日期（可能仅为纯日期 00:00:00
+        # 甚至缺失），用 date 比 now-N小时会把当天新闻整段漏掉。
+        query_params = {"inserted_from": since, "is_major": True, "limit": 20}
 
         if stock_code:
             query_params["keyword"] = stock_code
