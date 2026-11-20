@@ -61,7 +61,8 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   // 决策 / 复盘 / 晨报 / 信号
   '36_每日荐股.py': { to: '/recommend' },
   // parity B：GET /review-notes 已有读；PUT /review-notes 承接按日期保存 Markdown 全文。
-  '51_每日晨报.py': { to: '/morning', note: '晨报主体已承接；复盘笔记段由 /review-notes 的 PUT 承接按日期保存（图片上传未承接）' },
+  // 2026-11-20：图片上传已承接（POST /review-images 上传 + markdown 链接写入笔记文本，与 v1 同语义）。
+  '51_每日晨报.py': { to: '/morning', note: '晨报主体已承接；复盘笔记段由 /review-notes 的 PUT 承接按日期保存，图片上传已承接（POST /review-images，上传后以 markdown 图片链接写入笔记文本，与 v1 同语义；历史图片为登录态链接呈现，不做匿名渲染）' },
   '54_今日决策面板.py': { to: '/decision' },
   '55_P1量化信号.py': { to: '/p1' },
   '97_决策回放.py': { to: '/replay' },
@@ -85,12 +86,12 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   // 广度·温度簇
   '56_市场状态机.py': { to: '/regime' },
   '57_市场全景.py': { to: '/panorama' },
-  // 2026-11-19 诚实标注：/breadth 只承接广度总览与快照温度数字（并按 v1 阈值派生五档分档标签）；
-  // v1 的牧羊人 8 指标贡献分解、极端区信号（sentiment_edge）、历史情境类比（market_regime 无前视）
-  // 与侧栏温度基准窗口切换**未迁移**，本档不是 59 的完整等价。/market-sentiment 对应的是 50，不是 59。
+  // 2026-11-20 迁移：59 四块能力已承接。/breadth 现含牧羊人 8 指标热度贡献分解、
+  // 极端区信号（sentiment_edge）、历史情境类比与基准窗口切换（近一季/近一年/全历史 2007 起），
+  // 实时取数走后端聚合端点 /market-temperature；缺失指标诚实显「—」不补 0。
   '59_市场温度计.py': {
     to: '/breadth',
-    note: '部分迁移：/breadth 承接广度总览与快照温度数字，并按 v1 五档阈值（冰点/偏冷/中性/活跃/狂热）派生当前档位；v1 的牧羊人 8 指标贡献分解、极端区信号（sentiment_edge）、历史情境类比（market_regime 无前视检索）与侧栏基准窗口切换未迁移，详见 v1 / 口径说明。/market-sentiment 是 50 的等价页，不是 59',
+    note: '已迁移：/breadth 承接 v1 的牧羊人 8 指标热度贡献分解、极端区信号（sentiment_edge）、历史情境类比与基准窗口切换（近一季/近一年/全历史 2007 起），实时取数走后端聚合端点 /market-temperature，缺失指标诚实显「—」不补 0；/market-sentiment 是 50 的等价页，不是 59',
   },
   // 2026-11-19：15 市场驱动力由 v1-pinned 跨档为 native（新页 /market-drivers）。
   // 复用 /api/v2/read/market-sentiment 的 21 指标五维 dims；归一化子图/相关热力/CSV 均由端点 spark 派生，

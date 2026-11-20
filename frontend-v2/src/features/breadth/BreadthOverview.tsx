@@ -1,6 +1,14 @@
-import type { DailySnapshot, BreadthPoint, LadderDay, BreadthHistoryPoint } from '@/api/schemas/read'
+import type {
+  DailySnapshot,
+  BreadthPoint,
+  LadderDay,
+  BreadthHistoryPoint,
+  MarketTemperature,
+  MarketTemperatureWindow,
+} from '@/api/schemas/read'
 import type { EChartsOption } from 'echarts'
-import { useDailySnapshot, useBreadthTimeseries, useLadderDetail, useBreadthHistory } from '@/lib/queries'
+import { useState } from 'react'
+import { useDailySnapshot, useBreadthTimeseries, useLadderDetail, useBreadthHistory, useMarketTemperature } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { FreshnessBadge } from '@/shared/ui/FreshnessBadge'
@@ -60,11 +68,37 @@ export function v1BandOf(
   return { label: last.label, range: `${last.lo}–${last.hi - 1}°` }
 }
 
+/**
+ * 基准窗口切换（v1 59 页侧栏同款三档）：切换即换 queryKey 重取聚合数据。
+ * 默认全历史 2000（忠实 v1 侧栏默认），档位文案标明数据起止口径。
+ */
+const HIST_WINDOWS: Array<{ value: MarketTemperatureWindow; label: string }> = [
+  { value: 2000, label: '全历史（2007 起 · 2000 日）' },
+  { value: 250, label: '近一年（250 日）' },
+  { value: 60, label: '近一季（60 日）' },
+]
+
+/**
+ * heat 五档条色（冷→热渐进，全部取自 CHART 调色板，亮色主题由 remapChartColors 自动换算）：
+ * 冰点(accent 蓝紫) / 偏冷(ok 绿) / 中性(ink2 灰) / 活跃(warn 橙) / 狂热(up 红)。
+ */
+function heatColor(heat: number | null | undefined): string {
+  if (typeof heat !== 'number' || !Number.isFinite(heat)) return CHART.line
+  const t = Math.max(0, Math.min(100, heat))
+  if (t < 20) return CHART.accent
+  if (t < 40) return CHART.ok
+  if (t < 60) return CHART.ink2
+  if (t < 80) return CHART.warn
+  return CHART.up
+}
+
 export function BreadthOverview() {
   const daily = useDailySnapshot()
   const breadth = useBreadthTimeseries()
   const ladder = useLadderDetail()
   const history = useBreadthHistory()
+  const [histDays, setHistDays] = useState<MarketTemperatureWindow>(2000)
+  const temperature = useMarketTemperature(histDays)
 
   return (
     <div className="flow">
@@ -106,6 +140,56 @@ export function BreadthOverview() {
           isEmpty={!!ladder.data && ladder.data.length === 0}
         >
           {ladder.data ? <LadderDetailView history={ladder.data} /> : null}
+        </QueryState>
+      </Card>
+
+      {/* ───── v1 59「市场温度计」四块迁移：基准窗口 + 三卡（牧羊人贡献 / 极端区信号 / 历史情境类比）───── */}
+      <div className="flex flex-wrap items-center gap-3 mt-2">
+        <h2 className="text-lg font-semibold">市场温度计（v1 59 页四块）</h2>
+        <label className="text-label text-sf-ink-3">
+          基准窗口
+          <select
+            aria-label="温度基准窗口"
+            className="ml-2 rounded-tile border border-sf-line bg-sf-surface px-2 py-1 text-sm text-sf-ink"
+            value={histDays}
+            onChange={(e) => setHistDays(Number(e.target.value) as MarketTemperatureWindow)}
+          >
+            {HIST_WINDOWS.map((w) => (
+              <option key={w.value} value={w.value}>
+                {w.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <Card title="牧羊人指标热度贡献分解">
+        <QueryState
+          isLoading={temperature.isLoading}
+          isError={temperature.isError}
+          error={temperature.error}
+        >
+          {temperature.data ? <TempContributionView t={temperature.data.temperature} /> : null}
+        </QueryState>
+      </Card>
+
+      <Card title="极端区信号（sentiment_edge）">
+        <QueryState
+          isLoading={temperature.isLoading}
+          isError={temperature.isError}
+          error={temperature.error}
+        >
+          {temperature.data ? <ExtremeSignalView s={temperature.data.extreme_signal} /> : null}
+        </QueryState>
+      </Card>
+
+      <Card title="历史情境类比">
+        <QueryState
+          isLoading={temperature.isLoading}
+          isError={temperature.isError}
+          error={temperature.error}
+        >
+          {temperature.data ? <AnalogsView a={temperature.data.analogs} /> : null}
         </QueryState>
       </Card>
     </div>
@@ -188,10 +272,11 @@ function BreadthBody({ snapshot }: { snapshot: DailySnapshot }) {
         </div>
         <p className="text-label text-sf-ink-3 mt-2">
           档位由快照温度按 v1 五档阈值派生（非 v1 八指标合成口径）。v1《市场温度计》的牧羊人 8 指标贡献分解、
-          极端区信号、历史情境类比与侧栏基准窗口切换<strong>尚未迁移到 v2</strong>，未在本页编造对应展示；
-          指标级热度见 <a href="/market-sentiment" className="text-sf-accent underline underline-offset-4">市场情绪温度计</a>，
+          极端区信号（sentiment_edge）、历史情境类比与基准窗口切换<strong>已迁移至本页下方三卡</strong>
+          （实时取数走后端聚合端点 /market-temperature，缺失指标诚实显「—」不补 0）；
           五档历史回测见 <a href="/temperature-backtest" className="text-sf-accent underline underline-offset-4">温度档回测</a>，
-          历史相似日见 <a href="/similar-days" className="text-sf-accent underline underline-offset-4">历史相似日</a>。
+          历史相似日延伸见 <a href="/similar-days" className="text-sf-accent underline underline-offset-4">历史相似日</a>，
+          指标级情绪五维见 <a href="/market-sentiment" className="text-sf-accent underline underline-offset-4">市场情绪温度计</a>（对应 v1 50 页）。
         </p>
       </Card>
 
@@ -443,6 +528,196 @@ function BreadthHistoryTrend({ series }: { series: BreadthHistoryPoint[] }) {
       <div className="text-xs text-sf-ink-3 mt-1">
         数据来自 data/shepherd_history.json（逐日广度，共 {series.length} 个交易日，展示最近 250 个）
       </div>
+    </div>
+  )
+}
+
+/** 牧羊人指标热度贡献分解：水平条形图 x=heat(0–100)，y=`${name} ${round(value)}${unit}`，条色按五档。 */
+function TempContributionView({ t }: { t: MarketTemperature['temperature'] }) {
+  if (!t.available) {
+    return <div className="text-body text-sf-ink-3">{t.reason ?? '牧羊人指标热度贡献不可得'}</div>
+  }
+  const rows = t.contributions ?? []
+  const band = v1BandOf(t.temp ?? null)
+
+  const option: EChartsOption = {
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'item' },
+    grid: { left: 150, right: 32, top: 8, bottom: 24 },
+    xAxis: {
+      type: 'value',
+      max: 100,
+      axisLabel: { color: CHART.ink2 },
+      splitLine: { lineStyle: { color: CHART.line } },
+    },
+    yAxis: {
+      type: 'category',
+      inverse: true,
+      data: rows.map((c) =>
+        // 缺失值诚实带「—」，不把无数据渲染成 0。
+        `${c.name} ${c.value == null ? '—' : Math.round(c.value)}${c.unit}`,
+      ),
+      axisLabel: { color: CHART.ink2 },
+      axisLine: { lineStyle: { color: CHART.line } },
+    },
+    series: [
+      {
+        type: 'bar',
+        barWidth: '55%',
+        data: rows.map((c) => ({
+          value: c.heat ?? null,
+          itemStyle: { color: heatColor(c.heat) },
+        })),
+        label: { show: true, position: 'right', color: CHART.ink2 },
+      },
+    ],
+  }
+
+  return (
+    <div>
+      <div className="text-body text-sf-ink-2 mb-2">
+        合成温度 <span className="tabular-nums font-semibold">{fmtNum(t.temp ?? null)}</span>
+        {' → 档位 '}
+        <span className="font-semibold">{band?.label ?? '—'}</span>
+        <span className="text-label text-sf-ink-3">（{band?.range ?? '温度不可得，不派生档位'}）</span>
+      </div>
+      {rows.length === 0 ? (
+        <div className="text-body text-sf-ink-3">{t.reason ?? '无可用指标贡献'}</div>
+      ) : (
+        <EChart
+          option={option}
+          height={Math.max(120, rows.length * 30)}
+          ariaLabel="牧羊人指标热度贡献水平条形图，条色按热度五档"
+        />
+      )}
+      {t.indicators_unavailable && t.indicators_unavailable.length > 0 && (
+        <div className="text-label text-sf-ink-3 mt-1">
+          不可得指标（诚实带出）：
+          {t.indicators_unavailable?.map(([key, why]) => `${key}（${why}）`).join('、')}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** 极端区信号（sentiment_edge）：触发=红色告警卡 + hits 表；未触发=statement；不可得=reason。 */
+function ExtremeSignalView({ s }: { s: MarketTemperature['extreme_signal'] }) {
+  if (!s.available) {
+    return <div className="text-body text-sf-ink-3">{s.reason ?? '极端区信号不可得'}</div>
+  }
+  const hit = s.hits?.[0]
+
+  return (
+    <div>
+      {s.triggered ? (
+        <div
+          role="alert"
+          className="rounded-tile border border-sf-danger bg-sf-danger-soft px-3 py-2 text-body text-sf-danger"
+        >
+          {s.statement}
+        </div>
+      ) : (
+        <div className="text-body text-sf-ink-2">{s.statement}</div>
+      )}
+
+      {s.triggered && s.hits && s.hits.length > 0 && (
+        <table className="w-full text-xs text-sf-ink mt-3">
+          <caption className="sr-only">极端区触发指标明细</caption>
+          <thead>
+            <tr className="text-sf-ink-3 border-b border-sf-line">
+              <th className="text-left py-1.5 pr-3">指标</th>
+              <th className="text-right py-1.5 pr-3">当前值</th>
+              <th className="text-right py-1.5 pr-3">阈值</th>
+              <th className="text-right py-1.5 pr-3">后市上涨概率</th>
+              <th className="text-right py-1.5">z 值</th>
+            </tr>
+          </thead>
+          <tbody>
+            {s.hits.map((h) => (
+              <tr key={h.key} className="border-b border-sf-line/60">
+                <td className="py-1.5 pr-3">{h.name}</td>
+                <td className="py-1.5 pr-3 text-right tabular-nums">{fmtNum(h.value)}</td>
+                <td className="py-1.5 pr-3 text-right tabular-nums">{fmtNum(h.threshold)}</td>
+                {/* prob 是 0-1 分数（statement 里为百分数口径），此处统一转百分比显示；缺失显「—」。 */}
+                <td className="py-1.5 pr-3 text-right tabular-nums">
+                  {h.prob == null || !Number.isFinite(h.prob) ? '—' : `${(h.prob * 100).toFixed(1)}%`}
+                </td>
+                <td className="py-1.5 text-right tabular-nums">{fmtNum(h.z)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {s.triggered && hit && (
+        <div className="text-label text-sf-ink-3 mt-2">
+          样本 {fmtNum(hit.n)} 天 · 边际 {fmtNum(s.edge_pp)} pp
+        </div>
+      )}
+
+      <p className="text-label text-sf-ink-3 mt-2">统计概率，非确定性预测</p>
+    </div>
+  )
+}
+
+/**
+ * 历史情境类比：最多 8 个相似日网格卡。后5日上涨占比 >0.5 用红色系、<=0.5 用绿色系
+ * ——这是历史后市统计展示，遵循 A股涨红跌绿；缺失显「—」，绝不补 0。
+ */
+function AnalogsView({ a }: { a: MarketTemperature['analogs'] }) {
+  if (!a.available) {
+    return <div className="text-body text-sf-ink-3">{a.reason ?? '历史情境类比不可得'}</div>
+  }
+  const rows = a.analogs ?? []
+
+  return (
+    <div>
+      {a.today_metrics && (
+        <div className="text-label text-sf-ink-3 mb-2">
+          当日画像：红盘比 {fmtNum(a.today_metrics.red_ratio)}% · 涨停 {fmtNum(a.today_metrics.limit_up)} · 跌停{' '}
+          {fmtNum(a.today_metrics.limit_down)}
+        </div>
+      )}
+      {rows.length === 0 ? (
+        <div className="text-body text-sf-ink-3">{a.reason ?? '无相似历史日'}</div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {rows.slice(0, 8).map((an) => {
+            const upFrac = an.forward?.d5?.up_frac ?? null
+            // 后市统计配色（A股涨红跌绿语义）：up_frac>0.5 红、<=0.5 绿；缺失不着色显「—」。
+            // 涨跌色按设计守卫以 var() 内联（ss-up/down 是价格域语义色，禁 Tailwind class）。
+            const upColor =
+              upFrac == null || !Number.isFinite(upFrac)
+                ? undefined
+                : upFrac > 0.5
+                  ? 'var(--color-ss-up)'
+                  : 'var(--color-ss-down)'
+            return (
+              <div key={an.date} className="rounded-tile border border-sf-line px-3 py-2">
+                <div className="text-sm text-sf-ink font-semibold">
+                  {an.date}
+                  <span className="ml-2 text-label font-normal text-sf-ink-3">{an.state ?? '—'}</span>
+                </div>
+                <div className="text-label text-sf-ink-3 mt-0.5">
+                  相似距离 {an.distance == null || !Number.isFinite(an.distance) ? '—' : an.distance.toFixed(2)}
+                </div>
+                <div className="text-xs mt-1.5 text-sf-ink-2" style={upColor ? { color: upColor } : undefined}>
+                  <div>后5日红盘率 {fmtNum(an.forward?.d5?.avg_red ?? null)}%</div>
+                  <div>
+                    后5日上涨占比{' '}
+                    {upFrac == null || !Number.isFinite(upFrac)
+                      ? '—'
+                      : `${(upFrac * 100).toFixed(0)}%`}
+                  </div>
+                  <div>后10日红盘率 {fmtNum(an.forward?.d10?.avg_red ?? null)}%</div>
+                  <div>后20日红盘率 {fmtNum(an.forward?.d20?.avg_red ?? null)}%</div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      <p className="text-label text-sf-ink-3 mt-2">历史相似≠预测</p>
     </div>
   )
 }

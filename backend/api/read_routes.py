@@ -4694,3 +4694,286 @@ def save_review_notes():
         return fail(message="非法路径", code="validation_error", http_status=422)
     atomic_write_text(content, str(path))
     return ok(data={"date": date, "content": content}, message="review-notes saved")
+
+
+# ───────── 市场温度计（59 页迁移：温度合成 + 极端区信号 + 历史情境类比）─────────
+# 契约（同款红线）：@jwt_required + 统一 ok/fail 信封；聚合 modules.market_temperature
+# 三块能力（temperature / extreme_signal / analogs），全部透传不重算、不补零。
+# 实时快照来自 modules.shepherd.get_shepherd_today；快照不可用 → 三块诚实降级
+# （available=false + 中文 reason），绝不编造温度、绝不用 now() 兜底日期。
+# hist_days 为白名单参数（60/250/2000，对应近一季/近一年/全历史），非法 → 422。
+_MT_HIST_DAYS_WHITELIST = frozenset({60, 250, 2000})
+
+
+def _mt_parse_hist_days(raw):
+    """hist_days 白名单校验：缺省 2000；非整数 / 不在白名单 → (None, 错误文案)。"""
+    if raw is None or raw == "":
+        return 2000, None
+    try:
+        v = int(raw)
+    except (TypeError, ValueError):
+        return None, "hist_days 必须是整数（可选 60/250/2000）"
+    if v not in _MT_HIST_DAYS_WHITELIST:
+        return None, "hist_days 仅支持 60/250/2000（近一季/近一年/全历史）"
+    return v, None
+
+
+def _mt_indicators_meta(meta):
+    """把 shepherd meta 透传为 JSON 友好结构：available 键名清单 + unavailable [k, reason] 对。"""
+    if not isinstance(meta, dict):
+        return [], []
+    avail = [str(x) for x in (meta.get("available") or [])]
+    unavail = [
+        [str(x[0]), str(x[1])]
+        for x in (meta.get("unavailable") or [])
+        if isinstance(x, (list, tuple)) and len(x) >= 2
+    ]
+    return avail, unavail
+
+
+@bp.get("/market-temperature")
+@jwt_required
+def market_temperature():
+    """59 市场温度计：温度合成 + 极端区信号 + 历史情境类比，三块聚合透传。
+
+    GET /api/v2/read/market-temperature?hist_days=2000
+    hist_days 白名单 {60, 250, 2000}（v1 侧栏三档语义；>=2000 走 CSV 长历史路径），
+    缺省 2000；非法值 → 422 validation_error。
+
+    取数红线：实时快照来自 modules.shepherd.get_shepherd_today（今日 dict 自带 date
+    键时透出为 data_as_of，缺失则省略该键，禁止 now()/today() 生成日期）；快照不可用
+    → 三块全部 available=false + 中文 reason + temp=None + contributions=[]，绝不补 0。
+    任一块计算异常 → 仍 200 + 该块诚实降级 + 落日志（不静默吞）。
+    """
+    hist_days, err = _mt_parse_hist_days(request.args.get("hist_days"))
+    if err:
+        return fail(message=err, code="validation_error", http_status=422)
+
+    try:
+        from modules import market_temperature as _mt
+        from modules import shepherd as _shepherd
+
+        today, meta = _shepherd.get_shepherd_today()
+        if not (isinstance(meta, dict) and meta.get("available")):
+            today = None
+    except Exception as exc:  # noqa: BLE001 - 快照获取失败：三块诚实降级，不 500
+        logging.getLogger(__name__).warning(
+            "[market-temperature] shepherd 今日快照获取失败: %s", exc, exc_info=True)
+        today, meta = None, None
+
+    ind_avail, ind_unavail = _mt_indicators_meta(meta)
+
+    # ── 1. 温度合成 + 各指标贡献明细（透传 shepherd_temperature_detail）──
+    if today is not None:
+        try:
+            detail = _mt.temperature_contributions(today, hist_days=hist_days)
+            temperature = {
+                "available": True,
+                "temp": detail.get("temp"),
+                "contributions": detail.get("contributions") or [],
+                "reason": None,
+                "indicators_available": ind_avail,
+                "indicators_unavailable": ind_unavail,
+            }
+        except Exception as exc:  # noqa: BLE001 - 计算异常：诚实降级，不 500
+            logging.getLogger(__name__).warning(
+                "[market-temperature] 温度计算失败: %s", exc, exc_info=True)
+            temperature = {
+                "available": False, "temp": None, "contributions": [],
+                "reason": f"温度计算失败：{type(exc).__name__}: {exc}",
+                "indicators_available": ind_avail,
+                "indicators_unavailable": ind_unavail,
+            }
+    else:
+        temperature = {
+            "available": False, "temp": None, "contributions": [],
+            "reason": "实时广度快照不可用，无法计算市场温度",
+            "indicators_available": ind_avail,
+            "indicators_unavailable": ind_unavail,
+        }
+
+    # ── 2. 极端区信号（sentiment_edge.panic_reversal 完整透传）──
+    if today is not None:
+        try:
+            extreme = _mt.extreme_zone_signal(today)
+        except Exception as exc:  # noqa: BLE001 - 内部已兜底，此处纯防御
+            logging.getLogger(__name__).warning(
+                "[market-temperature] 极端区信号失败: %s", exc, exc_info=True)
+            extreme = {
+                "available": False, "evaluated": False, "triggered": False,
+                "hits": [], "prob": None, "base_rate": None, "edge_pp": None,
+                "strength_hint": None,
+                "statement": f"极端区信号计算异常：{exc}",
+                "abstain": True, "reason": f"{type(exc).__name__}: {exc}",
+            }
+    else:
+        extreme = {
+            "available": False, "evaluated": False, "triggered": False,
+            "hits": [], "prob": None, "base_rate": None, "edge_pp": None,
+            "strength_hint": None,
+            "statement": "实时广度快照不可用，无法评估极端区信号",
+            "abstain": True, "reason": "实时广度快照不可用",
+        }
+
+    # ── 3. 历史情境类比（无前视检索，historical_analogs 完整透传）──
+    if today is not None:
+        try:
+            analogs = _mt.historical_analogs(today, k=8)
+        except Exception as exc:  # noqa: BLE001 - 计算异常：诚实降级，不 500
+            logging.getLogger(__name__).warning(
+                "[market-temperature] 历史类比计算失败: %s", exc, exc_info=True)
+            analogs = {"available": False, "today_metrics": None, "analogs": [],
+                       "reason": f"{type(exc).__name__}: {exc}"}
+    else:
+        analogs = {"available": False, "today_metrics": None, "analogs": [],
+                   "reason": "实时广度快照不可用"}
+
+    data = {
+        "hist_days": hist_days,
+        "temperature": temperature,
+        "extreme_signal": extreme,
+        "analogs": analogs,
+    }
+    # 真实数据日仅在快照自带 date 键时透出；禁止 now()/today() 兜底生成日期
+    if isinstance(today, dict) and today.get("date") is not None:
+        data["data_as_of"] = today["date"]
+
+    return ok(data=_sanitize(data), message="market-temperature")
+
+
+# ───────── 复盘笔记图片上传 / 读取（51 每日晨报 v2 迁移）─────────
+# 契约（与前端 v2 上传 UI 逐字对齐）：
+#   POST /api/v2/read/review-images  multipart/form-data，字段 file + date(YYYY-MM-DD)
+#     成功 200：ok(data={filename, url, date})，url=/api/v2/read/review-images/<date>/<filename>
+#     失败 4xx：fail 结构化错误 + 中文 message
+#   GET  /api/v2/read/review-images/<date>/<filename>：回显图片字节，Content-Type 白名单映射
+# 安全红线：扩展名白名单 + magic bytes 双重校验（防扩展名伪装）；≤5MB；
+#   文件名服务端生成（禁止原文件名直拼，v1 的 review_<date>_<原名> 有穿越/注入风险）；
+#   存储落 data/review_images/；GET 路径参数经 _safe_file 防穿越。
+import os as _os  # noqa: E402
+import secrets as _secrets  # noqa: E402
+
+_REVIEW_IMG_MAX_BYTES = 5 * 1024 * 1024  # 5MB
+_REVIEW_IMG_MIMES = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "gif": "image/gif",
+    "webp": "image/webp",
+}
+
+
+def _review_img_dir():
+    """图片存储目录：data/review_images/（请求时求值，便于测试 monkeypatch _DATA_DIR）。"""
+    return _DATA_DIR / "review_images"
+
+
+def _review_img_magic_ok(ext: str, head: bytes) -> bool:
+    """magic bytes 白名单校验（防扩展名伪装）：head 需 ≥12 字节。"""
+    if ext == "png":
+        return head.startswith(b"\x89PNG\r\n\x1a\n")
+    if ext in ("jpg", "jpeg"):
+        return head.startswith(b"\xff\xd8\xff")
+    if ext == "gif":
+        return head.startswith((b"GIF87a", b"GIF89a"))
+    if ext == "webp":
+        return head[:4] == b"RIFF" and head[8:12] == b"WEBP"
+    return False
+
+
+@bp.post("/review-images")
+@jwt_required
+def upload_review_image():
+    """上传复盘笔记图片（multipart），落 data/review_images/review_<date>_<12hex>.<ext>。
+
+    校验链（任一失败 422 validation_error + 中文 message，落日志）：
+      1. file 字段存在且 date 经 _valid_date（形状 + 真实日历）；
+      2. 扩展名 ∈ {png,jpg,jpeg,gif,webp}（小写化后校验，取自原文件名仅用于定扩展，
+         最终文件名服务端生成，不含任何用户输入）；
+      3. ≤5MB（先看 content_length 早拒，再读流超限兜底）；
+      4. magic bytes 与声称扩展一致。
+    写入走 modules.atomic_io.unique_tmp_path + os.replace（二进制版无现成函数，
+    唯一 tmp 名保证并发写互不干扰，os.replace 原子落盘）。
+    """
+    log = logging.getLogger(__name__)
+    f = request.files.get("file")
+    if f is None or not f.filename:
+        return fail(message="缺少 file 字段", code="validation_error", http_status=422)
+    date = request.form.get("date")
+    if not _valid_date(date):
+        return fail(message="date 非法（须为真实 YYYY-MM-DD）", code="validation_error", http_status=422)
+
+    ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else ""
+    if ext not in _REVIEW_IMG_MIMES:
+        log.warning("[review-images] 拒绝非白名单扩展: %r", f.filename)
+        return fail(
+            message="仅支持 png/jpg/jpeg/gif/webp 图片",
+            code="validation_error", http_status=422,
+        )
+
+    # 大小限制：content_length 已知时先早拒；否则读流至上限+1 兜底
+    if request.content_length is not None and request.content_length > _REVIEW_IMG_MAX_BYTES:
+        log.warning("[review-images] 请求体超限: %s bytes", request.content_length)
+        return fail(message="图片大小不能超过 5MB", code="validation_error", http_status=422)
+    data = f.stream.read(_REVIEW_IMG_MAX_BYTES + 1)
+    if len(data) > _REVIEW_IMG_MAX_BYTES:
+        log.warning("[review-images] 图片超限: filename=%r ext=%s", f.filename, ext)
+        return fail(message="图片大小不能超过 5MB", code="validation_error", http_status=422)
+
+    head = data[:16]
+    if not _review_img_magic_ok(ext, head):
+        log.warning("[review-images] magic bytes 与扩展不符: ext=%s head=%r", ext, head[:12])
+        return fail(message="图片内容与扩展名不符", code="validation_error", http_status=422)
+
+    # 服务端生成文件名：review_<date>_<12位随机hex>.<ext>，不含任何用户输入
+    final_name = f"review_{date}_{_secrets.token_hex(6)}.{ext}"
+    target_dir = _review_img_dir()
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / final_name
+    from modules.atomic_io import unique_tmp_path
+    tmp = unique_tmp_path(str(target))
+    try:
+        with open(tmp, "wb") as out:
+            out.write(data)
+        _os.replace(tmp, str(target))
+    except OSError:
+        try:
+            _os.remove(tmp)
+        except OSError:
+            pass
+        log.exception("[review-images] 写入失败: %s", target)
+        return fail(message="图片保存失败", code="internal_error", http_status=500)
+
+    log.info("[review-images] 上传成功: %s (%d bytes)", target.name, len(data))
+    return ok(
+        data={
+            "filename": final_name,
+            "url": f"/api/v2/read/review-images/{date}/{final_name}",
+            "date": date,
+        },
+        message="图片上传成功",
+    )
+
+
+@bp.get("/review-images/<date>/<filename>")
+@jwt_required
+def get_review_image(date, filename):
+    """回显复盘图片字节。存储为扁平布局 data/review_images/<filename>（与 v1 页 51
+    的 review_images/ 链接兼容），故 date 仅用于前缀一致性校验；filename 经 _safe_file
+    防穿越；mimetype 按白名单映射，扩展不在白名单/文件不存在 → 404（不泄露存在性）。"""
+    if not _valid_date(date):
+        return fail(message="date 非法", code="not_found", http_status=404)
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    mime = _REVIEW_IMG_MIMES.get(ext)
+    if mime is None:
+        return fail(message="资源不存在", code="not_found", http_status=404)
+    # 文件名必须由本服务端生成（review_<date>_<hex>.<ext>），date 不一致 → 404
+    if not filename.startswith(f"review_{date}_"):
+        return fail(message="资源不存在", code="not_found", http_status=404)
+    path = _safe_file(_review_img_dir(), filename)
+    if path is None:
+        return fail(message="资源不存在", code="not_found", http_status=404)
+    if not path.is_file():
+        return fail(message="图片不存在", code="not_found", http_status=404)
+    from flask import Response
+    return Response(path.read_bytes(), mimetype=mime)

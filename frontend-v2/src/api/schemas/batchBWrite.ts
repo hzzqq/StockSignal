@@ -61,3 +61,25 @@ export const ReviewNotesDataSchema = z
   })
   .catchall(z.unknown())
 export type ReviewNotesData = z.infer<typeof ReviewNotesDataSchema>
+
+// ───────────── 复盘图片上传（51 晨报 parity）─────────────
+
+/** 图片扩展名白名单（不含点、小写），与后端 Content-Type 白名单口径一致。 */
+export const REVIEW_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp'] as const
+
+/** 单图大小上限：5MB（前端前置校验与后端双重校验同口径）。 */
+export const REVIEW_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+
+export function isReviewImageExtension(ext: string): boolean {
+  return (REVIEW_IMAGE_EXTENSIONS as readonly string[]).includes(ext)
+}
+
+/** POST /api/v2/read/review-images 成功响应 data：url 形如 /api/v2/read/review-images/<date>/<filename>。 */
+export const ReviewImageUploadDataSchema = z
+  .object({
+    filename: z.string(),
+    url: z.string(),
+    date: z.string(),
+  })
+  .catchall(z.unknown())
+export type ReviewImageUploadData = z.infer<typeof ReviewImageUploadDataSchema>

@@ -1,4 +1,4 @@
-import { useQuery, type UseQueryResult, type UseMutationResult } from '@tanstack/react-query'
+import { useQuery, useMutation, type UseQueryResult, type UseMutationResult } from '@tanstack/react-query'
 import { useWriteMutation } from '@/lib/mutations'
 import * as api from '@/api/batchB'
 import type { BreadthDivergenceParams } from '@/api/batchB'
@@ -10,6 +10,7 @@ import {
   type ReviewNotesWrite,
   type UserDashboardData,
   type ReviewNotesData,
+  type ReviewImageUploadData,
 } from '@/api/schemas/batchBWrite'
 
 /**
@@ -87,5 +88,24 @@ export function useSaveReviewNotes(): UseMutationResult<
     body: (vars) => vars,
     schema: ReviewNotesDataSchema,
     invalidateKeys: [BATCH_B_KEYS.reviewNotes, LEGACY_REVIEW_NOTES_READ_KEY],
+  })
+}
+
+/**
+ * 复盘图片上传（POST multipart /api/v2/read/review-images，51 晨报 parity）。
+ *
+ * 不走 useWriteMutation：该工厂经 apiMutate 发请求，会把 body JSON.stringify 并强制
+ * Content-Type: application/json，而 multipart 必须原样传 FormData（见 apiMutateForm 注释），
+ * 故这里直接用 useMutation 调专用 api.uploadReviewImage。
+ * 上传不产生任何读端点可感知的状态变化（图片无列表读接口，链接由笔记文本承载），
+ * 故无 invalidateKeys；失败原样抛 Error，由页面内联展示（与保存笔记的错误呈现惯例一致）。
+ */
+export function useUploadReviewImage(): UseMutationResult<
+  ReviewImageUploadData,
+  Error,
+  { file: File; date: string }
+> {
+  return useMutation<ReviewImageUploadData, Error, { file: File; date: string }>({
+    mutationFn: ({ file, date }) => api.uploadReviewImage(file, date),
   })
 }

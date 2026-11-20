@@ -1623,6 +1623,123 @@ export const MarketSentimentSchema = z.object({
 export type MarketSentiment = z.infer<typeof MarketSentimentSchema>
 
 
+// ───────── 59 市场温度计四块（GET /market-temperature?hist_days=60|250|2000）─────────
+// 牧羊人指标热度贡献 / 极端区信号（sentiment_edge）/ 历史情境类比 / 基准窗口切换，
+// 后端聚合端点一次带回。数值字段全部 nullable：缺失显「—」，绝不补 0。
+export const TempContributionSchema = z
+  .object({
+    key: z.string(),
+    name: z.string(),
+    unit: z.string(),
+    /** 方向：1=越大越热 / -1=越小越热 / 0=双向；缺失 nullable，不猜。 */
+    dir: z.number().nullable().optional(),
+    value: z.number().nullable().optional(),
+    hot: z.number().nullable().optional(),
+    warm: z.number().nullable().optional(),
+    heat: z.number().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type TempContribution = z.infer<typeof TempContributionSchema>
+
+export const TempExtremeHitSchema = z
+  .object({
+    key: z.string(),
+    name: z.string(),
+    value: z.number().nullable().optional(),
+    threshold: z.number().nullable().optional(),
+    prob: z.number().nullable().optional(),
+    n: z.number().nullable().optional(),
+    z: z.number().nullable().optional(),
+    why: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type TempExtremeHit = z.infer<typeof TempExtremeHitSchema>
+
+/** 类比日的后市统计（d5/d10/d20 同形）；三字段均可空，尚无后市数据时不补 0。 */
+export const HorizonStatSchema = z
+  .object({
+    avg_red: z.number().nullable().optional(),
+    up_frac: z.number().nullable().optional(),
+    median_delta: z.number().nullable().optional(),
+  })
+  .catchall(z.unknown())
+export type HorizonStat = z.infer<typeof HorizonStatSchema>
+
+export const AnalogRowSchema = z
+  .object({
+    date: z.string(),
+    distance: z.number().nullable().optional(),
+    metrics: z.record(z.string(), z.number()).optional(),
+    state: z.string().nullable().optional(),
+    forward: z
+      .object({
+        d5: HorizonStatSchema,
+        d10: HorizonStatSchema,
+        d20: HorizonStatSchema,
+      })
+      .partial()
+      .catchall(z.unknown())
+      .optional(),
+  })
+  .catchall(z.unknown())
+export type AnalogRow = z.infer<typeof AnalogRowSchema>
+
+export const MarketTemperatureSchema = z
+  .object({
+    hist_days: z.number(),
+    data_as_of: z.string().nullable().optional(),
+    temperature: z
+      .object({
+        available: z.boolean(),
+        temp: z.number().nullable().optional(),
+        contributions: z.array(TempContributionSchema).optional(),
+        reason: z.string().nullable().optional(),
+        indicators_available: z.array(z.string()).optional(),
+        /** 后端为 [key, 原因] 或 [key, 原因, 附加信息]，故第三位宽化为 unknown。 */
+        indicators_unavailable: z
+          .array(z.union([z.tuple([z.string(), z.string()]), z.tuple([z.string(), z.string(), z.unknown()])]))
+          .optional(),
+      })
+      .catchall(z.unknown()),
+    extreme_signal: z
+      .object({
+        available: z.boolean(),
+        evaluated: z.boolean(),
+        triggered: z.boolean(),
+        hits: z.array(TempExtremeHitSchema).optional(),
+        prob: z.number().nullable().optional(),
+        base_rate: z.number().nullable().optional(),
+        edge_pp: z.number().nullable().optional(),
+        strength_hint: z.string().nullable().optional(),
+        statement: z.string(),
+        abstain: z.boolean().optional(),
+        reason: z.string().nullable().optional(),
+      })
+      .catchall(z.unknown()),
+    analogs: z
+      .object({
+        available: z.boolean(),
+        today_metrics: z
+          .object({
+            red_ratio: z.number().nullable().optional(),
+            limit_up: z.number().nullable().optional(),
+            limit_down: z.number().nullable().optional(),
+          })
+          .catchall(z.unknown())
+          .nullable()
+          .optional(),
+        analogs: z.array(AnalogRowSchema).optional(),
+        reason: z.string().nullable().optional(),
+      })
+      .catchall(z.unknown()),
+  })
+  .catchall(z.unknown())
+export type MarketTemperature = z.infer<typeof MarketTemperatureSchema>
+
+/** 基准窗口白名单（与后端 hist_days 校验一致）：近一季 60 / 近一年 250 / 全历史 2007 起 2000。 */
+export type MarketTemperatureWindow = 60 | 250 | 2000
+
+
 // ───────── 决策闭环健康度（v2 全局停摆告警，AC3 严格契约）─────────
 // 真值源 modules.decision.assess_decision_loop_health()；未知 status 一律 parse 失败，
 // 前端进 error 态显示「健康状态不可得」，绝不把异常状态洗成 ok。

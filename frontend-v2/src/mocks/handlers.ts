@@ -217,6 +217,14 @@ export const handlers = [
     return ok(date ? { ...fixtures.limitUpReview, date } : fixtures.limitUpReview)
   }),
   http.get('/api/v2/read/market-sentiment', () => ok(fixtures.marketSentiment)),
+  // 59 市场温度计四块（/breadth 三卡）：hist_days 白名单 60/250/2000（缺省 2000），
+  // 非法值 400 validation_error（对齐 breadth-analytics 的 window 校验口径），回显 hist_days。
+  http.get('/api/v2/read/market-temperature', ({ request }) => {
+    const raw = new URL(request.url).searchParams.get('hist_days')
+    const v = raw === null || raw === '' ? 2000 : Number(raw)
+    if (![60, 250, 2000].includes(v)) return badRequest('hist_days 仅允许 60/250/2000')
+    return ok({ ...fixtures.marketTemperature, hist_days: v })
+  }),
   // 因子分析（71 页 V2 化）：结构对齐后端 factor_analysis()；演示数值非真实行情。
   // 回显请求参数（真实后端会回显）；有效标的<3 时诚实返回空序列（insufficient_data）。
   http.get('/api/v2/read/factor-analysis', ({ request }) => {

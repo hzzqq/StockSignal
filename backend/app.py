@@ -260,6 +260,11 @@ def _register_json_enforcement(app: Flask) -> None:
             return None
         if request.method not in ("POST", "PUT", "PATCH"):
             return None
+        # 最小白名单豁免：图片上传端点必须走 multipart/form-data（文件二进制
+        # 无法用 JSON 承载），此处仅对精确路径放行，其余 JSON 强制校验不变。
+        _MULTIPART_WHITELIST = {"/api/v2/read/review-images"}
+        if request.path in _MULTIPART_WHITELIST:
+            return None
         ct = request.headers.get("Content-Type") or ""
         if not ct:
             # 无 Content-Type：交由路由自行校验必填字段（保持既有行为）
@@ -331,8 +336,11 @@ def _register_security_headers(app: Flask) -> None:
         ct = resp.headers.get("Content-Type", "")
         # 安全网：把「意外」的非 JSON 响应强制为 JSON，避免 Flask 默认 HTML 错误页泄漏。
         # 有意的管理界面 HTML 页（text/html）与导出文件（text/markdown）必须保留，不能被误改成 JSON 头。
+        # 图片字节响应（复盘笔记图片回显，image/png|jpeg|gif|webp，均经服务端白名单
+        # + magic bytes 校验后回显）同为有意二进制响应，一并保留。
         _FILE_MIMES = ("application/zip", "application/pdf",
-                       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                       "image/png", "image/jpeg", "image/gif", "image/webp")
         if ("text/html" not in ct and "text/markdown" not in ct
                 and not ct.startswith("application/json")
                 and not ct.startswith(_FILE_MIMES)):

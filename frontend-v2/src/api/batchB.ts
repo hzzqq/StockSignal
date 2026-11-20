@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import { apiMutate } from './write'
+import { apiMutate, apiMutateForm } from './write'
 import {
   BreadthDivergenceSchema,
   type BreadthDivergence,
@@ -13,8 +13,13 @@ import {
   UserDashboardDataSchema,
   ReviewNotesWriteSchema,
   ReviewNotesDataSchema,
+  ReviewImageUploadDataSchema,
+  isReviewImageExtension,
+  REVIEW_IMAGE_EXTENSIONS,
+  REVIEW_IMAGE_MAX_BYTES,
   type UserDashboardData,
   type ReviewNotesData,
+  type ReviewImageUploadData,
 } from './schemas/batchBWrite'
 
 /**
@@ -73,4 +78,31 @@ export function putUserDashboard(widgets: string[]): Promise<UserDashboardData> 
 export function putReviewNotes(input: { date: string; content: string }): Promise<ReviewNotesData> {
   const body = ReviewNotesWriteSchema.parse(input)
   return apiMutate<ReviewNotesData>('/v2/read/review-notes', 'PUT', body, ReviewNotesDataSchema)
+}
+
+/**
+ * 复盘图片前置校验（与后端双重校验同口径，前端先挡可避免无效上传请求）。
+ * 返回 null 表示通过；否则返回中文错误文案（调用方直接展示，不发请求）。
+ */
+export function reviewImagePrecheckError(file: File): string | null {
+  const ext = file.name.includes('.') ? (file.name.split('.').pop() ?? '').toLowerCase() : ''
+  if (!isReviewImageExtension(ext)) {
+    return `不支持的图片格式：仅允许 ${REVIEW_IMAGE_EXTENSIONS.join('/')}`
+  }
+  if (file.size > REVIEW_IMAGE_MAX_BYTES) {
+    return '图片超过 5MB 上限'
+  }
+  return null
+}
+
+/**
+ * POST /api/v2/read/review-images（multipart/form-data：file + date）。
+ * 走 apiMutateForm 而非 apiMutate：multipart 必须原样传 FormData，
+ * 见 write.ts apiMutateForm 注释。响应由 ReviewImageUploadDataSchema 严格解包。
+ */
+export function uploadReviewImage(file: File, date: string): Promise<ReviewImageUploadData> {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('date', date)
+  return apiMutateForm('/v2/read/review-images', form, ReviewImageUploadDataSchema)
 }

@@ -10,6 +10,9 @@ import * as fixtures from './fixtures'
 import {
   USER_DASHBOARD_WIDGET_KEYS,
   isValidCalendarDate,
+  isReviewImageExtension,
+  REVIEW_IMAGE_EXTENSIONS,
+  REVIEW_IMAGE_MAX_BYTES,
   type ReviewNotesData,
 } from '@/api/schemas/batchBWrite'
 
@@ -145,5 +148,28 @@ export const batchBHandlers = [
     const note: ReviewNotesData = { date, content: body.content }
     state.reviewNotes.set(date, note)
     return writeOk(note, '复盘笔记已保存')
+  }),
+
+  // ── POST：复盘图片上传（multipart：file + date；与前端同口径双重校验） ──
+  http.post('/api/v2/read/review-images', async ({ request }) => {
+    const form = await request.formData().catch(() => null)
+    if (!form) return writeBadRequest('请求须为 multipart/form-data')
+    const file = form.get('file')
+    const date = form.get('date')
+    if (!(file instanceof File)) return writeBadRequest('缺少 file 字段（须为图片文件）')
+    if (typeof date !== 'string' || !isValidCalendarDate(date)) {
+      return writeBadRequest('date 非法（须为真实 YYYY-MM-DD）')
+    }
+    const ext = file.name.includes('.') ? (file.name.split('.').pop() ?? '').toLowerCase() : ''
+    if (!isReviewImageExtension(ext)) {
+      return writeBadRequest(`不支持的图片格式：仅允许 ${REVIEW_IMAGE_EXTENSIONS.join('/')}`)
+    }
+    if (file.size > REVIEW_IMAGE_MAX_BYTES) {
+      return writeBadRequest('图片超过 5MB 上限')
+    }
+    return writeOk(
+      { filename: file.name, url: `/api/v2/read/review-images/${date}/${file.name}`, date },
+      '图片已上传',
+    )
   }),
 ]

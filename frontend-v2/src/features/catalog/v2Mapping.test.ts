@@ -164,13 +164,18 @@ describe('v2Mapping · v1→v2 双向失真防复发守卫', () => {
     }
   })
 
-  it('2026-11-19 伪等价页防复发：59/64 为 native 但必带诚实 note（杜绝标 native 零说明）', () => {
+  it('2026-11-20 迁移守卫：59 四块已承接且 note 诚实（四块名/端点/不补零），64 仍带数据源差异说明', () => {
     const t = mappingOf(mustPage('59_市场温度计.py'))
     expect(t.status).toBe('native')
     expect(t.to).toBe('/breadth')
     expect(t.note, '59 缺诚实 note').toBeTruthy()
-    expect(t.note).toMatch(/部分迁移|未迁移/)
-    expect(t.note).toMatch(/8 指标|极端区|历史情境类比|基准窗口/)
+    expect(t.note).toMatch(/已迁移/)
+    expect(t.note).toMatch(/8 指标/)
+    expect(t.note).toMatch(/极端区/)
+    expect(t.note).toMatch(/历史情境类比/)
+    expect(t.note).toMatch(/基准窗口/)
+    expect(t.note).toMatch(/market-temperature/)
+    expect(t.note).toMatch(/「—」|不补 0/)
     expect(t.note).toMatch(/50/)
 
     const r = mappingOf(mustPage('64_投研圆桌.py'))

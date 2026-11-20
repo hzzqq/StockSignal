@@ -45,6 +45,7 @@ import {
   MomentumBreadthSchema,
   LimitUpReviewSchema,
   MarketSentimentSchema,
+  MarketTemperatureSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -88,6 +89,8 @@ import {
   type MomentumBreadth,
   type LimitUpReview,
   type MarketSentiment,
+  type MarketTemperature,
+  type MarketTemperatureWindow,
   type DecisionLoopHealth,
   type PublicOverview,
 } from './schemas/read'
@@ -215,6 +218,14 @@ export function getLimitUpReview(date?: string): Promise<LimitUpReview> {
 export function getMarketSentiment(days = 180): Promise<MarketSentiment> {
   const q = new URLSearchParams({ days: String(days) })
   return readValidated(`market-sentiment?${q.toString()}`, MarketSentimentSchema)
+}
+
+/** GET /api/v2/read/market-temperature?hist_days=60|250|2000 —— 59 市场温度计四块聚合
+ *  （牧羊人指标热度贡献 / 极端区信号 / 历史情境类比），基准窗口进查询串。
+ *  hist_days 只认后端白名单 60/250/2000；缺失字段 schema 全 nullable，页面显「—」不补 0。 */
+export function getMarketTemperature(histDays: MarketTemperatureWindow = 2000): Promise<MarketTemperature> {
+  const q = new URLSearchParams({ hist_days: String(histDays) })
+  return readValidated(`market-temperature?${q.toString()}`, MarketTemperatureSchema)
 }
 
 /** GET /api/v2/read/webapps —— 网页作品集元数据（86 页作品清单） */

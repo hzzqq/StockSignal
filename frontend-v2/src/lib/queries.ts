@@ -52,6 +52,8 @@ import type {
   MomentumBreadth,
   LimitUpReview,
   MarketSentiment,
+  MarketTemperature,
+  MarketTemperatureWindow,
   DecisionLoopHealth,
   EventBacktest,
 } from '@/api/schemas/read'
@@ -565,6 +567,18 @@ export function useMarketSentiment(days = 180): UseQueryResult<MarketSentiment> 
   return useQuery({
     queryKey: ['read', 'market-sentiment', days],
     queryFn: () => api.getMarketSentiment(days),
+    staleTime: FIVE_MIN,
+    retry: false,
+  })
+}
+
+// ───────── 59 市场温度计四块（实时聚合；hist_days 进 queryKey，切换窗口即重取）─────────
+export function useMarketTemperature(
+  histDays: MarketTemperatureWindow = 2000,
+): UseQueryResult<MarketTemperature> {
+  return useQuery({
+    queryKey: ['read', 'market-temperature', histDays],
+    queryFn: () => api.getMarketTemperature(histDays),
     staleTime: FIVE_MIN,
     retry: false,
   })

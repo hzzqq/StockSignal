@@ -3482,3 +3482,64 @@ export const stockSearchMoutai = [
   { code: '600519', name: '贵州茅台', market: 'SH', asset_type: 'stock', pinyin_initials: 'gzmt', pinyin_full: 'guizhoumaotai', score: 1000 },
 ]
 export const stockSearchEmpty: unknown[] = []
+
+// ───────── 59 市场温度计四块（GET /market-temperature?hist_days=60|250|2000）─────────
+// 结构对齐后端聚合端点；演示数值非真实行情。缺失字段如实 null，绝不补 0。
+export const marketTemperature = {
+  hist_days: 2000,
+  data_as_of: '2026-03-01',
+  temperature: {
+    available: true,
+    temp: 63.2,
+    contributions: [
+      { key: 'red_ratio', name: '红盘比', unit: '%', dir: 1, value: 52.0, hot: 65, warm: 45, heat: 58.0 },
+      { key: 'connect_hl', name: '连板高度', unit: '板', dir: 1, value: 5, hot: 7, warm: 4, heat: 71.0 },
+      { key: 'zt_fail_ratio', name: '炸板率', unit: '%', dir: -1, value: 24.0, hot: 35, warm: 20, heat: 33.0 },
+    ],
+    reason: null,
+    indicators_available: ['red_ratio', 'connect_hl', 'zt_fail_ratio'],
+    indicators_unavailable: [['vix', 'VIX 数据缺失']],
+  },
+  extreme_signal: {
+    available: true,
+    evaluated: true,
+    triggered: false,
+    hits: [],
+    prob: null,
+    base_rate: 18.0,
+    edge_pp: null,
+    strength_hint: null,
+    statement: '近 2000 日内暂无指标进入其极端区，本模块不表态。',
+    abstain: true,
+    reason: null,
+  },
+  analogs: {
+    available: true,
+    today_metrics: { red_ratio: 52.0, limit_up: 45, limit_down: 6 },
+    analogs: [
+      {
+        date: '2025-08-01',
+        distance: 0.32,
+        metrics: { red_ratio: 51.5, limit_up: 44, limit_down: 5 },
+        state: '普涨',
+        forward: {
+          d5: { avg_red: 55.3, up_frac: 0.62, median_delta: 1.2 },
+          d10: { avg_red: 53.1, up_frac: 0.58, median_delta: 0.8 },
+          d20: { avg_red: 50.7, up_frac: 0.55, median_delta: -0.3 },
+        },
+      },
+      {
+        date: '2024-11-05',
+        distance: 0.41,
+        metrics: { red_ratio: 52.3, limit_up: 47, limit_down: 7 },
+        state: '震荡',
+        forward: {
+          d5: { avg_red: 47.8, up_frac: 0.45, median_delta: -0.6 },
+          d10: { avg_red: 49.2, up_frac: 0.48, median_delta: 0.1 },
+          d20: { avg_red: null, up_frac: null, median_delta: null },
+        },
+      },
+    ],
+    reason: null,
+  },
+}

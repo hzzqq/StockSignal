@@ -36,3 +36,23 @@ export async function apiMutate<T = unknown>(
   if (schema) return schema.parse(data)
   return data as T
 }
+
+/**
+ * multipart 专用变体（51 晨报复盘图片上传 POST /api/v2/read/review-images）。
+ *
+ * 为什么不走 apiMutate：apiMutate 会把 body JSON.stringify，且 apiFetch 对普通请求
+ * 强制 Content-Type: application/json——两者都会破坏 multipart/form-data 的 boundary。
+ * FormData 必须原样作为 body 透传，Content-Type 交由浏览器自动生成
+ * （client.run 对 FormData 跳过 Content-Type 注入）。鉴权（Bearer）、401 单飞刷新、
+ * 信封解包与失败抛 ApiError 的行为与 apiMutate 完全一致。
+ */
+export async function apiMutateForm<T = unknown>(
+  path: string,
+  form: FormData,
+  schema?: Parser<T> | null,
+): Promise<T> {
+  const data = await apiFetch<unknown>(path, { method: 'POST', body: form })
+  if (schema === null) return data as T
+  if (schema) return schema.parse(data)
+  return data as T
+}

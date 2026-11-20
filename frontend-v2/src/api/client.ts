@@ -94,7 +94,9 @@ async function doRefresh(): Promise<boolean> {
 async function run<T>(path: string, init: RequestInit, retried: boolean): Promise<T> {
   const store = tokenStore()
   const headers = new Headers(init.headers)
-  headers.set('Content-Type', 'application/json')
+  // multipart（FormData）的 Content-Type 必须由浏览器自动生成（含 boundary），
+  // 强制注入 application/json 会破坏 multipart 解析，故 FormData 请求跳过注入。
+  if (!(init.body instanceof FormData)) headers.set('Content-Type', 'application/json')
   if (store.access) headers.set('Authorization', `Bearer ${store.access}`)
 
   const res = await fetch(`${BASE}${path}`, {
