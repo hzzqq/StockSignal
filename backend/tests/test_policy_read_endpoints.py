@@ -234,6 +234,29 @@ def test_policy_transmission_failed_sector_not_expanded(client, token, monkeypat
     assert d["members_unavailable"][0]["derived"] is True
 
 
+def test_policy_transmission_manual_sector_member_count_none_expanded(client, token, monkeypatch):
+    """精编 sectors 表无 member_count 字段（None），但持有真实成分股代码，
+    必须照常展开，不得因 None→0 误判不可用（2026-11-20 真实缺陷回归）。"""
+    monkeypatch.setattr(rr.policy_store, "read_recent", lambda limit=200: [_doc()])
+    monkeypatch.setattr(
+        rr.sector_map, "list_sectors",
+        lambda status=None: [_sector(source="manual", member_count=None, fetch_status="ok")],
+    )
+    # 精编表：member_count=None / source=manual / 有真实代码
+    resolved = _resolved(source="manual", member_count=None, fetch_status="ok")
+    monkeypatch.setattr(rr.sector_map, "resolve_sector", lambda name: resolved)
+    resp = client.get(f"/api/v2/read/policy-transmission?policy_id={PID}", headers=_auth(token))
+    assert resp.status_code == 200, resp.get_data(as_text=True)[:300]
+    d = resp.get_json()["data"]
+    assert d["status"] == "ok"
+    # 有真实代码就必须展开成 entries，不得进 members_unavailable
+    assert d["entries"], "精编行业持有真实成分股代码却被误丢弃"
+    assert all(e["code"] in ("600001", "600002") for e in d["entries"])
+    assert d["members_unavailable"] == []
+    # member_count 缺失仅展示为 None，不得谎称 0
+    assert d["sectors"][0]["member_count"] is None
+
+
 def test_policy_transmission_missing_policy_unavailable(client, token, monkeypatch):
     monkeypatch.setattr(rr.policy_store, "read_recent", lambda limit=200: [])
     resp = client.get(f"/api/v2/read/policy-transmission?policy_id={PID_OTHER}", headers=_auth(token))

@@ -3918,18 +3918,24 @@ def policy_transmission():
 
             fetch_status = str(resolved.get("fetch_status") or "")
             mc = resolved.get("member_count")
-            try:
-                mc_int = int(mc) if mc is not None else 0
-            except (TypeError, ValueError):
-                mc_int = 0
-            if fetch_status == "failed" or mc_int <= 0 or not codes:
+            # 可用性判定只认「真实落库的成分股代码」：精编 sectors 表没有
+            # member_count 字段（resolve_sector 返回 None），但持有真实成分股代码，
+            # 此前 None→0 会把它们整段误丢弃，还说成「member_count=0」，是假不可用。
+            # member_count 仅供展示，缺失显 None，不参与判定。
+            if fetch_status == "failed" or not codes:
+                unavailable_reason = (
+                    "命中行业成分股抓取失败，未展开成分股、未编造标的"
+                    if fetch_status == "failed"
+                    else "命中行业无可用成分股代码，未展开成分股、未编造标的"
+                )
                 members_unavailable.append({
                     "name": sname,
                     "fetch_status": fetch_status or None,
                     "member_count": mc,
+                    "stock_codes_count": len(codes),
                     "matched_by": matched_by,
                     "derived": True,
-                    "reason": "命中行业成分股不可用（fetch_status=failed 或 member_count=0），未展开成分股、未编造标的",
+                    "reason": unavailable_reason,
                 })
                 continue
             # 纯本地索引：name 用 code 占位（derived，非真实证券简称）
