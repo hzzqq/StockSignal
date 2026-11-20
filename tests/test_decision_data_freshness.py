@@ -348,6 +348,57 @@ def test_row_to_indicators_date_is_data_date_not_now():
     assert out.get("date") != _d.today().isoformat(), "数据日被 today() 污染"
 
 
+def test_data_date_returns_real_date_or_none_never_now():
+    """_data_date 必须取真实数据日；取不到返回 None，禁止 now()/trading_date() 兜底。
+
+    2026-11-20 真实缺陷：原 except 分支 return trading_date()（内部 now_cst），
+    数据缺 date 列时会把「今天」当权威日期落进快照与预测主键。
+    """
+    import importlib.util
+    import os as _os
+    _p = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                       "scripts", "daily_snapshot.py")
+    spec = importlib.util.spec_from_file_location("_ds_probe_date", _p)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    import pandas as pd
+    # 正常：真实数据日
+    ok = pd.DataFrame({"date": ["2026-09-11", "2026-09-14"], "x": [1.0, 2.0]})
+    assert mod._data_date(ok) == "2026-09-14"
+    # 缺 date 列 → None，不得返回任何 now 系日期
+    no_col = pd.DataFrame({"x": [1.0, 2.0]})
+    assert mod._data_date(no_col) is None
+    # date 列是非法值 → None，不得冒充
+    bad = pd.DataFrame({"date": ["nan", "garbage"], "x": [1.0, 2.0]})
+    assert mod._data_date(bad) is None
+    # None df → None
+    assert mod._data_date(None) is None
+
+
+def test_data_date_no_trading_date_fallback_ast():
+    """AST 守卫：_data_date 函数体内不得调用 trading_date/now_cst/today。"""
+    import ast
+    import os as _os
+    _p = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                       "scripts", "daily_snapshot.py")
+    tree = ast.parse(open(_p, encoding="utf-8").read())
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "_data_date":
+            calls = []
+            for n in ast.walk(node):
+                if not isinstance(n, ast.Call):
+                    continue
+                # 同时覆盖 import 函数（id）与模块属性调用（attr），如 _sl.trading_date()
+                calls.append(getattr(n.func, "id", None) or getattr(n.func, "attr", ""))
+            forbidden = {"trading_date", "now_cst", "now_cst_str", "today"}
+            assert not (set(calls) & forbidden), (
+                f"_data_date 含 now 系兜底调用: {set(calls) & forbidden}"
+            )
+            break
+    else:
+        raise AssertionError("未找到 _data_date 函数")
+
+
 def test_daily_snapshot_build_calls_fed_by_row_helper():
     """AST 守卫：daily_snapshot 内 build_snapshot 的 indicators 实参必须来自
     _row_to_indicators（而非自造 dict），否则牧羊人 as_of 会重新丢失、守卫再次失效。

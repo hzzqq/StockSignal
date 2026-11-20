@@ -78,16 +78,25 @@ def _row_to_indicators(df, i=-1) -> dict:
     return out
 
 
-def _data_date(df) -> str:
-    """取**数据日期**（权威）而非 now()。
+def _data_date(df) -> str | None:
+    """取数据的**权威日期**（YYYY-MM-DD），取不到返回 None，绝不用 now() 兜底。
 
     ⚠️ 周末/盘后跑脚本时 now() 会记一个非交易日，跨日晋级率递推会把周末当「昨日」，
        晋级率直接算错。这是踩过的坑，别改回 now()。
+
+    ⚠️ 2026-11-20 修正：原 except 分支 `return _sl.trading_date()` 内部走 now_cst()，
+       数据缺日期时会把「今天/最近交易日」当权威日期落进快照与预测主键——违反
+       「date 必须真实数据日、不得 now() 兜底」红线。改为返回 None，由调用方早退，
+       参照 _backfill 的「不编造」范式。
     """
     try:
-        return str(df.iloc[-1]["date"])[:10]
+        d = str(df.iloc[-1]["date"])[:10]
+        # 必须是 YYYY-MM-DD 形态的合法日期，否则视为不可得（防 "nan"/空串冒充）
+        if len(d) == 10 and d[4] == "-" and d[7] == "-":
+            return d
     except Exception:  # noqa: BLE001
-        return _sl.trading_date()
+        pass  # ui_audit_exempt: 数据日期缺失/异常→返回 None，由调用方安全早退，不阻断梯队快照
+    return None
 
 
 def _record_ladder(date: str, ladder: dict, log) -> bool:
@@ -361,6 +370,12 @@ def main() -> int:
         log(f"[warn] 牧羊人部分指标不可用: {_shepherd_meta['unavailable']}")
 
     date = _data_date(df)
+    if not date:
+        # 权威数据日期不可得：不得用 now()/trading_date() 臆造后落进快照+预测主键。
+        # 梯队快照已在 §1 先行落盘，此处早退不影响晋级率链条（同 §2 抓取失败范式）。
+        _dec.append_log("FAIL 权威数据日期不可得（数据源缺 date 列），跳过本次快照，不臆造交易日")
+        print("[FAIL] 权威数据日期不可得，跳过快照落盘（梯队快照已落盘，不受影响）")
+        return 1
     today = _row_to_indicators(df, -1)
     prev = _row_to_indicators(df, -2) if len(df) >= 2 else None
 
