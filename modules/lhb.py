@@ -8,13 +8,17 @@
 - 取不到返回 ``None``，**不臆造明细**；所有结果必须带真实交易日。
 - 列名按**子串匹配**（akshare 各版本列名会变），匹配不到就返回 None，
   不做"猜一个列出来"的事 —— 猜错列等于给出错误的资金方向，比缺失更危险。
+- **请求日 ≠ 数据日**：``fetch_lhb(date)`` 的 date 是"向数据源要哪一天"的
+  技术参数（缺省才用今天）；真实**数据日**只能从明细自带的日期列解析
+  （见 :func:`data_date`）。对外暴露的日期必须是数据日，绝不用 now() 冒充。
 """
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 
 import pandas as pd
+
+from modules.time_utils import now_cst_str
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +28,8 @@ REASON_CANDS = ("上榜原因", "上榜")
 PCT_CANDS = ("涨跌幅",)
 NET_BUY_CANDS = ("净买额", "净买入", "龙虎榜净买")
 AMOUNT_CANDS = ("龙虎榜成交额", "成交额")
+# 明细自带的数据日列（东财 TRADE_DATE → 上榜日）
+DATE_CANDS = ("上榜日", "交易日期", "上榜日期", "日期")
 
 
 def find_col(df: pd.DataFrame, cands: tuple) -> str | None:
@@ -35,17 +41,52 @@ def find_col(df: pd.DataFrame, cands: tuple) -> str | None:
     return None
 
 
+def data_date(df: pd.DataFrame | None) -> str | None:
+    """从明细行里解析**真实数据日**（YYYYMMDD）；解析不出返回 None。
+
+    红线：数据日只能来自明细自带的日期列（东财 TRADE_DATE → 上榜日）。
+    明细里没有日期列 / 日期无法解析 → None（调用方据此声明"数据日不可得"），
+    **绝不**用 now()/today() 兜底冒充数据日。
+    """
+    if df is None or getattr(df, "empty", True):
+        return None
+    # 候选优先级匹配（比 find_col 的列序优先更稳：先认"上榜日"这类专有列名）
+    col = None
+    for cand in DATE_CANDS:
+        for c in df.columns:
+            if cand in str(c):
+                col = c
+                break
+        if col is not None:
+            break
+    if col is None:
+        return None
+    try:
+        parsed = pd.to_datetime(df[col], errors="coerce").dropna()
+    except Exception as e:  # noqa: BLE001
+        logger.info(f"[lhb] 数据日解析失败: {e}")
+        return None
+    if parsed.empty:
+        return None
+    # 单日查询下所有行同一天；若有多个，取最新的一天（明细里真实存在的日期）
+    return parsed.max().strftime("%Y%m%d")
+
+
 def fetch_lhb(date: str | None = None) -> pd.DataFrame | None:
     """取某交易日龙虎榜明细。``date`` 形如 ``20260915``；``None`` 用今天。
 
-    取不到（akshare 缺失 / 网络失败 / 非交易日无数据）返回 None。
+    注意区分两个日期：
+    - **请求日**（本函数的 date 入参）：只是"向数据源要哪一天"的技术参数，
+      缺省取今天（用 CST，避免非中国时区部署取错一天）；
+    - **数据日**：明细里每行自带的真实交易日，由 :func:`data_date` 解析。
+    对外暴露的日期必须是数据日，绝不能用请求日/今天冒充。
     """
     try:
         import akshare as ak
     except Exception as e:  # noqa: BLE001
         logger.info(f"[lhb] akshare 不可用: {e}")
         return None
-    d = date or datetime.now().strftime("%Y%m%d")
+    d = date or now_cst_str("%Y%m%d")  # 请求日（技术参数），不是数据日
     try:
         df = ak.stock_lhb_detail_em(start_date=d, end_date=d)
     except Exception as e:  # noqa: BLE001

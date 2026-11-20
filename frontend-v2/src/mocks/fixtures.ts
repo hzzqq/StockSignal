@@ -703,6 +703,7 @@ export const macroData = {
 // 数值为演示、非真实行情；净买额单位亿元（net_yi）；detail 为原始明细行（列名随数据源版本变化）。
 export const dragonTiger = {
   date: '20261109',
+  data_date_available: true,
   count: 3,
   net_col: '净买额',
   net_sum_yi: 2.1,
@@ -2498,6 +2499,7 @@ export const limitUpReview = {
   "pool": {
     "available": true,
     "date": "20261106",
+    "unavailable_fields": [],
     "count": 4,
     "first_boards": 2,
     "connect_boards": 2,
@@ -2518,7 +2520,8 @@ export const limitUpReview = {
         "seal": 120000.0,
         "amount": 500000.0,
         "first_seal_band": "早板",
-        "broken": 0
+        "broken": 0,
+        "unavailable_fields": []
       },
       {
         "code": "000001",
@@ -2528,7 +2531,8 @@ export const limitUpReview = {
         "seal": 80000.0,
         "amount": 300000.0,
         "first_seal_band": "尾板",
-        "broken": 1
+        "broken": 1,
+        "unavailable_fields": []
       },
       {
         "code": "300750",
@@ -2538,7 +2542,8 @@ export const limitUpReview = {
         "seal": 200000.0,
         "amount": 900000.0,
         "first_seal_band": "上午板",
-        "broken": 0
+        "broken": 0,
+        "unavailable_fields": []
       },
       {
         "code": "601318",
@@ -2548,7 +2553,8 @@ export const limitUpReview = {
         "seal": 50000.0,
         "amount": 200000.0,
         "first_seal_band": "其他",
-        "broken": 0
+        "broken": 0,
+        "unavailable_fields": []
       }
     ],
     "leaderboard": [
@@ -2564,7 +2570,8 @@ export const limitUpReview = {
         "s_amt": 100.0,
         "ind_n": 1,
         "seal": 200000.0,
-        "amount": 900000.0
+        "amount": 900000.0,
+        "unavailable_fields": []
       },
       {
         "name": "平安银行",
@@ -2578,7 +2585,8 @@ export const limitUpReview = {
         "s_amt": 33.3,
         "ind_n": 1,
         "seal": 80000.0,
-        "amount": 300000.0
+        "amount": 300000.0,
+        "unavailable_fields": []
       },
       {
         "name": "贵州茅台",
@@ -2592,7 +2600,8 @@ export const limitUpReview = {
         "s_amt": 55.6,
         "ind_n": 1,
         "seal": 120000.0,
-        "amount": 500000.0
+        "amount": 500000.0,
+        "unavailable_fields": []
       },
       {
         "name": "中国平安",
@@ -2606,7 +2615,8 @@ export const limitUpReview = {
         "s_amt": 22.2,
         "ind_n": 1,
         "seal": 50000.0,
-        "amount": 200000.0
+        "amount": 200000.0,
+        "unavailable_fields": []
       }
     ],
     "themes": [

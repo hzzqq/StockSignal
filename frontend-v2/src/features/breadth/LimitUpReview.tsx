@@ -5,6 +5,15 @@ import { Loading, EmptyState, ErrorState } from '@/shared/ui/States'
 
 const DATE_RE = /^\d{8}$/
 
+/** 后端 unavailable_fields 的字段名 → 中文标签（诚实标注"源数据缺该列"）。 */
+const UNAVAILABLE_LABELS: Record<string, string> = {
+  boards: '连板数',
+  broken: '炸板次数',
+  industry: '所属行业',
+  seal: '封板资金',
+  amount: '成交额',
+}
+
 /** 70 涨停复盘 × 龙头识别（v2 native /limit-up-review）：实时涨停池（东财，10 分钟缓存）。
  *  诚实红线：联网不可用时 pool.available=false + reason，前端显诚实降级，不展示陈旧/编造数据；
  *  缺值（如某行 seal 为 null）显「—」，不补零。date 可选（YYYYMMDD），缺省自动选最近有数据交易日。 */
@@ -13,6 +22,9 @@ export function LimitUpReview() {
   const [date, setDate] = useState<string | undefined>(undefined)
   const q = useLimitUpReview(date)
   const data = q.data
+  const poolUnavailable = (data?.pool.unavailable_fields ?? []).map(
+    (f) => UNAVAILABLE_LABELS[f] ?? f,
+  )
 
   const submit = () => {
     const v = draft.trim()
@@ -85,6 +97,14 @@ export function LimitUpReview() {
                   </span>
                 ))}
               </div>
+
+              {/* 诚实标注：这些字段源数据缺失，表内显「—」而不是补 0 */}
+              {poolUnavailable.length > 0 && (
+                <p className="mb-3 text-xs text-sf-ink-3">
+                  源数据缺少 {poolUnavailable.join(' / ')} 字段，相关数值显示「—」
+                  （不补 0 冒充）；龙头评分仅按可得维度加权。
+                </p>
+              )}
 
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">

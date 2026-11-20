@@ -722,27 +722,88 @@ def _limitup_band_of(minutes):
     return "其他"
 
 
-def _limitup_num(df, key, default=0.0):
+def _limitup_num_series(df, key):
+    """按列取逐行数值：**缺失即 None**（不补 0 冒充真实值）。
+
+    返回 (values, present)：
+      - values[i]：该行数值（float）；列缺失 / 单元格空 / NaN / 非法 → None
+      - present：该列是否存在（False = 整列缺失 → 所有行都不可得）
+    """
     c = _limitup_col(df, key)
     if not c:
-        return [default] * len(df)
+        return [None] * len(df), False
     out = []
     for x in df[c].tolist():
-        if x is None or str(x) in ("nan", "None", ""):
-            out.append(default)
-        else:
-            try:
-                out.append(float(x))
-            except (TypeError, ValueError):
-                out.append(default)
-    return out
+        if x is None:
+            out.append(None)
+            continue
+        try:
+            f = float(x)
+        except (TypeError, ValueError):
+            out.append(None)
+            continue
+        out.append(None if (math.isnan(f) or math.isinf(f)) else f)
+    return out, True
+
+
+def _limitup_industry_series(df, n_total):
+    """行业列 → (字符串序列, 每行是否有真实行业, 列是否存在)。
+
+    缺失 / 空值 → ""（不是 "None"/"nan" 这类占位字符串）；无行业时该行行业维度不可用。
+    """
+    c = _limitup_col(df, "industry")
+    raw = df[c].tolist() if c else [None] * n_total
+    series, ok = [], []
+    for x in raw:
+        if x is None or (isinstance(x, float) and math.isnan(x)):
+            series.append("")
+            ok.append(False)
+            continue
+        s = str(x)
+        series.append(s)
+        ok.append(bool(s))
+    return series, ok, c is not None
+
+
+def _limitup_leader_score(dims):
+    """龙头综合分：按**可用维度**加权，缺失维度跳过并对可得维度重新归一。
+
+    dims：[(weight, value_or_None), ...]
+    - 四维齐全 → 与旧公式（0.35/0.25/0.20/0.20）逐位一致
+    - 部分缺失 → 只用可得维度重归一（缺数据者不被当成"真实低分"）
+    - 全不可得 → None（诚实的"无法评分"，而不是 0 分）
+    """
+    if all(v is not None for _, v in dims):
+        return (0.35 * dims[0][1] + 0.25 * dims[1][1]
+                + 0.20 * dims[2][1] + 0.20 * dims[3][1])
+    avail = [(w, v) for w, v in dims if v is not None]
+    if not avail:
+        return None
+    wsum = sum(w for w, _ in avail)
+    if wsum <= 0:
+        return None
+    return sum(w * v for w, v in avail) / wsum
 
 
 def _limitup_build_pool_section(df, date):
-    """把涨停池明细拼装成前端契约结构（含龙头多维可解释评分）。"""
+    """把涨停池明细拼装成前端契约结构（含龙头多维可解释评分）。
+
+    诚实红线：
+    - **缺列 / 缺格 → 该字段 None**（JSON null），并在 unavailable_fields 里标注，
+      绝不补 0 冒充有值（0 是合法业务值，缺失必须显式为 null）；
+    - **打分跳过缺失维度**：对可得维度重新归一权重，缺数据者不会被当成真实低分；
+    - 正常路径（数据齐备）行为与旧版逐位一致。
+    """
     n_total = len(df)
-    boards = [int(b) for b in _limitup_num(df, "boards", 1.0)]
-    broken = _limitup_num(df, "broken", 0.0)
+    boards_vals, boards_present = _limitup_num_series(df, "boards")
+    broken_vals, broken_present = _limitup_num_series(df, "broken")
+    seal_vals, seal_present = _limitup_num_series(df, "seal")
+    amt_vals, amt_present = _limitup_num_series(df, "amount")
+
+    # 连板数 / 炸板次数：前端 zod 契约要求必须是数字（z.number()，不可 null），
+    # 故沿用历史占位（1 板 / 0 次），但逐行 + 整池用 unavailable_fields 显式披露占位。
+    boards = [int(v) if v is not None else 1 for v in boards_vals]
+    broken = [v if v is not None else 0.0 for v in broken_vals]
     first_c = _limitup_col(df, "first_seal")
     first_min = [_limitup_parse_hm(v) for v in
                  (df[first_c].tolist() if first_c else [None] * n_total)]
@@ -756,17 +817,30 @@ def _limitup_build_pool_section(df, date):
 
     name_c = _limitup_col(df, "name")
     code_c = _limitup_col(df, "code")
-    ind_c = _limitup_col(df, "industry")
-    seal_c = _limitup_col(df, "seal")
-    amt_c = _limitup_col(df, "amount")
-    ind_series = [str(x) for x in (df[ind_c].tolist() if ind_c else [None] * n_total)]
+    ind_series, ind_ok, ind_present = _limitup_industry_series(df, n_total)
     ind_count = Counter(x for x in ind_series if x)
-    seal_all = _limitup_num(df, "seal", 0.0)
-    amt_all = _limitup_num(df, "amount", 0.0)
+
+    # 归一化基准只取**观测到**的值；占位值不参与 max（否则缺数据者被压成 0 分）
+    seal_obs = [v for v in seal_vals if v is not None]
+    amt_obs = [v for v in amt_vals if v is not None]
+    max_seal = max(seal_obs) if seal_obs else None
+    max_amt = max(amt_obs) if amt_obs else None
     max_boards_f = max(max_boards, 1)
     max_ind_f = max(max(ind_count.values()), 1) if ind_count else 1
-    max_seal = max(seal_all) if seal_all else 0.0
-    max_amt = max(amt_all) if amt_all else 0.0
+
+    def _row_unavailable(i):
+        miss = []
+        if boards_vals[i] is None:
+            miss.append("boards")
+        if broken_vals[i] is None:
+            miss.append("broken")
+        if not ind_ok[i]:
+            miss.append("industry")
+        if seal_vals[i] is None:
+            miss.append("seal")
+        if amt_vals[i] is None:
+            miss.append("amount")
+        return miss
 
     leader_rows = []
     for i in range(n_total):
@@ -774,20 +848,30 @@ def _limitup_build_pool_section(df, date):
         cd = str(df[code_c].iloc[i]) if code_c else ""
         ind = ind_series[i]
         b = boards[i]
-        s_height = (b / max_boards_f) * 100.0
-        s_seal = (seal_all[i] / max_seal * 100.0) if max_seal else 0.0
-        ind_n = ind_count.get(ind, 0)
-        s_ind = (ind_n / max_ind_f) * 100.0
-        s_amt = (amt_all[i] / max_amt * 100.0) if max_amt else 0.0
-        score = 0.35 * s_height + 0.25 * s_seal + 0.20 * s_ind + 0.20 * s_amt
+        s_height = (b / max_boards_f) * 100.0 if boards_vals[i] is not None else None
+        s_seal = None
+        if seal_vals[i] is not None:
+            s_seal = (seal_vals[i] / max_seal * 100.0) if max_seal else 0.0
+        ind_n = ind_count.get(ind, 0) if ind_ok[i] else None
+        s_ind = (ind_n / max_ind_f * 100.0) if ind_n is not None else None
+        s_amt = None
+        if amt_vals[i] is not None:
+            s_amt = (amt_vals[i] / max_amt * 100.0) if max_amt else 0.0
+        score = _limitup_leader_score((
+            (0.35, s_height), (0.25, s_seal), (0.20, s_ind), (0.20, s_amt),
+        ))
         leader_rows.append({
             "name": nm, "code": cd, "industry": ind, "boards": b,
-            "score": round(score, 1),
-            "s_height": round(s_height, 1), "s_seal": round(s_seal, 1),
-            "s_ind": round(s_ind, 1), "s_amt": round(s_amt, 1),
-            "ind_n": ind_n, "seal": seal_all[i], "amount": amt_all[i],
+            "score": None if score is None else round(score, 1),
+            "s_height": None if s_height is None else round(s_height, 1),
+            "s_seal": None if s_seal is None else round(s_seal, 1),
+            "s_ind": None if s_ind is None else round(s_ind, 1),
+            "s_amt": None if s_amt is None else round(s_amt, 1),
+            "ind_n": ind_n, "seal": seal_vals[i], "amount": amt_vals[i],
+            "unavailable_fields": _row_unavailable(i),
         })
-    leader_rows.sort(key=lambda r: r["score"], reverse=True)
+    leader_rows.sort(key=lambda r: (r["score"] is not None, r["score"] or 0.0),
+                     reverse=True)
     leaderboard = leader_rows[:10]
 
     rows = []
@@ -797,14 +881,15 @@ def _limitup_build_pool_section(df, date):
             "name": str(df[name_c].iloc[i]) if name_c else "",
             "industry": ind_series[i],
             "boards": boards[i],
-            "seal": (seal_all[i] if seal_all else None),
-            "amount": (amt_all[i] if amt_all else None),
+            "seal": seal_vals[i],
+            "amount": amt_vals[i],
             "first_seal_band": bands_list[i],
             "broken": int(broken[i]),
+            "unavailable_fields": _row_unavailable(i),
         })
 
     themes = []
-    if ind_c:
+    if ind_present:
         vc = Counter(ind_series)
         for ind, cnt in vc.most_common(10):
             if ind:
@@ -821,6 +906,18 @@ def _limitup_build_pool_section(df, date):
     broken_list.sort(key=lambda r: r["boards"], reverse=True)
     broken_list = broken_list[:15]
 
+    pool_unavailable = []
+    if not boards_present:
+        pool_unavailable.append("boards")
+    if not broken_present:
+        pool_unavailable.append("broken")
+    if not ind_present:
+        pool_unavailable.append("industry")
+    if not seal_present:
+        pool_unavailable.append("seal")
+    if not amt_present:
+        pool_unavailable.append("amount")
+
     return {
         "available": True, "date": date, "count": n_total,
         "first_boards": n_first, "connect_boards": n_connect, "max_boards": max_boards,
@@ -828,6 +925,7 @@ def _limitup_build_pool_section(df, date):
         "bands": dict(band_counts),
         "rows": rows, "leaderboard": leaderboard,
         "themes": themes, "broken_list": broken_list,
+        "unavailable_fields": pool_unavailable,
     }
 
 
@@ -3593,20 +3691,33 @@ def dragon_tiger():
     - summarize 返回 None（净买额列识别不到）→ 不猜列编资金方向，buy_top/sell_top 降级为 None，
       但诚实保留原始明细（detail），让用户自己看。
     - 所有数值后端已把 NaN/Inf 清洗为 null，前端不补 0。
+    - **date 必须是真实数据日**：由明细自带的日期列解析（modules.lhb.data_date），
+      与实际返回内容一致；解析不出 → date=null + data_date_available=false，
+      绝不用 now()/today() 冒充数据日。请求日（date 入参）只是"向数据源要哪一天"
+      的技术参数，与数据日是两回事（见 modules.lhb docstring）。
 
     GET /api/v2/read/dragon-tiger?date=YYYYMMDD  （date 缺省用今天）
-    返回 date/count/net_col/net_sum_yi/buy_top/sell_top(各 [code,name,net_yi])/detail/ unavailable。
+    返回 date/data_date_available/count/net_col/net_sum_yi/buy_top/sell_top(各 [code,name,net_yi])/detail/unavailable。
     """
     date = (request.args.get("date") or "").strip() or None
+    df = None
+    data_date = None
     try:
         from modules import lhb
         df = lhb.fetch_lhb(date)
-    except Exception:  # noqa: BLE001
+        if df is not None:
+            # 数据日：从明细自带的日期列解析（真实数据日），解析不出 → None（不冒充）
+            data_date = lhb.data_date(df)
+    except Exception as exc:  # noqa: BLE001 - 取数异常：诚实降级，不 500
+        logging.getLogger(__name__).warning(
+            "[dragon-tiger] 取数失败: %s", exc, exc_info=True)
         df = None
+        data_date = None
 
     if df is None:
         data = {
-            "date": date,
+            "date": None,
+            "data_date_available": False,
             "count": None,
             "net_col": None,
             "net_sum_yi": None,
@@ -3621,7 +3732,8 @@ def dragon_tiger():
     if summary is None:
         # 明细取到，但净买列识别不到：不显示排名（宁缺毋滥），诚实给原始明细。
         data = {
-            "date": date,
+            "date": data_date,
+            "data_date_available": data_date is not None,
             "count": None,
             "net_col": None,
             "net_sum_yi": None,
@@ -3633,7 +3745,8 @@ def dragon_tiger():
         return ok(data=_sanitize(data), message="dragon-tiger")
 
     data = {
-        "date": date,
+        "date": data_date,
+        "data_date_available": data_date is not None,
         "count": summary["count"],
         "net_col": summary["net_col"],
         "net_sum_yi": _lhb_yi(summary["net_sum"]),
@@ -4458,6 +4571,9 @@ def breadth_divergence():
 
     任一数据源缺失时对应分段 available=false 原样透出；顶层 available=任一分段可用。
     具体哪段可用看各分段自身的 available（calendar/divergence/trend）。
+
+    健壮性：模块 import / 计算异常 → 仍 200、available=false + unavailable 标注，
+    绝不 500（异常一律落日志，不静默吞掉）。
     """
     red_thresh, err = _bb_float(request.args.get("red_thresh"), 50.0, 0.0, 100.0, "red_thresh")
     if err:
@@ -4469,17 +4585,31 @@ def breadth_divergence():
     if err:
         return fail(message=err, code="validation_error", http_status=422)
 
-    from modules import breadth_divergence as _bd
+    try:
+        from modules import breadth_divergence as _bd
 
-    cal = _bd.breadth_calendar()
-    div = _bd.divergence_episodes(red_thresh=red_thresh, ld_quantile=ld_quantile)
-    trend = _bd.breadth_trend(window_days=window_days)
-    data = {
-        "available": any(bool(x.get("available")) for x in (cal, div, trend)),
-        "calendar": cal,
-        "divergence": div,
-        "trend": trend,
-    }
+        cal = _bd.breadth_calendar()
+        div = _bd.divergence_episodes(red_thresh=red_thresh, ld_quantile=ld_quantile)
+        trend = _bd.breadth_trend(window_days=window_days)
+        data = {
+            "available": any(bool(x.get("available")) for x in (cal, div, trend)),
+            "calendar": cal,
+            "divergence": div,
+            "trend": trend,
+        }
+    except Exception as exc:  # noqa: BLE001 - 计算异常：诚实降级，不 500
+        logging.getLogger(__name__).warning(
+            "[breadth-divergence] 计算失败: %s", exc, exc_info=True)
+        data = {
+            "available": False,
+            "calendar": {"available": False, "years": [], "months": list(range(1, 13)),
+                         "z": [], "latest_year": None},
+            "divergence": {"available": False, "threshold_red": red_thresh, "ld_p90": None,
+                           "episodes": [], "current": None, "n_episodes": 0},
+            "trend": {"available": False, "dates": [], "red_ratio": [], "limit_down": []},
+            "reason": f"{type(exc).__name__}: {exc}",
+            "unavailable": ["breadth_divergence_failed"],
+        }
     return ok(data=data, message="breadth-divergence")
 
 
@@ -4490,14 +4620,27 @@ def temperature_backtest():
 
     window_days 缺省（None）= 全历史；合法 1~5000，仅取最近 N 个交易日，口径不变。
     与单标的策略回测 /api/v2/read/backtest 无关，不要复用。
+
+    健壮性：模块 import / 计算异常 → 仍 200、available=false + reason + unavailable，
+    绝不 500（异常一律落日志，不静默吞掉）。
     """
     window_days, err = _bb_int(request.args.get("window_days"), None, 1, 5000, "window_days")
     if err:
         return fail(message=err, code="validation_error", http_status=422)
 
-    from modules import temperature_backtest as _tb
+    try:
+        from modules import temperature_backtest as _tb
 
-    return ok(data=_tb.band_backtest(window_days=window_days), message="temperature-backtest")
+        data = _tb.band_backtest(window_days=window_days)
+    except Exception as exc:  # noqa: BLE001 - 计算异常：诚实降级，不 500
+        logging.getLogger(__name__).warning(
+            "[temperature-backtest] 计算失败: %s", exc, exc_info=True)
+        data = {
+            "available": False,
+            "reason": f"{type(exc).__name__}: {exc}",
+            "unavailable": ["temperature_backtest_failed"],
+        }
+    return ok(data=data, message="temperature-backtest")
 
 
 @bp.put("/user-dashboard")

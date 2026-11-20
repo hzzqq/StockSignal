@@ -86,9 +86,11 @@ def divergence_episodes(df: pd.DataFrame | None = None,
             df = load_breadth_history()
         except Exception as exc:  # pragma: no cover
             logger.warning("breadth history load failed: %s", exc)
-            return dict(available=False, threshold_red=red_thresh, ld_p90=None, episodes=[], current=None)
+            return dict(available=False, threshold_red=red_thresh, ld_p90=None,
+                        episodes=[], current=None, n_episodes=0)
     if df is None or len(df) == 0:
-        return dict(available=False, threshold_red=red_thresh, ld_p90=None, episodes=[], current=None)
+        return dict(available=False, threshold_red=red_thresh, ld_p90=None,
+                    episodes=[], current=None, n_episodes=0)
 
     d = df.copy()
     d["date"] = pd.to_datetime(d["date"], errors="coerce")

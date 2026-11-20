@@ -162,6 +162,12 @@ export function DragonTiger() {
               <Stat label="识别到的净买列" value={netCol ?? '—'} />
             </div>
 
+            {/* 数据日诚实标注：date 来自明细自带的真实交易日；不可得时显「不可得」，不用今天冒充 */}
+            <p className="text-xs text-sf-ink-3">
+              数据日：
+              {d.data_date_available && d.date ? d.date : '不可得（明细未带交易日字段，不以请求日/今天冒充）'}
+            </p>
+
             {showChart && (
               <Card title="净买入 Top vs 净卖出 Top（前 10）">
                 <EChart

@@ -84,3 +84,84 @@ def test_empty_loader_unavailable():
 
 def test_blank_symbol_unavailable():
     assert _ef.get_event_factor("").get("available") is False
+
+
+# ── 诚实红线守卫（2026-11-20）：缺数据不得补 0 冒充真实值 ──────────────────
+
+def _write_signals(d: Path, payload: dict) -> Path:
+    (d / "signal_ev_h10.json").write_text(json.dumps(payload), encoding="utf-8")
+    return d
+
+
+class TestNumOrNone:
+    """_num_or_none：缺失/非法 → None，绝不补 0。"""
+
+    def test_none_and_missing(self):
+        assert _ef._num_or_none(None) is None
+        assert _ef._num_or_none("") is None
+
+    def test_nan_inf_and_str(self):
+        assert _ef._num_or_none(float("nan")) is None
+        assert _ef._num_or_none(float("inf")) is None
+        assert _ef._num_or_none("0.5") is None  # 字符串不算真实数值
+
+    def test_valid_numbers_and_bool_excluded(self):
+        assert _ef._num_or_none(0.0) == 0.0  # 真实 0 是合法值
+        assert _ef._num_or_none(0.0298) == 0.0298
+        assert _ef._num_or_none(True) is None  # bool 不是业务数值
+
+
+class TestMissingFieldsStayNone:
+    """榜单/逐日行缺 pred/rank/score 键 → 字段 None 且 available=True（在榜是真实事实），
+    与 event_driven_long_list 的 None 口径一致；不得伪装成 0 分信号。"""
+
+    def _loader(self, tmp_path: Path, payload: dict) -> P1SignalLoader:
+        d = tmp_path / "sig"
+        d.mkdir(parents=True, exist_ok=True)
+        _write_signals(d, payload)
+        return P1SignalLoader(source_dirs=[str(d)], ttl=10_000)
+
+    def test_long_row_missing_pred_rank(self, tmp_path: Path):
+        payload = {
+            "model": "ev", "latest_date": "2026-08-14", "horizon": 10,
+            "top_long": [{"symbol": "sh600869"}],  # pred/rank 键整体缺失
+            "top_short": [{"symbol": "sh603118", "pred": -0.0545, "rank": 0.0007}],
+            "daily": [],
+        }
+        r = _ef.get_event_factor("sh600869", loader=self._loader(tmp_path, payload))
+        assert r["available"] is True, "标的在榜上是真实事实，不得因缺值降为 unavailable"
+        assert r["signal"] == "看多"
+        assert r["score"] is None and r["rank"] is None
+
+    def test_short_row_missing_pred_rank(self, tmp_path: Path):
+        payload = {
+            "model": "ev", "latest_date": "2026-08-14", "horizon": 10,
+            "top_long": [{"symbol": "sh600869", "pred": 0.0298, "rank": 1.0}],
+            "top_short": [{"symbol": "sh603118"}],  # pred/rank 键整体缺失
+            "daily": [],
+        }
+        r = _ef.get_event_factor("sh603118", loader=self._loader(tmp_path, payload))
+        assert r["available"] is True
+        assert r["signal"] == "看空"
+        assert r["score"] is None and r["rank"] is None
+
+    def test_daily_row_missing_score(self, tmp_path: Path):
+        payload = {
+            "model": "ev", "latest_date": "2026-08-14", "horizon": 10,
+            "top_long": [], "top_short": [],
+            "daily": [{"date": "2026-08-14", "symbol": "sh600000", "signal": "看多"}],  # 缺 score
+        }
+        r = _ef.get_event_factor("sh600000", loader=self._loader(tmp_path, payload))
+        assert r["available"] is True
+        assert r["score"] is None
+
+    def test_real_zero_still_real_zero(self, tmp_path: Path):
+        """真实 0.0 是合法业务值，必须保留 0 而非被误判为缺失。"""
+        payload = {
+            "model": "ev", "latest_date": "2026-08-14", "horizon": 10,
+            "top_long": [{"symbol": "sh600869", "pred": 0.0, "rank": 0.0}],
+            "top_short": [], "daily": [],
+        }
+        r = _ef.get_event_factor("sh600869", loader=self._loader(tmp_path, payload))
+        assert r["available"] is True
+        assert r["score"] == 0.0 and r["rank"] == 0.0

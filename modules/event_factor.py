@@ -23,6 +23,7 @@ from __future__ import annotations  # noqa: I001
 from modules.cache_utils import TTL_TIERS  # R-14 修复：此前误写进 docstring 从未执行
 
 import logging
+import math
 import os
 import re
 from typing import Any
@@ -30,6 +31,18 @@ from typing import Any
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+
+def _num_or_none(v) -> float | None:
+    """缺失 / 非数值 / NaN/Inf → None（诚实红线：缺数据不得补 0 冒充真实值）。
+
+    与 :func:`event_driven_long_list` 的口径一致（rank 缺失 → None），
+    此前 ``or 0.0`` 会把「无数据」伪装成「0 分信号」。
+    """
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        f = float(v)
+        return None if (math.isnan(f) or math.isinf(f)) else f
+    return None
 
 
 # ── R9/T-332：A4 标注层（hard_logic / horizon，benchmark 采纳清单 R9）────────
@@ -159,9 +172,9 @@ def _get_event_factor_core(symbol: str, model: str = "ev",
         s_long = next((r for r in longs if r.get("symbol") == symbol), None)
         if s_long is not None:
             return {"available": True, "symbol": symbol,
-                    "score": float(s_long.get("pred", 0.0) or 0.0),
+                    "score": _num_or_none(s_long.get("pred")),
                     "signal": "看多",
-                    "rank": float(s_long.get("rank", 0.0) or 0.0),
+                    "rank": _num_or_none(s_long.get("rank")),
                     "horizon": annotate_horizon(_loader_horizon(loader, model)),
                     "hard_logic": dict(_ANNOT_NO_TEXT),
                     "source": f"P1-{model}-top_long"}
@@ -169,9 +182,9 @@ def _get_event_factor_core(symbol: str, model: str = "ev",
         s_short = next((r for r in shorts if r.get("symbol") == symbol), None)
         if s_short is not None:
             return {"available": True, "symbol": symbol,
-                    "score": float(s_short.get("pred", 0.0) or 0.0),
+                    "score": _num_or_none(s_short.get("pred")),
                     "signal": "看空",
-                    "rank": float(s_short.get("rank", 0.0) or 0.0),
+                    "rank": _num_or_none(s_short.get("rank")),
                     "horizon": annotate_horizon(_loader_horizon(loader, model)),
                     "hard_logic": dict(_ANNOT_NO_TEXT),
                     "source": f"P1-{model}-top_short"}
@@ -194,7 +207,7 @@ def _get_event_factor_core(symbol: str, model: str = "ev",
         if sub is not None and not getattr(sub, "empty", True):
             row = sub.sort_values("date").iloc[-1]
             return {"available": True, "symbol": symbol,
-                    "score": float(row.get("score", 0.0) or 0.0),
+                    "score": _num_or_none(row.get("score")),
                     "signal": row.get("signal"),
                     "date": str(row.get("date")),
                     "horizon": annotate_horizon(_loader_horizon(loader, model)),

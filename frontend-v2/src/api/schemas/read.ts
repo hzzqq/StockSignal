@@ -982,6 +982,8 @@ export type DragonTigerRow = z.infer<typeof DragonTigerRowSchema>
 export const DragonTigerSchema = z
   .object({
     date: z.string().nullable().optional(),
+    /** date 是否为明细里的真实数据日；false = 数据日不可得（date 为 null）。 */
+    data_date_available: z.boolean().optional(),
     count: z.number().nullable().optional(),
     net_col: z.string().nullable().optional(),
     net_sum_yi: z.number().nullable().optional(),
@@ -1518,6 +1520,8 @@ export const LeaderRowSchema = z.object({
   ind_n: z.number().nullable().optional(),
   seal: NumOrNull.optional(),
   amount: NumOrNull.optional(),
+  /** 该行不可得的字段名（缺列/缺格）；后端绝不用 0 冒充缺失。 */
+  unavailable_fields: z.array(z.string()).optional(),
 })
 export type LeaderRow = z.infer<typeof LeaderRowSchema>
 
@@ -1540,12 +1544,16 @@ export const LimitUpPoolSchema = z.object({
     amount: NumOrNull.optional(),
     first_seal_band: z.string(),
     broken: z.number(),
+    /** 该行不可得的字段名（缺列/缺格）；后端绝不用 0 冒充缺失。 */
+    unavailable_fields: z.array(z.string()).optional(),
   })),
   leaderboard: z.array(LeaderRowSchema),
   themes: z.array(z.object({ industry: z.string(), count: z.number() })),
   broken_list: z.array(z.object({
     name: z.string(), code: z.string(), boards: z.number(), broken: z.number(),
   })),
+  /** 整池不可得的字段名（对应列在源数据中缺失）。 */
+  unavailable_fields: z.array(z.string()).optional(),
 })
 export type LimitUpPool = z.infer<typeof LimitUpPoolSchema>
 

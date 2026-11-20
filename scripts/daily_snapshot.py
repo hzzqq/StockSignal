@@ -411,7 +411,11 @@ def main() -> int:
         from modules import data_health as _dh
         _ladder_asof = _dh.source_as_of(next(e for e in _dh.DATA_SOURCES if e["key"] == "ladder"))
         _mtemp_asof = _dh.source_as_of(next(e for e in _dh.DATA_SOURCES if e["key"] == "market_temp"))
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        # 抽取故障：连板晋级率/市场温度两个源退出新鲜度守卫，守卫退化为半套
+        # （只查牧羊人+事件）。绝不静默——留 warning 让缺口可见（T-239）。
+        log(f"[warn] 新鲜度源日期抽取失败（ladder/market_temp 退出守卫）: {e}")
+        _dec.append_log(f"WARN 新鲜度源抽取失败: {e}")
         _ladder_asof = _mtemp_asof = None
 
     snap = _dec.build_snapshot(date, today, temp, fc, promo, ladder,
