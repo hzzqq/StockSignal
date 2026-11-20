@@ -15,6 +15,7 @@ from datetime import datetime
 from flask import Blueprint
 
 from ..auth.decorators import admin_required, jwt_required
+from ..utils.recommend_gate import gate_recommendation
 from ..utils.response import fail, ok
 
 bp = Blueprint("recommendations", __name__, url_prefix="/api/recommendations")
@@ -35,12 +36,27 @@ def _valid_date(date: str) -> bool:
         return False
 
 
+def _serve_gated(rec):
+    """T-245 收尾：推荐数据过输出边界二道闸。
+
+    status==ok 的推荐 → gate_recommendation 过闸；dropped>0 时 message 追加剔除
+    数（沿用 T-245 文案，不静默）；dropped==0 行为与原透传完全一致。
+    status 非 ok 的诚实降级路径不过闸、原样透传（unavailable≠guilty）。
+    """
+    if isinstance(rec, dict) and rec.get("status") == "ok":
+        data, dropped = gate_recommendation(rec)
+        if dropped:
+            return ok(data=data, message=f"success（输出边界二道闸剔除 {dropped} 只高危标的）")
+        return ok(data=data, message="success")
+    return ok(data=rec, message=rec.get("reason", "unavailable") if isinstance(rec, dict) else "unavailable")
+
+
 @bp.get("/today")
 @jwt_required
 def today():
     from modules.recommend_engine import load_latest_recommendation
     rec = load_latest_recommendation()
-    return ok(data=rec, message="success" if rec.get("status") == "ok" else rec.get("reason", "unavailable"))
+    return _serve_gated(rec)
 
 
 @bp.get("/<date>")
@@ -50,7 +66,7 @@ def by_date(date: str):
         return fail(message="日期格式非法（须为真实存在的 YYYY-MM-DD）", code="invalid_date", http_status=400)
     from modules.recommend_engine import load_recommendation_by_date
     rec = load_recommendation_by_date(date)
-    return ok(data=rec, message="success" if rec.get("status") == "ok" else rec.get("reason", "unavailable"))
+    return _serve_gated(rec)
 
 
 @bp.post("/generate")

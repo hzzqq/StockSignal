@@ -46,11 +46,9 @@ from flask import Blueprint, request
 
 from ..auth.decorators import jwt_required
 from ..utils.response import fail, ok
+from ..utils.recommend_gate import gate_recommendation  # T-245 输出边界二道闸（单一真理源）
 from modules import policy_store, sector_map
 from modules.site_config import CALL_TIMEOUT_CAP
-
-# T-245：六维排雷「高危」等级字面量（与 modules.stock_risk.RISK_HIGH 对齐）
-_RISK_HIGH = "high"
 
 bp = Blueprint("read", __name__, url_prefix="/api/v2/read")
 
@@ -147,22 +145,14 @@ def _serve_recommendation_gated(key: str, label: str):
     此处再闸一次：防御陈旧/截断 JSON 或旁路写入把高危标的重新带入推荐。
     被剔除项不静默——在信封 message 注明剔除数，供前端显著提示。
     unknown≠guilty：仅剔除已确认 high，not_scanned/unknown/low/medium 一律保留。
+    过滤逻辑收敛于 backend/utils/recommend_gate.gate_recommendation（与
+    /api/recommendations/today、/<date> 共用同一闸）。
     """
     status, data = _read_json(_FILE_WHITELIST[key])
     if status != "ok" or not isinstance(data, dict):
         return _serve_whitelist_json(key, label)
-    picks = data.get("picks")
-    if not isinstance(picks, list):
-        return ok(data=data, message=label)
-    kept, dropped = [], 0
-    for p in picks:
-        rs = p.get("risk_scan") if isinstance(p, dict) else None
-        if isinstance(rs, dict) and rs.get("overall_level") == _RISK_HIGH:
-            dropped += 1
-            continue
-        kept.append(p)
+    data, dropped = gate_recommendation(data)
     if dropped:
-        data = {**data, "picks": kept, "risk_gate_boundary_dropped": dropped}
         return ok(data=data, message=f"{label}（输出边界二道闸剔除 {dropped} 只高危标的）")
     return ok(data=data, message=label)
 
