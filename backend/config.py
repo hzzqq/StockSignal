@@ -8,6 +8,8 @@ import logging
 import os
 from pathlib import Path
 
+from backend.db_dialect import Dialect, dialect_from_url as _dialect_from_url
+
 BACKEND_DIR = Path(__file__).resolve().parent
 DATA_DIR = BACKEND_DIR / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -76,9 +78,12 @@ class Config:
     JWT_PREFIX = "Bearer "
 
     # 数据库
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
+    # 方言单一真源判定：backend/db_dialect.py（sqlite:// 缺失默认 SQLite，
+    # postgresql:// / postgresql+psycopg:// → PostgreSQL）
+    _DATABASE_URL = os.environ.get(
         "DATABASE_URL", f"sqlite:///{(DATA_DIR / 'app.db').as_posix()}"
     )
+    SQLALCHEMY_DATABASE_URI = _DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # 数据库引擎选项（多用户并发关键配置）
@@ -87,13 +92,21 @@ class Config:
     #   "database is locked" 导致接口报错/堵塞
     # - pool_pre_ping / pool_recycle：自动剔除失效连接，避免隔夜连接僵死占用池
     # - pool_size / max_overflow：并发连接上限（局域网/实训多账号场景足够）
-    SQLALCHEMY_ENGINE_OPTIONS = {
+    # SQLite 专属 connect_args（check_same_thread / timeout）仅 SQLite 方言注入；
+    # PostgreSQL 下 psycopg 不接受这些参数，按方言剥离（db_dialect 判定）。
+    _BASE_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
         "pool_recycle": 280,
         "pool_size": 10,
         "max_overflow": 20,
-        "connect_args": {"check_same_thread": False, "timeout": 30},
     }
+    if _dialect_from_url(_DATABASE_URL) is Dialect.SQLITE:
+        SQLALCHEMY_ENGINE_OPTIONS = {
+            **_BASE_ENGINE_OPTIONS,
+            "connect_args": {"check_same_thread": False, "timeout": 30},
+        }
+    else:
+        SQLALCHEMY_ENGINE_OPTIONS = dict(_BASE_ENGINE_OPTIONS)
 
     # CORS（T-144 缺陷②收紧）：默认收敛到本机前后端来源；局域网/生产用 env 覆盖
     CORS_ORIGINS = os.environ.get(

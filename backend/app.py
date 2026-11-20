@@ -40,8 +40,13 @@ def _enable_sqlite_concurrency(app: Flask) -> None:
     """
     from sqlalchemy import event
 
+    # 方言判定收敛到 db_dialect 单一真源：
+    # - SQLite：保留 WAL + busy_timeout + synchronous（既有行为逐字节不变）；
+    # - PostgreSQL：MVCC 天然并发友好，无需（也不支持）SQLite PRAGMA，直接跳过。
+    from backend.db_dialect import Dialect, dialect_from_url
+
     uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
-    if not uri.startswith("sqlite"):
+    if dialect_from_url(uri) is not Dialect.SQLITE:
         return
     if uri.startswith("sqlite:///:memory:"):
         return  # 内存库每连接独立，WAL 无意义

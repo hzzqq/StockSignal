@@ -4442,6 +4442,9 @@ _DIAG_REQUIRED_QUERY = {
     # 81 页语义解析层：缺 query 即 400。不登记会被 _diag_endpoints() 当成
     # 「可直接探测」，诊断页点开必拿到 invalid_param 而假报接口故障。
     "/api/v2/read/nl-screen": {"query": "创业板"},
+    # 政策传导：缺 policy_id 即 400（32 位小写 hex 白名单，先于取数校验）。
+    # 由政策上下文批次新增，此前未单跑本守卫，漏登记漂移 2026-11-20 补齐。
+    "/api/v2/read/policy-transmission": {"policy_id": "0123456789abcdef0123456789abcdef"},
 }
 
 
@@ -4940,6 +4943,8 @@ def upload_review_image():
         try:
             _os.remove(tmp)
         except OSError:
+            # ui_audit_exempt：tmp 清理失败不影响主流程（落盘失败已由外层 log.exception 留痕），
+            # 残留 tmp 文件由 cache_maintenance 之类的磁盘维护路径兜底。
             pass
         log.exception("[review-images] 写入失败: %s", target)
         return fail(message="图片保存失败", code="internal_error", http_status=500)
@@ -4976,4 +4981,10 @@ def get_review_image(date, filename):
     if not path.is_file():
         return fail(message="图片不存在", code="not_found", http_status=404)
     from flask import Response
-    return Response(path.read_bytes(), mimetype=mime)
+    # 内联图片字节：Content-Disposition: inline 标明这是文件型响应（图片回显），
+    # 与会话导出下载同属信封契约的文件型豁免，不走 ok()/fail() JSON 信封。
+    return Response(
+        path.read_bytes(),
+        mimetype=mime,
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )

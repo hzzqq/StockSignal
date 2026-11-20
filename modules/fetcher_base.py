@@ -22,6 +22,10 @@ import numpy as np  # 原在抽离块内，StockFetcher 用到 np.  # noqa: F401
 
 from modules.time_utils import now_cst_str, now_cst_naive  # noqa: F401
 
+# 数据库方言单一真源（SQLite/PostgreSQL 双库支持）：SQL 生成与方言判定一律经它，
+# 禁止在本模块散落 startswith("sqlite") 判定
+from backend import db_dialect as dbd  # noqa: E402
+
 
 # 底层 I/O 层已抽到 modules._feed_io（P2-1 降耦），此处 re-export 保持全站 import 兼容
 from modules._feed_io import (  # noqa: F401
@@ -327,11 +331,32 @@ class BaseFetcher(ReferenceMixin):
         with ssl_bypass():
             yield
 
+    # 旁路缓存库（data/cache.db）方言判定：模块级 env SS_CACHE_DB_URL 显式指定
+    # （PG 连接串或 sqlite:// URL）优先；否则跟随 DATABASE_URL（PG 时旁路表建在
+    # 同一 PG 库内）；否则回落 SQLite 文件路径（生产默认行为，零变化）。
+    _BYPASS_URL_ENV = "SS_CACHE_DB_URL"
+
+    def _cache_dialect(self):
+        # getattr 兜底：部分测试实例（__new__ 构造）不设 db_path，而 _write_cache
+        # 原实现亦不依赖该属性——方言判定不得引入新的实例属性依赖
+        return dbd.bypass_dialect(self._BYPASS_URL_ENV, getattr(self, "db_path", ""))
+
     def _get_conn(self):
         # T-257：WAL + busy_timeout——默认回滚日志模式下每次缓存写入全库排他锁，
         # 页面读被写阻塞（15:30 预热窗口/实时刷新时段页面卡顿同源）。WAL 读写并行，
         # busy_timeout 让偶发写锁由「抛错」变「短等待」。journal_mode 持久化，重复执行为 no-op。
-        conn = sqlite3.connect(self.db_path, timeout=10.0)
+        from backend.db_dialect import Dialect
+
+        dialect = self._cache_dialect()
+        if dialect is not Dialect.SQLITE:
+            # PostgreSQL：经方言层打开连接（失败显式报错，绝不静默回退 SQLite）
+            from backend.db_dialect import open_connection, resolve_bypass_url
+
+            return open_connection(resolve_bypass_url(self._BYPASS_URL_ENV, self.db_path))
+        path = self.db_path
+        if os.environ.get(self._BYPASS_URL_ENV):
+            path = dbd.open_sqlite_file_path(os.environ[self._BYPASS_URL_ENV])
+        conn = sqlite3.connect(path, timeout=10.0)
         try:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
@@ -474,9 +499,14 @@ class BaseFetcher(ReferenceMixin):
             data_json = data.to_json(orient="records", date_format="iso")
         else:
             data_json = json.dumps(data, ensure_ascii=False, default=str)
+        # upsert SQL 经方言层生成：SQLite 输出与既有语句逐字节等价
+        # （INSERT OR REPLACE ... VALUES (?, ?, ?)）；
+        # PostgreSQL 生成 INSERT ... ON CONFLICT (cache_key) DO UPDATE SET
         conn.execute(
-            f"INSERT OR REPLACE INTO {table_name} (cache_key, data_json, updated_at) "
-            f"VALUES (?, ?, ?)",
+            dbd.upsert_sql(
+                self._cache_dialect(), table_name,
+                ("cache_key", "data_json", "updated_at"), ("cache_key",),
+            ),
             (cache_key, data_json, now_cst_naive().isoformat()),
         )
         conn.commit()
@@ -484,9 +514,12 @@ class BaseFetcher(ReferenceMixin):
     def _write_cache_raw(self, conn, table_name, cache_key, json_str):
         """写入原始 JSON 字符串到缓存表。"""
         self._init_cache_table(conn, table_name)
+        # upsert SQL 经方言层生成（同 _write_cache：SQLite 逐字节等价，PG 走 ON CONFLICT）
         conn.execute(
-            f"INSERT OR REPLACE INTO {table_name} (cache_key, data_json, updated_at) "
-            f"VALUES (?, ?, ?)",
+            dbd.upsert_sql(
+                self._cache_dialect(), table_name,
+                ("cache_key", "data_json", "updated_at"), ("cache_key",),
+            ),
             (cache_key, json_str, now_cst_naive().isoformat()),
         )
         conn.commit()

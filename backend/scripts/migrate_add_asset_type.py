@@ -24,9 +24,28 @@ from backend.app import create_app  # noqa: E402
 
 def migrate(app) -> bool:
     """执行迁移。返回是否发生了加列操作。"""
+    from backend.db_dialect import Dialect, column_exists_sql, dialect_from_url
+
     uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
+    dialect = dialect_from_url(uri)
+
+    if dialect is Dialect.POSTGRESQL:
+        # PostgreSQL 分支：列存在性探测经方言层生成 information_schema SQL
+        from sqlalchemy import text
+
+        from backend.extensions import db
+
+        with db.engine.begin() as conn:
+            probe_sql, probe_params = column_exists_sql(Dialect.POSTGRESQL, "stocks", "asset_type")
+            if conn.execute(text(probe_sql), probe_params).fetchone() is not None:
+                return False
+            conn.execute(text(
+                "ALTER TABLE stocks ADD COLUMN asset_type VARCHAR(16) NOT NULL DEFAULT 'stock'"
+            ))
+        return True
+
     if not uri.startswith("sqlite"):
-        # 非 SQLite 后端（如未来换 Postgres）由对应迁移工具处理，这里跳过
+        # 非 SQLite 且非 PG 的 URL（无法识别）原样跳过
         return False
 
     db_path = uri.replace("sqlite:///", "", 1)

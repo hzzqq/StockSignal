@@ -63,16 +63,30 @@ _DEFAULT_TTL = 6  # 默认 6 小时
 _DB_LOCK = threading.Lock()
 
 
-def _get_conn() -> sqlite3.Connection:
+def _get_conn():
     """获取数据库连接（线程安全，自动建表）。
 
     注意：PRAGMA 必须容错。若 _DB_PATH 指向的文件被损坏 / 不是合法 sqlite 文件，
     `PRAGMA journal_mode=WAL` 会立刻抛 sqlite3.DatabaseError。历史实现把它放在
     调用方 try 之外，导致「缓存文件损坏 → 整页崩溃」而非优雅降级。
     这里吞掉 PRAGMA 异常，让真正的读写在调用方的 try/except 内失败并正常降级。
+
+    方言（SQLite/PostgreSQL 双库支持）：模块级 env SS_MARKET_CACHE_URL 显式指定
+    （PG 连接串或 sqlite:// URL）优先；否则跟随 DATABASE_URL（PG 时旁路表建在
+    同一 PG 库内）；否则回落 SQLite 文件路径（生产默认行为，零变化）。
     """
+    from backend.db_dialect import Dialect, dialect_from_url, open_connection, resolve_bypass_url
+
+    url = resolve_bypass_url("SS_MARKET_CACHE_URL", _DB_PATH)
+    if dialect_from_url(url) is not Dialect.SQLITE:
+        # PostgreSQL：经方言层打开连接（失败显式报错，绝不静默回退 SQLite）
+        return open_connection(url)
+    path = _DB_PATH
+    if os.environ.get("SS_MARKET_CACHE_URL"):
+        from backend.db_dialect import open_sqlite_file_path
+        path = open_sqlite_file_path(os.environ["SS_MARKET_CACHE_URL"])
     os.makedirs(_DATA_DIR, exist_ok=True)
-    conn = sqlite3.connect(_DB_PATH, timeout=30)
+    conn = sqlite3.connect(path, timeout=30)
     conn.row_factory = sqlite3.Row
     for pragma in ("PRAGMA journal_mode=WAL", "PRAGMA busy_timeout=5000"):
         try:
@@ -83,32 +97,98 @@ def _get_conn() -> sqlite3.Connection:
     return conn
 
 
-def _ensure_table(conn: sqlite3.Connection):
+def _bypass_dialect():
+    """旁路库方言判定（SS_MARKET_CACHE_URL / DATABASE_URL / 默认 SQLite）。"""
+    from backend.db_dialect import bypass_dialect
+    return bypass_dialect("SS_MARKET_CACHE_URL", _DB_PATH)
+
+
+def _indicator_upsert_sql() -> str:
+    """market_indicator_cache 的 upsert SQL（方言感知）。
+
+    SQLite 输出与既有语句逐字节等价：
+    ``INSERT OR REPLACE INTO market_indicator_cache (key, date, value, updated_at)
+    VALUES (?, ?, ?, datetime('now','localtime'))``；
+    PostgreSQL 生成 ``INSERT ... ON CONFLICT (key, date) DO UPDATE SET ...``。
+    """
+    from backend.db_dialect import now_expr, placeholder, upsert_sql
+
+    d = _bypass_dialect()
+    return upsert_sql(
+        d, "market_indicator_cache",
+        ("key", "date", "value", "updated_at"), ("key", "date"),
+        value_exprs=[placeholder(d), placeholder(d), placeholder(d), now_expr(d)],
+    )
+
+
+def _ensure_table(conn):
     """确保缓存表存在（幂等）。"""
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS market_indicator_cache (
-            key       TEXT NOT NULL,
-            date      TEXT NOT NULL,
-            value     REAL,
-            updated_at TEXT DEFAULT (datetime('now','localtime')),
-            PRIMARY KEY (key, date)
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS market_refresh_log (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            refreshed_at TEXT DEFAULT (datetime('now','localtime')),
-            status     TEXT NOT NULL,
-            available  TEXT DEFAULT '[]',
-            unavailable TEXT DEFAULT '[]',
-            duration_sec REAL,
-            note       TEXT DEFAULT ''
-        )
-    """)
+    from backend.db_dialect import Dialect, now_expr
+
+    d = _bypass_dialect()
+    if d is Dialect.SQLITE:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS market_indicator_cache (
+                key       TEXT NOT NULL,
+                date      TEXT NOT NULL,
+                value     REAL,
+                updated_at TEXT DEFAULT (datetime('now','localtime')),
+                PRIMARY KEY (key, date)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS market_refresh_log (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                refreshed_at TEXT DEFAULT (datetime('now','localtime')),
+                status     TEXT NOT NULL,
+                available  TEXT DEFAULT '[]',
+                unavailable TEXT DEFAULT '[]',
+                duration_sec REAL,
+                note       TEXT DEFAULT ''
+            )
+        """)
+    else:
+        # PostgreSQL DDL：AUTOINCREMENT→BIGSERIAL、datetime('now','localtime')→now()、
+        # REAL→DOUBLE PRECISION（经方言层生成对应片段）
+        conn.execute(f"""
+            CREATE TABLE IF NOT EXISTS market_indicator_cache (
+                key       TEXT NOT NULL,
+                date      TEXT NOT NULL,
+                value     DOUBLE PRECISION,
+                updated_at TIMESTAMP DEFAULT {now_expr(d)},
+                PRIMARY KEY (key, date)
+            )
+        """)
+        conn.execute(f"""
+            CREATE TABLE IF NOT EXISTS market_refresh_log (
+                id         BIGSERIAL PRIMARY KEY,
+                refreshed_at TIMESTAMP DEFAULT {now_expr(d)},
+                status     TEXT NOT NULL,
+                available  TEXT DEFAULT '[]',
+                unavailable TEXT DEFAULT '[]',
+                duration_sec DOUBLE PRECISION,
+                note       TEXT DEFAULT ''
+            )
+        """)
     # 索引加速按 key 查询
     conn.execute("CREATE INDEX IF NOT EXISTS idx_cache_key ON market_indicator_cache(key)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_cache_date ON market_indicator_cache(date)")
     conn.commit()
+
+
+def _read_df(conn, sql: str, params) -> pd.DataFrame:
+    """pd.read_sql_query 的方言分支。
+
+    SQLite：走原路径 ``pd.read_sql_query(sql, conn, params=...)``（逐字节等价）；
+    PostgreSQL：pandas 不接受裸 psycopg DBAPI 连接，改经 SQLAlchemy connectable
+    （``?`` 占位符先转成 ``:pN`` 命名参数）。
+    """
+    if isinstance(conn, sqlite3.Connection):
+        return pd.read_sql_query(sql, conn, params=params)
+    from backend.db_dialect import qmark_to_named
+
+    sql_n, binds = qmark_to_named(sql, params)
+    return pd.read_sql_query(sql_n, conn.sa_conn, params=binds)
 
 
 # ── 写入 ───────────────────────────────────────────────────────
@@ -147,11 +227,7 @@ def save_drivers_to_cache(df: pd.DataFrame, meta: Optional[Dict] = None) -> int:
                 ]
                 if not rows:
                     continue
-                conn.executemany(
-                    "INSERT OR REPLACE INTO market_indicator_cache (key, date, value, updated_at) "
-                    "VALUES (?, ?, ?, datetime('now','localtime'))",
-                    rows,
-                )
+                conn.executemany(_indicator_upsert_sql(), rows)
                 count += len(rows)
 
             # 记录刷新日志
@@ -208,11 +284,7 @@ def save_single_series(key: str, series: pd.Series) -> int:
         try:
             conn = _get_conn()
             _ensure_table(conn)
-            conn.executemany(
-                "INSERT OR REPLACE INTO market_indicator_cache (key, date, value, updated_at) "
-                "VALUES (?, ?, ?, datetime('now','localtime'))",
-                rows,
-            )
+            conn.executemany(_indicator_upsert_sql(), rows)
             conn.commit()
             return len(rows)
         except Exception as e:
@@ -250,10 +322,11 @@ def load_drivers_from_cache(days: int = 180) -> Tuple[Optional[pd.DataFrame], Op
             _ensure_table(conn)
             # 查询最近 days 天的所有指标
             cutoff = (now_cst() - timedelta(days=days)).strftime("%Y-%m-%d")
-            df_raw = pd.read_sql_query(
+            df_raw = _read_df(
+                conn,
                 "SELECT key, date, value, updated_at FROM market_indicator_cache "
                 "WHERE date >= ? ORDER BY key, date",
-                conn, params=(cutoff,),
+                (cutoff,),
             )
             conn.close()
         except Exception as e:
@@ -321,16 +394,18 @@ def get_cache_status() -> Dict[str, Any]:  # noqa: UP006
             conn = _get_conn()
             _ensure_table(conn)
             # 各指标最新日期 & 记录数
-            summary = pd.read_sql_query(
+            summary = _read_df(
+                conn,
                 "SELECT key, COUNT(*) as cnt, MAX(date) as latest_date, "
                 "MAX(updated_at) as last_update "
                 "FROM market_indicator_cache GROUP BY key ORDER BY key",
-                conn,
+                None,
             )
             # 最近刷新日志
-            log = pd.read_sql_query(
-                "SELECT * FROM market_refresh_log ORDER BY id DESC LIMIT 5",
+            log = _read_df(
                 conn,
+                "SELECT * FROM market_refresh_log ORDER BY id DESC LIMIT 5",
+                None,
             )
             total_rows = conn.execute(
                 "SELECT COUNT(*) FROM market_indicator_cache"
@@ -458,8 +533,13 @@ def clear_stale_cache(days: int = 90) -> int:
             )
             deleted = cur.rowcount
             conn.commit()
-            conn.execute("VACUUM")  # 先提交再 VACUUM：VACUUM 不允许在活动事务内执行
-            conn.close()
+            if isinstance(conn, sqlite3.Connection):
+                conn.execute("VACUUM")  # 先提交再 VACUUM：VACUUM 不允许在活动事务内执行
+                conn.close()
+            else:
+                # PostgreSQL：MVCC 无需（且事务内 VACUUM 不可行），如实跳过碎片回收
+                logger.debug("[market_cache] PostgreSQL 方言跳过 VACUUM")
+                conn.close()
             logger.info("[market_cache] 清理了 %d 条超过 %d 天的旧数据", deleted, days)
             return deleted
         except Exception as e:

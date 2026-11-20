@@ -53,6 +53,9 @@ from modules._feed_io import (  # noqa: F401
 # 市场数据 I/O 叶子模块（#锐评整改：从 StockFetcher 下沉，零循环依赖）
 import modules._market_data_io as _mdi  # noqa: F401
 
+# 数据库方言单一真源（SQLite/PostgreSQL 双库支持）：表清单 SQL 经方言层生成
+from backend import db_dialect as dbd  # noqa: E402
+
 # T-247 Tier1.1：纯函数真身迁 modules.fetcher_core，此处 re-export 同一对象
 # （调用点零改动；AST 守卫 tests/test_fetcher_core_tier11.py 锁死防本地定义回潮）
 from modules.fetcher_core import (  # noqa: F401
@@ -171,9 +174,11 @@ class HealthMixin:
         try:
             conn = self._get_conn()
             try:
-                tables = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-                ).fetchall()
+                # 表清单 SQL 经方言层生成：SQLite 走 sqlite_master（与既有 SQL 一致），
+                # PostgreSQL 走 information_schema.tables
+                _d = dbd.bypass_dialect(self._BYPASS_URL_ENV, getattr(self, "db_path", ""))
+                _list_sql, _list_params = dbd.list_tables_sql(_d)
+                tables = conn.execute(_list_sql, _list_params).fetchall()
                 table_names = [t[0] for t in tables]
                 total_rows = 0
                 per_table = {}

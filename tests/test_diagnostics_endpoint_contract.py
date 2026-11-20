@@ -94,6 +94,9 @@ _VALIDATION_ONLY_400 = {
     # 400 只在**显式传非法值**时触发；缺参请求照样 200，不属需参端点。
     # 该端点由「事件因子回测」批次新增，此前未单跑本守卫，误报一直没暴露。
     "/api/v2/read/event-backtest",
+    # sector-map 的 status 同理（可选，仅显式传非 ok|failed|stale 才 400），
+    # 缺参请求照样 200，属 validation-only。2026-11-20 漂移补登记。
+    "/api/v2/read/sector-map",
 }
 
 

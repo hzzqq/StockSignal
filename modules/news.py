@@ -133,8 +133,22 @@ from modules._news_nlp import (                       # noqa: F401
 
 
 # ──────────────────────────────────────────────
-# 新闻数据库（SQLite）
+# 新闻数据库（SQLite / PostgreSQL 双库支持）
 # ──────────────────────────────────────────────
+
+def _read_df(conn, sql: str, params):
+    """pd.read_sql_query 的方言分支。
+
+    SQLite：走原路径（逐字节等价）；PostgreSQL：pandas 不接受裸 psycopg DBAPI
+    连接，改经 SQLAlchemy connectable（``?`` 占位符先转成 ``:pN`` 命名参数）。
+    """
+    if isinstance(conn, sqlite3.Connection):
+        return pd.read_sql_query(sql, conn, params=params)
+    from backend.db_dialect import qmark_to_named
+
+    sql_n, binds = qmark_to_named(sql, params)
+    return pd.read_sql_query(sql_n, conn.sa_conn, params=binds)
+
 
 class NewsDatabase:
     """
@@ -151,49 +165,103 @@ class NewsDatabase:
         self._init_db()
 
     def _get_conn(self):
-        conn = sqlite3.connect(self.db_path)
+        """数据库连接（方言感知）。
+
+        SQLite：原路径（sqlite3 + WAL/foreign_keys PRAGMA，逐字节等价）；
+        PostgreSQL：经方言层打开连接（SS_NEWS_DB_URL 显式指定或 DATABASE_URL
+        为 PG 时跟随主库；连接失败显式报错，绝不静默回退 SQLite）。
+        """
+        from backend.db_dialect import Dialect, dialect_from_url, open_connection, resolve_bypass_url
+
+        url = resolve_bypass_url("SS_NEWS_DB_URL", self.db_path)
+        if dialect_from_url(url) is not Dialect.SQLITE:
+            return open_connection(url)
+        path = self.db_path
+        if os.environ.get("SS_NEWS_DB_URL"):
+            from backend.db_dialect import open_sqlite_file_path
+            path = open_sqlite_file_path(os.environ["SS_NEWS_DB_URL"])
+        conn = sqlite3.connect(path)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
         return conn
 
     def _init_db(self):
+        from backend.db_dialect import Dialect, bypass_dialect, now_expr
+
         conn = self._get_conn()
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS news (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL,
-                content TEXT DEFAULT '',
-                url TEXT DEFAULT '',
-                source TEXT DEFAULT '',
-                date TEXT,
-                inserted_at TEXT DEFAULT (datetime('now','localtime')),
-                fingerprint TEXT UNIQUE,
-                -- 分析字段
-                sentiment TEXT DEFAULT '中性',
-                sentiment_score REAL DEFAULT 0.0,
-                is_major INTEGER DEFAULT 0,
-                keywords TEXT DEFAULT '',
-                related_stocks TEXT DEFAULT '',
-                -- 元数据
-                search_keyword TEXT DEFAULT ''
-            );
+        if bypass_dialect("SS_NEWS_DB_URL", self.db_path) is Dialect.SQLITE:
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS news (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    content TEXT DEFAULT '',
+                    url TEXT DEFAULT '',
+                    source TEXT DEFAULT '',
+                    date TEXT,
+                    inserted_at TEXT DEFAULT (datetime('now','localtime')),
+                    fingerprint TEXT UNIQUE,
+                    -- 分析字段
+                    sentiment TEXT DEFAULT '中性',
+                    sentiment_score REAL DEFAULT 0.0,
+                    is_major INTEGER DEFAULT 0,
+                    keywords TEXT DEFAULT '',
+                    related_stocks TEXT DEFAULT '',
+                    -- 元数据
+                    search_keyword TEXT DEFAULT ''
+                );
 
-            CREATE INDEX IF NOT EXISTS idx_news_date ON news(date);
-            CREATE INDEX IF NOT EXISTS idx_news_sentiment ON news(sentiment);
-            CREATE INDEX IF NOT EXISTS idx_news_source ON news(source);
-            CREATE INDEX IF NOT EXISTS idx_news_keyword ON news(search_keyword);
-            CREATE INDEX IF NOT EXISTS idx_news_fp ON news(fingerprint);
+                CREATE INDEX IF NOT EXISTS idx_news_date ON news(date);
+                CREATE INDEX IF NOT EXISTS idx_news_sentiment ON news(sentiment);
+                CREATE INDEX IF NOT EXISTS idx_news_source ON news(source);
+                CREATE INDEX IF NOT EXISTS idx_news_keyword ON news(search_keyword);
+                CREATE INDEX IF NOT EXISTS idx_news_fp ON news(fingerprint);
 
-            -- 板块配置表
-            CREATE TABLE IF NOT EXISTS sectors (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL,
-                keywords TEXT NOT NULL,
-                stock_codes TEXT DEFAULT '',
-                description TEXT DEFAULT '',
-                created_at TEXT DEFAULT (datetime('now','localtime'))
-            );
-        """)
+                -- 板块配置表
+                CREATE TABLE IF NOT EXISTS sectors (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT UNIQUE NOT NULL,
+                    keywords TEXT NOT NULL,
+                    stock_codes TEXT DEFAULT '',
+                    description TEXT DEFAULT '',
+                    created_at TEXT DEFAULT (datetime('now','localtime'))
+                );
+            """)
+        else:
+            # PostgreSQL DDL：AUTOINCREMENT→BIGSERIAL、datetime('now','localtime')→now()、
+            # REAL→DOUBLE PRECISION（语义与 SQLite 建表逐列等价）
+            conn.executescript(f"""
+                CREATE TABLE IF NOT EXISTS news (
+                    id BIGSERIAL PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    content TEXT DEFAULT '',
+                    url TEXT DEFAULT '',
+                    source TEXT DEFAULT '',
+                    date TEXT,
+                    inserted_at TIMESTAMP DEFAULT {now_expr(Dialect.POSTGRESQL)},
+                    fingerprint TEXT UNIQUE,
+                    sentiment TEXT DEFAULT '中性',
+                    sentiment_score DOUBLE PRECISION DEFAULT 0.0,
+                    is_major INTEGER DEFAULT 0,
+                    keywords TEXT DEFAULT '',
+                    related_stocks TEXT DEFAULT '',
+                    search_keyword TEXT DEFAULT ''
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_news_date ON news(date);
+                CREATE INDEX IF NOT EXISTS idx_news_sentiment ON news(sentiment);
+                CREATE INDEX IF NOT EXISTS idx_news_source ON news(source);
+                CREATE INDEX IF NOT EXISTS idx_news_keyword ON news(search_keyword);
+                CREATE INDEX IF NOT EXISTS idx_news_fp ON news(fingerprint);
+
+                CREATE TABLE IF NOT EXISTS sectors (
+                    id BIGSERIAL PRIMARY KEY,
+                    name TEXT UNIQUE NOT NULL,
+                    keywords TEXT NOT NULL,
+                    stock_codes TEXT DEFAULT '',
+                    description TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT {now_expr(Dialect.POSTGRESQL)}
+                );
+            """)
         conn.commit()
         conn.close()
 
@@ -350,7 +418,7 @@ class NewsDatabase:
                       LIMIT ? OFFSET ?"""
             params.extend([limit, offset])
 
-            df = pd.read_sql_query(sql, conn, params=params)
+            df = _read_df(conn, sql, params)
             return df
         finally:
             conn.close()
@@ -379,7 +447,7 @@ class NewsDatabase:
                 GROUP BY date
                 ORDER BY date
             """
-            return pd.read_sql_query(sql, conn, params=params)
+            return _read_df(conn, sql, params)
         finally:
             conn.close()
 

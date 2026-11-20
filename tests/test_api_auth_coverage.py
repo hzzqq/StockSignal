@@ -26,9 +26,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 AUTH_DECORATORS = {"jwt_required", "admin_required"}
 ROUTE_METHODS = ("route", "get", "post", "put", "delete", "patch")
 
-# 显式登记的公开端点（当前为空：backend/api 全量鉴权）。
+# 显式登记的公开端点。
 # 新增公开端点时必须同时在此登记 + 写明原因。
-PUBLIC_ALLOWLIST = set()
+# /public-overview：登录页公开摘要（frontend-v2 LoginPage），2026-11-17 设计即为
+# 无鉴权脱敏只读（未登录用户可见项目规模/健康度），数据经 _sanitize 脱敏，
+# 不含任何持仓/账户/用户信息。2026-11-20 补登记（auth 守卫漏登记漂移修复）。
+PUBLIC_ALLOWLIST = {"/public-overview"}
 
 
 def _decorator_names(node):

@@ -1282,6 +1282,7 @@ export const diagnosticsEndpoints = [
   { path: '/api/v2/read/position-allocation', needs_params: false, probe_path: '/api/v2/read/position-allocation', required_query: [], sample_query: null },
   // 81 NL 语义解析：缺 query 即 400，与后端 _DIAG_REQUIRED_QUERY 字面一致。
   { path: '/api/v2/read/nl-screen', needs_params: true, probe_path: null, required_query: ['query'], sample_query: 'query=创业板' },
+  { path: '/api/v2/read/policy-transmission', needs_params: true, probe_path: null, required_query: ['policy_id'], sample_query: 'policy_id=0123456789abcdef0123456789abcdef' },
 ]
 
 export const diagnostics = {

@@ -32,6 +32,8 @@ import os
 import sqlite3
 from datetime import datetime, timedelta
 
+from sqlalchemy.exc import SQLAlchemyError
+
 logger = logging.getLogger(__name__)
 
 # ── 表结构与连接 ────────────────────────────────────────────────────────────
@@ -64,8 +66,27 @@ def _db_path() -> str:
     return os.path.join(repo, "data", "macro_history.db")
 
 
-def _get_conn() -> sqlite3.Connection:
+def _get_conn():
+    """打开宏观历史库连接（方言感知）。
+
+    SQLite：原路径（row_factory=Row + WAL/synchronous PRAGMA + 建表，逐字节等价）；
+    PostgreSQL：MACRO_DB_URL 显式指定 PG 连接串，或 DATABASE_URL 为 PG 时跟随
+    主库（macro_history 表建在同一 PG 库内）；连接失败显式报错，绝不静默回退
+    SQLite（诚实红线）。
+    """
+    from backend.db_dialect import Dialect, current_dialect, dialect_from_url, open_connection, open_sqlite_file_path
+
+    url = os.environ.get("MACRO_DB_URL") or ""
+    if not url:
+        if current_dialect() is Dialect.POSTGRESQL:
+            url = os.environ["DATABASE_URL"]
+        else:
+            url = _db_path()
+    if dialect_from_url(url) is not Dialect.SQLITE:
+        return open_connection(url)
     path = _db_path()
+    if os.environ.get("MACRO_DB_URL"):
+        path = open_sqlite_file_path(os.environ["MACRO_DB_URL"])
     os.makedirs(os.path.dirname(path), exist_ok=True)
     conn = sqlite3.connect(path, timeout=30)
     conn.row_factory = sqlite3.Row
@@ -145,6 +166,36 @@ def is_fresh(key: str, fetched_at: str) -> bool:
 
 # ── 写 ──────────────────────────────────────────────────────────────────────
 
+def _dialect():
+    """旁路库方言判定（MACRO_DB_URL / DATABASE_URL / 默认 SQLite）。"""
+    from backend.db_dialect import Dialect, current_dialect, dialect_from_url
+
+    url = os.environ.get("MACRO_DB_URL") or ""
+    if not url and current_dialect() is Dialect.POSTGRESQL:
+        url = os.environ["DATABASE_URL"]
+    return dialect_from_url(url or "sqlite://")
+
+
+def _upsert_macro_sql() -> str:
+    """macro_history 的 upsert SQL（方言感知）。
+
+    SQLite：与既有语句**逐字节等价**（含历史上 ``macro_history(`` 无空格拼接形式）；
+    PostgreSQL：经方言层生成 ``INSERT ... ON CONFLICT (key, date) DO UPDATE SET``
+    （PG 无 ``INSERT OR REPLACE`` 语法）。
+    """
+    from backend.db_dialect import Dialect, upsert_sql
+
+    d = _dialect()
+    if d is Dialect.SQLITE:
+        return ("INSERT OR REPLACE INTO macro_history"
+                "(key, date, value, prev, source, fetched_at) VALUES (?, ?, ?, ?, ?, ?)")
+    return upsert_sql(
+        d, "macro_history",
+        ("key", "date", "value", "prev", "source", "fetched_at"),
+        ("key", "date"),
+    )
+
+
 def write_macro_point(key: str, date: str, value, prev=None, source: str = "") -> bool:
     """写入单条宏观观测。返回是否成功写入。
 
@@ -164,15 +215,11 @@ def write_macro_point(key: str, date: str, value, prev=None, source: str = "") -
         conn = _get_conn()
         try:
             with conn:
-                conn.execute(
-                    "INSERT OR REPLACE INTO macro_history"
-                    "(key, date, value, prev, source, fetched_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (key, d, v, p, source or None, fetched_at),
-                )
+                conn.execute(_upsert_macro_sql(), (key, d, v, p, source or None, fetched_at))
             return True
         finally:
             conn.close()
-    except sqlite3.Error as e:  # noqa: BLE001 - 落盘失败不阻断取数主流程
+    except (sqlite3.Error, SQLAlchemyError) as e:  # noqa: BLE001 - 落盘失败不阻断取数主流程
         logger.warning(f"[macro_store] 写入宏观历史失败 key={key} date={d}: {e}")
         return False
 
@@ -186,11 +233,7 @@ def _write_many(conn: sqlite3.Connection, rows: list[tuple]) -> int:
     if not rows:
         return 0
     with conn:
-        conn.executemany(
-            "INSERT OR REPLACE INTO macro_history"
-            "(key, date, value, prev, source, fetched_at) VALUES (?, ?, ?, ?, ?, ?)",
-            rows,
-        )
+        conn.executemany(_upsert_macro_sql(), rows)
     return len(rows)
 
 
@@ -222,7 +265,7 @@ def write_macro_series(key: str, points: list[dict], source: str = "") -> int:
             return _write_many(conn, rows)
         finally:
             conn.close()
-    except sqlite3.Error as e:  # noqa: BLE001 - 落盘失败不阻断回填主流程
+    except (sqlite3.Error, SQLAlchemyError) as e:  # noqa: BLE001 - 落盘失败不阻断回填主流程
         logger.warning(f"[macro_store] 批量写入宏观历史失败 key={key} n={len(rows)}: {e}")
         return 0
 
@@ -245,7 +288,7 @@ def read_macro_latest(key: str):
             ).fetchone()
         finally:
             conn.close()
-    except sqlite3.Error as e:  # noqa: BLE001
+    except (sqlite3.Error, SQLAlchemyError) as e:  # noqa: BLE001
         logger.warning(f"[macro_store] 读宏观历史失败 key={key}: {e}")
         return None
     if row is None:
@@ -277,7 +320,7 @@ def read_macro_series(key: str, start: str | None = None, end: str | None = None
             rows = conn.execute(sql, params).fetchall()
         finally:
             conn.close()
-    except sqlite3.Error as e:  # noqa: BLE001
+    except (sqlite3.Error, SQLAlchemyError) as e:  # noqa: BLE001
         logger.warning(f"[macro_store] 读宏观序列失败 key={key}: {e}")
         return []
     return [
@@ -305,7 +348,7 @@ def macro_store_stats() -> dict:
             ).fetchall()
         finally:
             conn.close()
-    except sqlite3.Error as e:  # noqa: BLE001
+    except (sqlite3.Error, SQLAlchemyError) as e:  # noqa: BLE001
         logger.warning(f"[macro_store] 统计失败: {e}")
         return {"total": 0, "keys": []}
     return {

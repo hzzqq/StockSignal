@@ -23,7 +23,31 @@ from backend.app import create_app  # noqa: E402
 
 def migrate(app) -> bool:
     """执行迁移。返回是否发生了加列操作。"""
+    from backend.db_dialect import Dialect, column_exists_sql, dialect_from_url
+
     uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
+    dialect = dialect_from_url(uri)
+
+    if dialect is Dialect.POSTGRESQL:
+        # PostgreSQL 分支：列存在性探测经方言层生成 information_schema SQL，
+        # 经 SQLAlchemy 引擎执行（DDL 与 SQLite 同构，PG 原生支持 ADD COLUMN）
+        from sqlalchemy import text
+
+        from backend.extensions import db
+
+        changed = False
+        with db.engine.begin() as conn:
+            for column, ddl in (
+                ("alert_type",
+                 "ALTER TABLE price_alert ADD COLUMN alert_type VARCHAR(16) NOT NULL DEFAULT 'price'"),
+                ("params", "ALTER TABLE price_alert ADD COLUMN params TEXT"),
+            ):
+                probe_sql, probe_params = column_exists_sql(Dialect.POSTGRESQL, "price_alert", column)
+                if conn.execute(text(probe_sql), probe_params).fetchone() is None:
+                    conn.execute(text(ddl))
+                    changed = True
+        return changed
+
     if not uri.startswith("sqlite"):
         return False
 
