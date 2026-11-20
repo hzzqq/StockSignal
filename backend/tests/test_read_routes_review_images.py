@@ -239,3 +239,23 @@ def test_get_bad_extension_404_no_leak(client, token):
 def test_get_no_jwt_401(client):
     resp = client.get(f"{UPLOAD_URL}/2026-11-20/review_2026-11-20_000000000000.png")
     assert resp.status_code == 401
+
+
+# ───────── 全局 MAX_CONTENT_LENGTH 加固（2026-11-20 修复死代码 setdefault）─────────
+def test_max_content_length_configured_above_image_limit(app):
+    """全局请求体上限必须真实生效且 > 5MB 图片限制（旧 setdefault 在 Flask 预置
+    None 上永远空转，从未生效——探针实测复现过 3MB 穿透到端点层）。"""
+    mcl = app.config.get("MAX_CONTENT_LENGTH")
+    assert isinstance(mcl, int) and mcl > 0, f"MAX_CONTENT_LENGTH 未配置: {mcl!r}"
+    # 下限：不低于 review-images 5MB 限制的钳制值（6MB），否则图片上传会被 413 误杀
+    assert mcl >= 6 * 1024 * 1024, f"上限 {mcl} 低于图片上传 6MB 下限"
+
+
+def test_request_over_global_cap_rejected_413_json(client, token):
+    """超过全局上限（默认 10MB）的请求体 → 413，且为 JSON 信封而非 Flask 默认 HTML 错误页。"""
+    huge = PNG_MAGIC + b"\x00" * (11 * 1024 * 1024)  # 11MB > 默认 10MB 上限
+    resp = _upload(client, _auth(token), png_body=huge, filename="huge.png")
+    assert resp.status_code == 413, resp.status_code
+    assert resp.content_type.startswith("application/json")
+    obj = resp.get_json()
+    assert obj is not None and obj.get("status") == "error"

@@ -15,6 +15,7 @@ StockSignal 管理后端入口。
 """
 from __future__ import annotations  # noqa: I001
 import logging
+import os
 import time
 from flask import Flask
 from flask_cors import CORS
@@ -180,9 +181,17 @@ def create_app(config_object: type = Config) -> Flask:
     # （常量属性名不该用 setattr）。这里改用精准类型豁免，让 lint 与类型检查同时过。
     app.json.sort_keys = False  # type: ignore[attr-defined]
 
-    # 可用性加固：限制请求体大小，防止超大 payload 造成内存/DoS
-    # （可在部署环境用环境变量覆盖）
-    app.config.setdefault("MAX_CONTENT_LENGTH", 2 * 1024 * 1024)  # 2 MB
+    # 可用性加固：限制请求体大小，防止超大 payload 造成内存/DoS。
+    # ⚠️ 历史缺陷（2026-11-20 探针实测修复）：Flask 默认 config 已预置
+    # MAX_CONTENT_LENGTH=None，旧写法 setdefault(…, 2MB) 是死代码从未生效，
+    # 超大请求会一路穿透到端点层。显式赋值 + 可用环境变量覆盖。
+    # 上限必须 > review-images 的 5MB 图片限制（端点自身 5MB 校验先于 413 触发），
+    # 故对显式配置的过小值钳到 6MB 下限；部署可用 STOCKSIGNAL_MAX_UPLOAD_MB 覆盖。
+    try:
+        _max_upload_mb = max(6, int(os.environ.get("STOCKSIGNAL_MAX_UPLOAD_MB", "10")))
+    except (TypeError, ValueError):
+        _max_upload_mb = 10
+    app.config["MAX_CONTENT_LENGTH"] = _max_upload_mb * 1024 * 1024
 
     # ---- 健康检查（同样走 ok() 包装；含 DB 连通性探针）----
     @app.get("/api/health")
