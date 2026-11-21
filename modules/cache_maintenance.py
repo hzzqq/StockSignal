@@ -22,7 +22,7 @@ import sqlite3
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List  # noqa: UP035
+from typing import Any, Dict, List, Optional  # noqa: UP035
 
 logger = logging.getLogger(__name__)
 
@@ -46,27 +46,53 @@ def prune_sqlite_cache(
     days: int = DEFAULT_PRUNE_DAYS,
     date_col: str = "updated_at",
     dry_run: bool = False,
+    bypass_env: Optional[str] = None,
 ) -> Dict[str, Any]:  # noqa: UP006
-    """对 SQLite 库指定表按日期列做保留期清理；删除行 > 0 时 VACUUM 回收空间。
+    """对 SQLite/旁路库指定表按日期列做保留期清理；删除行 > 0 时 VACUUM 回收空间。
 
     - date_col 为 TEXT（cache.db 用 updated_at ISO；news 用 date YYYY-MM-DD）
     - cutoff = now - days；删除 date_col < cutoff 的行（边界日保留）
     - dry_run=True 仅统计不删、不 VACUUM
-    返回 {db, deleted, freed_bytes, error}（诚实：freed_bytes 实测前后体积差）。
+    - bypass_env 给定时走 backend.db_dialect 单一真源：按 env/DATABASE_URL 解析
+      连接、跳过本地 exists 检查（PG 下本地文件不存在属正常）；PG 方言跳过 VACUUM
+      （交由 autovacuum）、freed_bytes 如实置 0；SQLite 旁路仍照常 VACUUM。
+    返回 {db, deleted, freed_bytes, error, ...}；无 bypass_env 时字段与历史口径完全一致。
     """
     db_path = Path(db_path)
     res: Dict[str, Any] = {  # noqa: UP006
         "db": str(db_path), "deleted": 0, "freed_bytes": 0,
         "error": None, "tables": tables, "date_col": date_col,
     }
-    if not db_path.exists():
-        res["error"] = "missing"
-        return res
-    size_before = db_path.stat().st_size
+    use_bypass = bypass_env is not None
+    is_pg = False
+    url = None
+    measure_path = db_path
+    if use_bypass:
+        # 单一真源：URL 解析 / 方言判定 / 连接打开统一走 backend.db_dialect。
+        from backend.db_dialect import (  # noqa: PLC0415
+            Dialect, bypass_dialect, open_connection,
+            open_sqlite_file_path, resolve_bypass_url,
+        )
+        url = resolve_bypass_url(bypass_env, str(db_path))
+        is_pg = bypass_dialect(bypass_env, str(db_path)) is Dialect.POSTGRESQL
+        if not is_pg:
+            measure_path = Path(open_sqlite_file_path(url))
+        # 旁路分支跳过本地 db_path.exists()：PG 下本地文件不存在属正常。
+    else:
+        if not db_path.exists():
+            res["error"] = "missing"
+            return res
+    if use_bypass and is_pg:
+        size_before = 0  # PG 旁路完全不触碰本地文件系统
+    elif use_bypass:
+        size_before = measure_path.stat().st_size if measure_path.exists() else 0
+    else:
+        size_before = db_path.stat().st_size
     cutoff = _cutoff_date(days)
     conn = None
     try:
-        conn = sqlite3.connect(str(db_path), timeout=30)
+        conn = (open_connection(url) if use_bypass
+                else sqlite3.connect(str(db_path), timeout=30))
         for t in tables:
             try:
                 cur = conn.execute(
@@ -77,12 +103,17 @@ def prune_sqlite_cache(
                 if "no such table" in str(e).lower():
                     continue  # 该表从未写入，属预期
                 res["error"] = f"{t}: {e}"
+            except Exception as e:  # PG：SQLAlchemy 异常文案兼容
+                if is_pg and "does not exist" in str(e).lower():
+                    continue  # 该表从未写入，属预期（PG "relation ... does not exist"）
+                res["error"] = f"{t}: {e}"
         if not dry_run:
             # 先提交删除，再 VACUUM（VACUUM 不允许在活动事务内执行，否则报
             # "cannot VACUUM from within a transaction" 并导致 DELETE 回滚——旧写法踩过）
             conn.commit()
-            if res["deleted"] > 0:
+            if res["deleted"] > 0 and not is_pg:
                 # 仅在有删除时才 VACUUM（避免无谓的独占锁，保护并发读取的老板服务）
+                # PG 方言跳过：VACUUM 交由 autovacuum 管理。
                 conn.execute("VACUUM")
     except Exception as e:  # noqa: BLE001
         res["error"] = str(e)
@@ -92,8 +123,12 @@ def prune_sqlite_cache(
                 conn.close()
             except Exception:  # ui_audit_exempt: except-pass finally 内关闭连接兜底，关闭失败不应掩盖 VACUUM 主流程异常
                 pass
-    size_after = db_path.stat().st_size if db_path.exists() else 0
-    res["freed_bytes"] = max(size_before - size_after, 0)
+    if is_pg:
+        res["freed_bytes"] = 0  # 无意义测本地文件体积
+        res["vacuum"] = "skipped_pg_autovacuum"
+    else:
+        size_after = measure_path.stat().st_size if measure_path.exists() else 0
+        res["freed_bytes"] = max(size_before - size_after, 0)
     return res
 
 
@@ -101,6 +136,7 @@ def prune_daily_cache_duplicates(
     db_path,
     keep_per_symbol: int = 2,
     dry_run: bool = False,
+    bypass_env: Optional[str] = None,
 ) -> Dict[str, Any]:  # noqa: UP006
     """daily_cache 同股票多区间 key 去重：每只股票只保留 updated_at 最新的 N 份。
 
@@ -122,14 +158,35 @@ def prune_daily_cache_duplicates(
         "db": str(db_path), "deleted": 0, "kept": 0, "freed_bytes": 0,
         "symbols": 0, "error": None,
     }
-    if not db_path.exists():
-        res["error"] = "missing"
-        return res
+    use_bypass = bypass_env is not None
+    is_pg = False
+    url = None
+    measure_path = db_path
+    if use_bypass:
+        from backend.db_dialect import (  # noqa: PLC0415
+            Dialect, bypass_dialect, open_connection,
+            open_sqlite_file_path, resolve_bypass_url,
+        )
+        url = resolve_bypass_url(bypass_env, str(db_path))
+        is_pg = bypass_dialect(bypass_env, str(db_path)) is Dialect.POSTGRESQL
+        if not is_pg:
+            measure_path = Path(open_sqlite_file_path(url))
+        # 旁路分支跳过本地 db_path.exists()：PG 下本地文件不存在属正常。
+    else:
+        if not db_path.exists():
+            res["error"] = "missing"
+            return res
     keep = max(int(keep_per_symbol), 1)
-    size_before = db_path.stat().st_size
+    if use_bypass and is_pg:
+        size_before = 0  # PG 旁路完全不触碰本地文件系统
+    elif use_bypass:
+        size_before = measure_path.stat().st_size if measure_path.exists() else 0
+    else:
+        size_before = db_path.stat().st_size
     conn = None
     try:
-        conn = sqlite3.connect(str(db_path), timeout=30)
+        conn = (open_connection(url) if use_bypass
+                else sqlite3.connect(str(db_path), timeout=30))
         rows = conn.execute(
             "SELECT cache_key, updated_at FROM daily_cache").fetchall()
         groups: Dict[str, List[tuple]] = {}  # noqa: UP006
@@ -150,7 +207,9 @@ def prune_daily_cache_duplicates(
                              [(k,) for k in doomed])
             conn.commit()
             # VACUUM 必须在提交之后（同 prune_sqlite_cache 的既有教训）
-            conn.execute("VACUUM")
+            # PG 方言跳过：VACUUM 交由 autovacuum 管理。
+            if not is_pg:
+                conn.execute("VACUUM")
     except Exception as e:  # noqa: BLE001
         res["error"] = str(e)
     finally:
@@ -160,8 +219,12 @@ def prune_daily_cache_duplicates(
             except Exception as exc:  # noqa: BLE001
                 # 关闭失败不得掩盖主流程异常，但必须留痕（守卫禁 pure-pass 静默）
                 logger.debug("[cache_maintenance] daily 去重关闭连接失败: %s", exc)
-    size_after = db_path.stat().st_size if db_path.exists() else 0
-    res["freed_bytes"] = max(size_before - size_after, 0)
+    if is_pg:
+        res["freed_bytes"] = 0  # 无意义测本地文件体积
+        res["vacuum"] = "skipped_pg_autovacuum"
+    else:
+        size_after = measure_path.stat().st_size if measure_path.exists() else 0
+        res["freed_bytes"] = max(size_before - size_after, 0)
     return res
 
 
@@ -229,14 +292,15 @@ def run_cache_maintenance(
 
     # 1) cache.db
     report["sqlite"].append(
-        prune_sqlite_cache(DATA / "cache.db", CACHE_DB_TABLES, days, "updated_at", dry_run)
+        prune_sqlite_cache(DATA / "cache.db", CACHE_DB_TABLES, days, "updated_at", dry_run,
+                           bypass_env="SS_CACHE_DB_URL")
     )
 
     # 1b) cache.db daily_cache 重复区间 key 去重（R-08；纯缓存层，可关闭）
     if dedupe_daily:
         try:
             report["daily_dedupe"] = prune_daily_cache_duplicates(
-                DATA / "cache.db", dry_run=dry_run)
+                DATA / "cache.db", dry_run=dry_run, bypass_env="SS_CACHE_DB_URL")
         except Exception as e:  # noqa: BLE001
             report["errors"].append(f"daily_dedupe: {e}")
 
@@ -256,7 +320,8 @@ def run_cache_maintenance(
 
     # 3) news.db
     report["sqlite"].append(
-        prune_sqlite_cache(DATA / "news.db", NEWS_DB_TABLES, days, "date", dry_run)
+        prune_sqlite_cache(DATA / "news.db", NEWS_DB_TABLES, days, "date", dry_run,
+                           bypass_env="SS_NEWS_DB_URL")
     )
 
     # 4) shepherd 缓存目录（CSV，mtime）

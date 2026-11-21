@@ -35,19 +35,31 @@ _IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def _sqlite_json_max_date(db_path: str, table: str, *, field: str = None,
-                          col: str = "date", prefix: str = None) -> str | None:
+                          col: str = "date", prefix: str = None,
+                          bypass_env: str = None) -> str | None:
     """从 SQLite 表 ``data_json`` 内容里取最大日期；取不到返回 None（诚实 unknown）。
 
     - ``field`` 指定 → ``data_json`` 为对象，取其 ``field``（如 rt_quote_cache 的 ``datetime``）。
     - 否则 → ``data_json`` 为记录数组，取每条的 ``col``（如 index_cache/daily_cache 的 ``date``）。
     - ``prefix`` 限定 ``cache_key`` 前缀。表名做标识符白名单校验（非法不拼 SQL）。
+    - ``bypass_env`` 给定 → 走 db_dialect 单一真源（模块级 SS_*_DB_URL 或 PG 跟随主库方言），
+      且**跳过本地 exists 前置**（PG 下本地 cache.db 不存在属正常）；未给定 → 原 sqlite3 行为。
 
     **不做 mtime 兜底**：展示源共享 cache.db，其 mtime 被无关写入刷新，不代表数据日期。
     """
-    if not _IDENT.match(table or "") or not os.path.exists(db_path):
+    if not _IDENT.match(table or ""):
+        return None
+    # 无 bypass_env 时保持原 sqlite3 行为（含本地 exists 前置）；bypass 模式跳过该前置
+    if not bypass_env and not os.path.exists(db_path):
         return None
     try:
-        with sqlite3.connect(db_path) as conn:
+        if bypass_env:
+            from backend.db_dialect import open_connection, resolve_bypass_url
+
+            conn_cm = open_connection(resolve_bypass_url(bypass_env, db_path))
+        else:
+            conn_cm = sqlite3.connect(db_path)
+        with conn_cm as conn:
             if prefix:
                 rows = conn.execute(
                     f"SELECT data_json FROM {table} WHERE cache_key LIKE ?",
@@ -113,6 +125,7 @@ def _as_of(entry: dict) -> str | None:
         _CACHE_DB, entry.get("table", ""),
         field=entry.get("field"), col=entry.get("col", "date"),
         prefix=entry.get("prefix"),
+        bypass_env="SS_CACHE_DB_URL",
     )
 
 

@@ -88,7 +88,12 @@ def cache_db_footprint(limit_mb: float = CACHE_DB_LIMIT_MB) -> list[dict]:
     :returns: [{name, path, size_mb, status, note}]；status ∈ ok|over|missing|unknown。
     路径按 SS_DATA_DIR（测试隔离）或项目 data/ 推导；config 自定义库路径时按
     默认位置估算（如实按估算口径理解，非精确审计）。
+
+    PG 部署下旁路缓存库建在同一 PG 实例，本地文件体积口径不适用：本地文件不存在
+    时如实标 unknown（不谎报 missing / 0）；SQLite 路径行为完全不变。
     """
+    from backend.db_dialect import Dialect, current_dialect
+    pg_deploy = current_dialect() is Dialect.POSTGRESQL
     base = os.environ.get("SS_DATA_DIR") or _DATA_DIR
     out = []
     for name in ("cache.db", "market_cache.db"):
@@ -106,6 +111,9 @@ def cache_db_footprint(limit_mb: float = CACHE_DB_LIMIT_MB) -> list[dict]:
                 else:
                     entry["status"] = "ok"
                     entry["note"] = "体积正常（可再生，误删后自动重建）"
+            elif pg_deploy:
+                entry["status"] = "unknown"
+                entry["note"] = "PG 部署下缓存库位于同一 PG 实例，本地文件体积口径不适用"
         except OSError as e:
             entry["status"] = "unknown"
             entry["note"] = f"体积读取失败: {e}"
@@ -142,23 +150,33 @@ def _json_max_date(path: str) -> str | None:
     return _mtime_date(path)
 
 
-def _sqlite_col_max_date(path: str, table: str, col: str = "date") -> str | None:
+def _sqlite_col_max_date(path: str, table: str, col: str = "date",
+                         bypass_env: str | None = None) -> str | None:
     """SQLite 表某日期列的**内容**最大值（取不到退回文件 mtime）。
 
     针对「同一 DB 被多写者共享」的源（如 ``market_cache.db`` 既存指标缓存、又被
     健康观测表写入）：mtime 会被无关写入不断刷新 → **假新鲜**，必须读内容日期。
     标识符白名单校验，非法表/列直接返回 mtime（不拼进 SQL）。
+
+    ``bypass_env`` 给定时，连接目标由方言层解析（模块级 env 或 DATABASE_URL=PG），
+    并跳过 ``os.path.exists(path)`` 前置——PG 部署下本地文件不存在是正常现象。
+    未给定时保留原 sqlite3 行为，一字不改（默认零回归）。
     """
     import re as _re
     if not (_re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", table or "")
             and _re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", col or "")):
         return _mtime_date(path)
     try:
-        import sqlite3
-        if not os.path.exists(path):
-            return None
-        with sqlite3.connect(path) as conn:
-            row = conn.execute(f"SELECT MAX({col}) FROM {table}").fetchone()
+        if bypass_env:
+            from backend.db_dialect import open_connection, resolve_bypass_url
+            with open_connection(resolve_bypass_url(bypass_env, path)) as conn:
+                row = conn.execute(f"SELECT MAX({col}) FROM {table}").fetchone()
+        else:
+            import sqlite3
+            if not os.path.exists(path):
+                return None
+            with sqlite3.connect(path) as conn:
+                row = conn.execute(f"SELECT MAX({col}) FROM {table}").fetchone()
         if row and row[0]:
             return str(row[0])[:10]
     except Exception as exc:  # noqa: BLE001
@@ -202,7 +220,8 @@ DATA_SOURCES: list[dict] = [
     # 同一 market_cache.db 还被 data_source_health 观测表高频写入，mtime 恒为「今天」＝假新鲜。
     {"key": "market_temp", "name": "市场温度缓存", "kind": "sqlite_col_max_date",
      "path": os.path.join(_DATA_DIR, "market_cache.db"),
-     "table": "market_indicator_cache", "col": "date"},
+     "table": "market_indicator_cache", "col": "date",
+     "bypass_env": "SS_MARKET_CACHE_URL"},
     {"key": "daily_snapshot", "name": "今日快照", "kind": "json_date_field",
      "path": os.path.join(_DATA_DIR, "daily_snapshot.json"), "field": "date"},
     # 校准证据源：prediction_log 最近一次打分日（与决策输入源同等重要，须入守卫）
@@ -226,7 +245,8 @@ def source_as_of(entry: dict) -> str | None:
         return _json_max_date(entry["path"])
     if k == "sqlite_col_max_date":
         return _sqlite_col_max_date(entry["path"], entry.get("table", ""),
-                                    entry.get("col", "date"))
+                                    entry.get("col", "date"),
+                                    entry.get("bypass_env"))
     if k == "mtime":
         return _mtime_date(entry["path"])
     return None
@@ -364,8 +384,6 @@ def _name_of_key(key: str) -> str:
 # 却已连续 5 天没推进过 as_of"这种"正在冻结"的状态，靠 lag 看不出来——要等 lag 滚到 8 才报警。
 # 停更检测 = 拿"该源历史上最后推进到哪天"和"今天"比：冻结超过 STALL_DAYS 天即 stalled，
 # 不等它变成 stale 就提前告警（对应掘金/米筐的"数据质量/Point-in-Time"严谨性）。
-import sqlite3 as _sqlite3
-
 STALL_DAYS = 5  # 同一 as_of 冻结超过该自然日数 → 判定停更(stalled)，提前于 stale 报警
 
 _HEALTH_TABLE = "data_source_health"
@@ -375,12 +393,28 @@ def _health_db_path() -> str:
     return os.path.join(_DATA_DIR, "market_cache.db")
 
 
+def _open_market_cache():
+    """打开市场缓存库连接（方言单一真源）。
+
+    模块级 env ``SS_MARKET_CACHE_URL`` 显式指定（PG 连接串或 sqlite:// URL）优先；
+    否则跟随 ``DATABASE_URL``（PG 时旁路表建在同一 PG 库内）；否则回落默认 SQLite
+    文件路径（生产默认行为，零变化）。PG 分支由 db_dialect 处理：连接失败显式抛错，
+    绝不静默回退 SQLite。
+    """
+    from backend.db_dialect import open_connection, resolve_bypass_url
+    return open_connection(resolve_bypass_url("SS_MARKET_CACHE_URL", _health_db_path()))
+
+
 def _ensure_health_table() -> None:
     try:
-        with _sqlite3.connect(_health_db_path()) as conn:
+        from backend.db_dialect import autoincrement_pk, bypass_dialect
+        # SQLite 下产出与改前逐字节一致："id INTEGER PRIMARY KEY AUTOINCREMENT"
+        pk_def = autoincrement_pk(
+            bypass_dialect("SS_MARKET_CACHE_URL", _health_db_path()), "id")
+        with _open_market_cache() as conn:
             conn.execute(
                 f"CREATE TABLE IF NOT EXISTS {_HEALTH_TABLE} ("
-                " id INTEGER PRIMARY KEY AUTOINCREMENT,"
+                f" {pk_def},"
                 " source_key TEXT NOT NULL,"      # 源 key（与 DATA_SOURCES 对齐）
                 " observed_at TEXT NOT NULL,"      # 观测写入时间（真实时刻）
                 " as_of TEXT,"                     # 该源当时的真实数据截止日
@@ -405,7 +439,7 @@ def record_health_observation(rows: list[dict] | None = None) -> int:
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     n = 0
     try:
-        with _sqlite3.connect(_health_db_path()) as conn:
+        with _open_market_cache() as conn:
             for r in rows:
                 conn.execute(
                     f"INSERT INTO {_HEALTH_TABLE}"
@@ -437,7 +471,7 @@ def detect_stall(key: str | None = None) -> dict:
     out: dict = {}
     today = datetime.now().strftime("%Y-%m-%d")
     try:
-        with _sqlite3.connect(_health_db_path()) as conn:
+        with _open_market_cache() as conn:
             for k in keys:
                 # 必须按时间**升序**回溯：要找的是「as_of 最后一次变大」发生在哪一次观测。
                 # 若按 DESC 走，第一次命中 max_as_of 的就是最新一次观测，frozen 会退化成
