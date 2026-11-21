@@ -31,6 +31,7 @@ from backend.extensions import db  # noqa: E402
 from backend.models import User  # noqa: E402
 from backend.auth.service import issue_token  # noqa: E402
 import backend.api.read_routes as rr  # noqa: E402
+import modules.event_graph as evg  # noqa: E402
 
 
 PID = "c" * 32
@@ -252,3 +253,41 @@ def test_derived_note_documents_body_source(client, token, monkeypatch):
     assert "body_name" in note and "body_keyword" in note
     assert "非 LLM 判定" in note
     assert "非收益预测" in note
+
+
+# ───────────── 7. 正文命中行业 → 外部预匹配 → 真正产出标的 ─────────────
+
+def test_body_match_feeds_prematched_concepts_and_produces_entries(client, token, monkeypatch):
+    """修复「看得见命中行业但出不了标的」最后一环：正文命中且有真实成分股的行业
+    被作为 pre_matched_concepts 传入 build_transmission，最终产出非空 entries。"""
+    captured = {}
+    real_build = evg.build_transmission
+
+    def _spy(titles, concept_index, pre_matched_concepts=None):
+        captured["titles"] = list(titles)
+        captured["concept_index"] = dict(concept_index)
+        captured["pre_matched_concepts"] = pre_matched_concepts
+        return real_build(titles, concept_index, pre_matched_concepts=pre_matched_concepts)
+
+    monkeypatch.setattr(evg, "build_transmission", _spy)
+    _wire(monkeypatch, _doc(), [
+        _sector(*SEMI),                                       # ok，有真实成分股
+        _sector(*BATTERY, status="failed", codes="", mc=0),   # failed，不进 idx
+    ])
+
+    resp = client.get(URL, headers=_auth(token))
+    assert resp.status_code == 200, resp.get_data(as_text=True)[:300]
+    d = resp.get_json()["data"]
+
+    # 调用方确实把「已命中且有真实成分股的行业名」作为外部预匹配传入
+    assert captured.get("pre_matched_concepts") == {"半导体"}
+    assert list(captured["concept_index"].keys()) == ["半导体"]
+    # 标题无任何行业词（标题路径未命中），但正文命中 → 仍产出真实标的
+    assert "半导体" not in captured["titles"][0]
+    assert "电池" not in captured["titles"][0]
+    assert d["entries"], "正文命中行业有真实成分股却未产出标的"
+    assert all(e["code"] in ("600111", "600222") for e in d["entries"])
+    # 诚实红线：failed 行业仍不进 idx、仍列 members_unavailable
+    mu = [m for m in d["members_unavailable"] if m["name"] == "动力电池"]
+    assert len(mu) == 1 and mu[0]["fetch_status"] == "failed"
+    assert mu[0]["matched_by"].startswith("body_")

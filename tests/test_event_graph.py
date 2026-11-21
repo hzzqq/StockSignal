@@ -237,3 +237,61 @@ def test_display_rows_does_not_mutate_input():
     before = json.loads(json.dumps(res, ensure_ascii=False, default=str))
     eg.display_rows(res)
     assert json.loads(json.dumps(res, ensure_ascii=False, default=str)) == before
+
+
+# ─────────────── 外部预匹配概念（政策正文/标题本地行业命中） ───────────────
+_PREMATCH_IDX = {
+    "半导体": [{"code": "688001", "name": "中芯国际"}],
+    "电池": [{"code": "300001", "name": "宁德时代"}],
+}
+_NO_INDUSTRY_TITLE = "关于透视10月国民经济运行态势的若干意见"  # 党建/民生类，无行业词
+
+
+def test_build_transmission_prematched_produces_entries_without_concept_in_title():
+    """核心回归：标题完全不含概念词，但传入 pre_matched_concepts 时仍产出真实成分股。"""
+    r = eg.build_transmission([_NO_INDUSTRY_TITLE], _PREMATCH_IDX,
+                              pre_matched_concepts={"半导体", "电池"})
+    assert r["status"] == "ok"
+    assert {e["code"] for e in r["entries"]} == {"688001", "300001"}
+    assert set(r["concepts_hit"]) == {"半导体", "电池"}
+
+
+def test_build_transmission_without_prematched_keeps_original_behavior():
+    """未提供 pre_matched：仍只按标题匹配；无概念词标题 → empty（默认零回归）。"""
+    r = eg.build_transmission([_NO_INDUSTRY_TITLE], _PREMATCH_IDX)
+    assert r["status"] == "empty"
+    assert r["entries"] == []
+    assert "外部预匹配" not in r["basis"]                 # 未提供时 basis 文案一字不变
+    assert "共现" in r["basis"]
+
+
+def test_build_transmission_prematched_intersects_names():
+    """pre_matched 与 names 求交：不在 concept_index 里的概念被忽略，不编造标的。"""
+    r = eg.build_transmission([_NO_INDUSTRY_TITLE], _PREMATCH_IDX,
+                              pre_matched_concepts={"半导体", "光伏", "不存在的概念"})
+    assert {e["code"] for e in r["entries"]} == {"688001"}
+    assert r["concepts_hit"] == ["半导体"]
+    assert r["members_unavailable"] == []
+
+
+def test_build_transmission_prematched_dedups_no_double_count():
+    """pre_matched 去重：同一概念重复传入不得重复计分。"""
+    idx = {"半导体": [{"code": "688001", "name": "中芯国际"}]}
+    once = eg.build_transmission([_NO_INDUSTRY_TITLE], idx,
+                                 pre_matched_concepts=["半导体"])
+    twice = eg.build_transmission([_NO_INDUSTRY_TITLE], idx,
+                                  pre_matched_concepts=["半导体", "半导体"])
+    assert once["entries"][0]["score"] == 1
+    assert twice["entries"][0]["score"] == 1
+
+
+def test_build_transmission_prematched_direction_and_evidence_from_title():
+    """方向/证据/点名仍源于标题：pre_matched 只决定命中哪些概念，不改语义。"""
+    title = "多部门联合发文推动产业涨停"
+    r = eg.build_transmission([(title, "2026-11-10")], {"半导体": [
+        {"code": "688001", "name": "中芯国际"}]}, pre_matched_concepts={"半导体"})
+    e = r["entries"][0]
+    assert e["direction"] == eg.BIG_BULLISH       # 标题一线强词「涨停」
+    assert e["evidence"] == [title]               # 证据取标题，非正文
+    assert e["dates"] == ["2026-11-10"]
+    assert "共现" in r["basis"] and "外部预匹配" in r["basis"]  # 原口径保留 + 追加说明

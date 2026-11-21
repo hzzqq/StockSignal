@@ -120,11 +120,13 @@ def match_concepts(text, concept_names) -> list:
     return hits
 
 
-def build_transmission(titles, concept_index) -> dict:
+def build_transmission(titles, concept_index, pre_matched_concepts=None) -> dict:
     """把一批标题 + 概念成分股索引 → 受益标的排行。
 
     ``concept_index``：``{概念名: [{"code","name"}, ...]}``。
     ``titles``：``[(标题, 日期)]`` 或 ``[标题]``。
+    ``pre_matched_concepts``：可选，外部已匹配的概念名集合（如政策正文/标题的本地行业命中）。
+        提供时优先用它和索引键求交，标题是否含概念词不再作为命中前提；未提供时行为完全不变。
 
     返回 ``{"status","basis","disclaimer","entries":[...],"members_unavailable":[...]}``。
     """
@@ -148,8 +150,20 @@ def build_transmission(titles, concept_index) -> dict:
     missing_members: set = set()
     hit_concepts: set = set()
 
+    # 外部预匹配（如政策正文/标题的本地行业命中）：与索引键求交后直接作为命中概念。
+    # 去重且保留传入顺序；不在 names 里的概念被忽略（不编造标的、不进 hit_concepts）。
+    # 未提供时仍走原 match_concepts(title, names)，默认零回归。
+    pre_matched = None
+    if pre_matched_concepts is not None:
+        pre_matched = list(dict.fromkeys(
+            str(c) for c in pre_matched_concepts if c and str(c).strip()
+        ))
+
     for title, date in norm:
-        matched = match_concepts(title, names)
+        if pre_matched is not None:
+            matched = [c for c in pre_matched if c in names]
+        else:
+            matched = match_concepts(title, names)
         if not matched:
             continue
         direction = event_direction(title)
@@ -188,12 +202,18 @@ def build_transmission(titles, concept_index) -> dict:
         entries.append(rec)
     entries.sort(key=lambda r: (-r["score"], r["code"]))
 
+    basis = (
+        "关联度 = 文本共现（概念命中 ×1；个股与概念同标题点名 ×3）；"
+        "方向 = 情绪词净强度五档（大/小 × 利好/利空：一线强词或净命中 ≥2 记「大」，"
+        "单命中记「小」，多条标题按 +2/+1/-1/-2 加权合成）"
+    )
+    if pre_matched_concepts is not None:
+        basis += "；概念命中来自政策正文/标题的本地行业命中（外部预匹配）"
+
     return {
         "status": "ok" if entries else "empty",
         "reason": "" if entries else "标题里没有命中任何已知概念",
-        "basis": "关联度 = 文本共现（概念命中 ×1；个股与概念同标题点名 ×3）；"
-                 "方向 = 情绪词净强度五档（大/小 × 利好/利空：一线强词或净命中 ≥2 记「大」，"
-                 "单命中记「小」，多条标题按 +2/+1/-1/-2 加权合成）",
+        "basis": basis,
         "disclaimer": "关联度仅为文本统计，不代表受益程度，更不是收益预测；请自行判断。",
         "n_titles": len(norm),
         "concepts_hit": sorted(hit_concepts),

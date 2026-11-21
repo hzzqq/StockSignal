@@ -235,15 +235,15 @@ def test_16_fetch_members_exponential_backoff(monkeypatch):
 def _patch_refresh(monkeypatch, names, codes, member_fn):
     monkeypatch.setattr(fetcher, "fetch_industry_names",
                         lambda: [{"name": n, "source": "ths"} for n in names])
-    monkeypatch.setattr(fetcher, "_fetch_em_board_index",
-                        lambda **kw: dict(codes))
+    monkeypatch.setattr(fetcher, "_ths_board_codes",
+                        lambda: dict(codes))
     monkeypatch.setattr(fetcher.time, "sleep", lambda s: None)
     calls = []
 
-    def _members(code, *, delay=1.5, retries=3):
+    def _members(code, **kwargs):
         calls.append(code)
         return member_fn(code)
-    monkeypatch.setattr(fetcher, "fetch_members", _members)
+    monkeypatch.setattr(fetcher, "fetch_members_ths", _members)
     return calls
 
 
@@ -276,8 +276,8 @@ def test_18_resume_only_refetches_failed(db, monkeypatch):
     fetcher.refresh_sector_map(limit=3, resume=False)
 
     calls = []
-    monkeypatch.setattr(fetcher, "fetch_members",
-                        lambda code, *, delay=1.5, retries=3: (
+    monkeypatch.setattr(fetcher, "fetch_members_ths",
+                        lambda code, **kwargs: (
                             calls.append(code) or [{"code": "000002", "name": "补抓"}]
                         ))
     out = fetcher.refresh_sector_map(limit=3, resume=True)

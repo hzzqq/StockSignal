@@ -4094,7 +4094,10 @@ def policy_transmission():
             # 纯本地索引：name 用 code 占位（derived，非真实证券简称）
             idx[sname] = [{"code": c, "name": c} for c in codes]
 
-        res = evg.build_transmission([title], idx) if idx else {
+        # idx 的键就是「标题/正文已命中且有真实成分股的行业名」，即外部已匹配概念。
+        # 政策标题多为党建/民生类，不含行业词；把它作为 pre_matched_concepts 传入，
+        # 让 build_transmission 不再因标题无行业词而漏掉标的（方向/证据仍取标题，保持诚实）。
+        res = evg.build_transmission([title], idx, pre_matched_concepts=set(idx.keys())) if idx else {
             "status": "empty", "entries": [], "concepts_hit": [], "members_unavailable": [],
         }
         entries = evg.display_rows(res)
