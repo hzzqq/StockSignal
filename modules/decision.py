@@ -959,6 +959,7 @@ def is_stale(max_age_hours: float = 20.0) -> bool:
 # 供决策面板显式横幅展示——看见 > 被悄悄降权。
 _DECISION_LOOP_DEAD_HOURS = 48.0      # 快照 >48h 未更新：判定调度死/停摆（硬红线，私有常量，无外部引用）
 _DECISION_LOOP_STALE_HOURS = 26.0    # 快照 >26h 未更新：超过一个交易日，疑似延迟（私有常量，无外部引用）
+_DECISION_LOOP_DUE_HOUR = 18          # 交易日 18:00 起当日快照应已落盘（调度 17:35 + tick 余量）
 
 
 def assess_decision_loop_health() -> dict:
@@ -985,12 +986,77 @@ def assess_decision_loop_health() -> dict:
         generated_at = snap.get("generated_at")
         as_of = snap.get("as_of") or snap.get("date")
         gen_lag_hours = (_t.time() - mtime) / 3600.0
+        now_dt = _dt.now()
         if generated_at:
             try:
-                gen_lag_hours = (_dt.now() - _dt.fromisoformat(str(generated_at))).total_seconds() / 3600.0
+                gen_lag_hours = (now_dt - _dt.fromisoformat(str(generated_at))).total_seconds() / 3600.0
             except Exception as e:  # noqa: BLE001
                 logger.debug("[decision] generated_at 解析失败(%r)，回退 mtime 口径: %s", generated_at, e)
         data_lag_days = _age_days(as_of)
+
+        # 交易日历口径（2026-11-21 周六误报修复）：只统计「错过几个应落盘的交易日」，
+        # 不再用自然小时直接判 stale。周五 15:31 已落盘、周六无新收盘数据，
+        # 即使墙钟滞后 29h 也属正常；长假同理。只有真的跨过交易日未落盘才告警。
+        from datetime import timedelta as _timedelta  # noqa: I001
+
+        is_trading_day = None
+        expected_session = None
+        try:
+            from modules.trading_calendar import is_trading_day as _is_trading_day
+            from modules.trading_calendar import prev_trading_day
+
+            is_trading_day = _is_trading_day
+            now_d = now_dt.date()
+            if is_trading_day(now_d) and now_dt.hour >= _DECISION_LOOP_DUE_HOUR:
+                expected_session = now_d
+            else:
+                expected_session = prev_trading_day(now_d)
+        except Exception as e:  # noqa: BLE001 - 日历不可用时回退自然小时口径，不静默假绿
+            logger.debug("[decision] 交易日历不可用，回退自然小时口径: %s", e)
+
+        as_of_date = None
+        for raw in (as_of, generated_at):
+            if not raw:
+                continue
+            try:
+                as_of_date = _dt.strptime(str(raw)[:10], "%Y-%m-%d").date()
+                break
+            except Exception:  # noqa: BLE001 - 日期格式异常则继续尝试下一个来源
+                continue
+
+        missed_sessions = 0
+        if expected_session is not None and as_of_date is not None and is_trading_day is not None:
+            d = as_of_date
+            while d < expected_session:
+                d += _timedelta(days=1)
+                if is_trading_day(d):
+                    missed_sessions += 1
+
+        calendar_ok = (
+            expected_session is not None
+            and as_of_date is not None
+            and missed_sessions == 0
+        )
+        if calendar_ok:
+            if is_trading_day is not None and not is_trading_day(now_dt.date()):
+                why = '非交易日，等待下一交易日收盘落盘'
+            elif now_dt.hour < _DECISION_LOOP_DUE_HOUR:
+                why = '今日尚未到落盘时点'
+            else:
+                why = '最新交易日已落盘'
+            return {
+                "status": "ok", "rank": 0, "generated_at": generated_at, "as_of": as_of,
+                "gen_lag_hours": round(gen_lag_hours, 1), "data_lag_days": data_lag_days,
+                "message": f"✅ 决策闭环正常，最新数据日 {as_of}；{why}，最后生成 {generated_at or '未知'}。",
+            }
+
+        if missed_sessions > 0 and gen_lag_hours < _DECISION_LOOP_STALE_HOURS:
+            return {
+                "status": "stale", "rank": 2, "generated_at": generated_at, "as_of": as_of,
+                "gen_lag_hours": round(gen_lag_hours, 1), "data_lag_days": data_lag_days,
+                "message": f"⚠️ 数据日仍为 {as_of}，已错过 {missed_sessions} 个交易日落盘"
+                           f"（距上次生成 {gen_lag_hours:.0f} 小时），请检查每日快照调度。",
+            }
 
         if gen_lag_hours >= _DECISION_LOOP_DEAD_HOURS:
             return {

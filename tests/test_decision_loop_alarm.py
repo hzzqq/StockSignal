@@ -3,6 +3,7 @@
 锁定不变量：
 - assess_decision_loop_health 返回结构化分级：ok/warn/stale/dead/unknown
 - 快照 >48h 未更新 -> dead（调度死）；缺失文件 -> dead
+- 交易日/非交易日按交易日历判定：周末与节假日前移不误报 stale
 - 新鲜快照 -> ok
 - render_decision_loop_alarm 按 status 正确映射到 红/橙/绿 盒子
 全部离线（monkeypatch 本地快照 + time），不触网。
@@ -45,6 +46,29 @@ def test_health_ok_for_fresh_snapshot(monkeypatch, tmp_path):
     assert h["status"] == "ok", h
     assert h["rank"] == 0
     assert "正常" in h["message"]
+
+
+def test_health_ok_on_weekend_when_last_trading_day_snapshot_exists(monkeypatch, tmp_path):
+    """2026-11-21 周六假警报回归：周五 15:31 已落盘，周末无新收盘，不得判 stale。"""
+    snap = {"generated_at": "2026-11-20T15:31:34", "as_of": "2026-11-20"}
+    now = _time.mktime(_time.strptime("2026-11-21 21:00:00", "%Y-%m-%d %H:%M:%S"))
+    _patch(monkeypatch, tmp_path, snap, now - 29 * 3600, now)
+    h = D.assess_decision_loop_health()
+    assert h["status"] == "ok", h
+    assert h["rank"] == 0
+    assert h["gen_lag_hours"] >= 26  # 自然小时确实超阈值，但交易日历口径优先
+    assert '非交易日' in h['message'] or '正常' in h['message']
+
+
+def test_health_stale_when_trading_session_missed_even_if_hours_are_short(monkeypatch, tmp_path):
+    """周一 18:30 仍停在周五数据日：即使距上次生成仅 10h，也已错过一个交易日。"""
+    snap = {"generated_at": "2026-11-23T08:00:00", "as_of": "2026-11-20"}
+    now = _time.mktime(_time.strptime("2026-11-23 18:30:00", "%Y-%m-%d %H:%M:%S"))
+    _patch(monkeypatch, tmp_path, snap, now - 10 * 3600, now)
+    h = D.assess_decision_loop_health()
+    assert h["status"] == "stale", h
+    assert h["rank"] == 2
+    assert "错过 1 个交易日" in h["message"]
 
 
 def test_health_dead_when_generated_at_old(monkeypatch, tmp_path):
