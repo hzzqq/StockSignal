@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WebApps } from './WebApps'
@@ -37,6 +37,19 @@ describe('WebApps 四态', () => {
     mocked.mockRejectedValue(new Error('作品集加载失败'))
     renderWithClient(<WebApps />)
     await expect(screen.findByText('作品集加载失败')).resolves.toBeTruthy()
+  })
+
+  it('502 空响应 → 给出后端重启提示并可手动重试成功', async () => {
+    mocked
+      .mockRejectedValueOnce(new Error('HTTP 502 Bad Gateway：响应不是 JSON（空响应）'))
+      .mockResolvedValueOnce(okData)
+    renderWithClient(<WebApps />)
+
+    expect(await screen.findByText(/HTTP 502 Bad Gateway/)).toBeTruthy()
+    expect(screen.getByText(/后端服务可能正在重启或未启动/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '重新加载作品清单' }))
+    await waitFor(() => expect(screen.getByText('作品A')).toBeTruthy())
+    expect(screen.queryByText(/后端服务可能正在重启/)).toBeNull()
   })
 
   it('ok 渲染作品卡片（标题/描述/版本·日期）', async () => {
