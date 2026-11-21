@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { QuoteBoard } from './QuoteBoard'
@@ -7,6 +7,11 @@ import type { QuoteBoard as QuoteBoardData } from '@/api/schemas/read'
 
 vi.mock('@/api/read', () => ({
   getQuoteBoard: vi.fn(),
+}))
+// 全局 K 线浮层 mock：只验证「指数卡点击 → openKLine(code, name)」接线，不渲染弹窗
+const mOpenKLine = vi.fn()
+vi.mock('@/features/stock/charts/klineOverlayStore', () => ({
+  openKLine: (...args: unknown[]) => mOpenKLine(...args),
 }))
 
 import { getQuoteBoard } from '@/api/read'
@@ -42,6 +47,7 @@ const okData: QuoteBoardData = {
 
 beforeEach(() => {
   mocked.mockReset()
+  mOpenKLine.mockReset()
 })
 
 describe('QuoteBoard 三态 + KPI + 指数卡 + 板块榜 + 市场状态', () => {
@@ -116,5 +122,15 @@ describe('QuoteBoard 三态 + KPI + 指数卡 + 板块榜 + 市场状态', () =>
     renderWithClient(<QuoteBoard />)
     expect(await screen.findByText('暂无行情看板数据')).toBeTruthy()
     expect(screen.queryByText('🔺 涨幅 TOP6')).toBeNull()
+  })
+
+  it('点击指数卡 → openKLine(code, name) 弹全局 K 线浮层（2026-11-22 老板需求）', async () => {
+    mocked.mockResolvedValue(okData)
+    renderWithClient(<QuoteBoard />)
+    fireEvent.click(await screen.findByRole('button', { name: '上证指数 查看 K 线详情' }))
+    expect(mOpenKLine).toHaveBeenCalledWith('sh000001', '上证指数', 'market')
+    // 缺失快照的指数卡（上证50，code 合法）仍可点击看 K 线（弹窗内有诚实空态）
+    fireEvent.click(screen.getByRole('button', { name: '上证50 查看 K 线详情' }))
+    expect(mOpenKLine).toHaveBeenCalledWith('sh000016', '上证50', 'market')
   })
 })

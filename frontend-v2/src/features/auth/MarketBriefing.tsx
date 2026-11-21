@@ -193,7 +193,12 @@ function IndexIntradayCard({
   return (
     <div className="rounded-card bg-sf-surface border border-sf-line p-5">
       <div className="flex items-baseline justify-between mb-2">
-        <span className="text-title font-medium text-sf-ink-2">上证分时</span>
+        <span
+          className="text-title font-medium text-sf-ink-2 border-l-[3px] pl-2"
+          style={{ borderColor: 'var(--color-brand-1)' }}
+        >
+          上证分时
+        </span>
         <span className="text-label text-sf-ink-3 tabular-nums">
           {date ?? '—'}
           {pct != null ? (
@@ -229,7 +234,12 @@ function PicksCard({ picks, dash }: { picks: PublicPicksView | null; dash: strin
 
   return (
     <div className="rounded-card bg-sf-surface border border-sf-line p-5">
-      <div className="text-title font-medium text-sf-ink-2 mb-2">今日推荐</div>
+      <div
+        className="text-title font-medium text-sf-ink-2 mb-2 border-l-[3px] pl-2"
+        style={{ borderColor: 'var(--color-brand-2)' }}
+      >
+        今日推荐
+      </div>
 
       {/* 股票（P1 量化信号 top_long 前 5） */}
       <div className="text-label text-sf-ink-3 mb-1">
@@ -258,23 +268,27 @@ function PicksCard({ picks, dash }: { picks: PublicPicksView | null; dash: strin
       <div className="text-label text-sf-ink-3 mb-1">活跃板块（行业资金净流入领先）</div>
       {sectors.length ? (
         <ul className="m-0 p-0 list-none space-y-1">
-          {sectors.map((s) => (
-            <li key={s.industry} className="flex items-center justify-between text-[0.86rem]">
-              <span className="text-sf-ink">{s.industry}</span>
-              <span className="tabular-nums text-sf-ink-2">
-                净额 {s.net ?? dash}
-                {s.chg_pct != null ? (
-                  <span
-                    className="ml-1.5"
-                    style={{ color: s.chg_pct >= 0 ? 'var(--color-ss-up)' : 'var(--color-ss-down)' }}
-                  >
-                    {s.chg_pct >= 0 ? '+' : ''}
-                    {s.chg_pct.toFixed(2)}%
-                  </span>
-                ) : null}
-              </span>
-            </li>
-          ))}
+          {sectors.map((s) => {
+            // 净额为文本（后端补「亿」单位）；'-' 前缀 = 净流出 → 绿（交易屏语义）
+            const netOut = typeof s.net === 'string' && s.net.trim().startsWith('-')
+            return (
+              <li key={s.industry} className="flex items-center justify-between text-[0.86rem]">
+                <span className="text-sf-ink font-medium">{s.industry}</span>
+                <span className="tabular-nums font-semibold" style={{ color: netOut ? 'var(--color-ss-down)' : 'var(--color-ss-up)' }}>
+                  {s.net ?? dash}
+                  {s.chg_pct != null ? (
+                    <span
+                      className="ml-1.5 font-medium"
+                      style={{ color: s.chg_pct >= 0 ? 'var(--color-ss-up)' : 'var(--color-ss-down)' }}
+                    >
+                      {s.chg_pct >= 0 ? '+' : ''}
+                      {s.chg_pct.toFixed(2)}%
+                    </span>
+                  ) : null}
+                </span>
+              </li>
+            )
+          })}
         </ul>
       ) : (
         <div className="text-label text-sf-ink-3">{dash} 暂无板块资金流数据</div>

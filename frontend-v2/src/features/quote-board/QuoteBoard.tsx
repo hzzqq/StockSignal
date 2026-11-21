@@ -6,6 +6,7 @@ import { QueryState } from '@/shared/ui/States'
 import { CollapsibleRankTable, type RankColumn } from '@/shared/ui/CollapsibleRankTable'
 import { RetestButton } from '@/shared/ui/RetestButton'
 import { CHART } from '@/shared/charts/palette'
+import { openKLine } from '@/features/stock/charts/klineOverlayStore'
 
 /**
  * 10 页「行情看板」V2 化（对应 V2-STATUS-PLAN Tier2 最后一页）。
@@ -54,11 +55,35 @@ function barWidth(pct: unknown, maxAbs: number): number {
   return Math.min(100, (Math.abs(nz(pct)) / maxAbs) * 100)
 }
 
-/** 单张指数迷你卡：缺失时整卡显示「暂无数据」，绝不补 0。 */
+/** 单张指数迷你卡：缺失时整卡显示「暂无数据」，绝不补 0。
+ *  2026-11-22 老板需求：点击弹出该指数 K 线弹窗（复用全局 openKLine 浮层，
+ *  sh/sz 前缀 code 由 KLineModal 自动走指数日线端点 /index-kline）。 */
 function IndexCard({ item }: { item: QuoteBoardIndex }) {
   const hasValue = typeof item.current === 'number' && Number.isFinite(item.current)
+  const clickable = !!item.code && /^(sh|sz)\d{6}$/.test(item.code)
+  if (!clickable) {
+    // code 缺失 / 形态非法：退化为静态卡（诚实降级，不做假按钮）
+    return (
+      <div className="rounded-tile bg-sf-surface-2 border border-sf-line px-3.5 py-3">
+        <IndexCardBody item={item} hasValue={hasValue} />
+      </div>
+    )
+  }
   return (
-    <div className="rounded-tile bg-sf-surface-2 border border-sf-line px-3.5 py-3">
+    <button
+      type="button"
+      onClick={() => openKLine(item.code as string, item.name ?? undefined, 'market')}
+      aria-label={`${item.name ?? item.code} 查看 K 线详情`}
+      className="rounded-tile bg-sf-surface-2 border border-sf-line px-3.5 py-3 text-left transition-all hover:border-sf-accent hover:shadow-[0_0_0_1px_var(--color-sf-accent)_inset] cursor-pointer"
+    >
+      <IndexCardBody item={item} hasValue={hasValue} />
+    </button>
+  )
+}
+
+function IndexCardBody({ item, hasValue }: { item: QuoteBoardIndex; hasValue: boolean }) {
+  return (
+    <>
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-xs font-semibold text-sf-ink">{item.name ?? '—'}</span>
         <span className="text-[11px] font-mono text-sf-ink-3">{item.code ?? '—'}</span>
@@ -88,7 +113,7 @@ function IndexCard({ item }: { item: QuoteBoardIndex }) {
           <div className="text-[11px] text-sf-ink-3 mt-1.5">数据源不可用 / 离线</div>
         </>
       )}
-    </div>
+    </>
   )
 }
 
@@ -199,7 +224,7 @@ export function QuoteBoard() {
               ) : (
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <div className="text-xs font-semibold mb-2">🔺 涨幅 TOP6</div>
+                    <div className="text-xs font-semibold mb-2" style={{ color: 'var(--color-ss-up)' }}>🔺 涨幅 TOP6</div>
                     {topUp.map((s) => (
                       <div key={`u-${s.name}`} className="mb-1">
                         <div className="flex justify-between text-xs">
@@ -213,7 +238,7 @@ export function QuoteBoard() {
                     ))}
                   </div>
                   <div>
-                    <div className="text-xs font-semibold mb-2">🔻 跌幅 TOP6</div>
+                    <div className="text-xs font-semibold mb-2" style={{ color: 'var(--color-ss-down)' }}>🔻 跌幅 TOP6</div>
                     {topDown.map((s) => (
                       <div key={`d-${s.name}`} className="mb-1">
                         <div className="flex justify-between text-xs">

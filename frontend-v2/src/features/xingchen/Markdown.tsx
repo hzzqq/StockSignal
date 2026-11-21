@@ -50,31 +50,53 @@ const components: Components = {
     return <td className="border border-sf-line px-2 py-1 text-sf-ink-2">{children}</td>
   },
   h1({ children }) {
-    return <h1 className="mb-1 mt-3 text-[1.2rem] font-semibold text-sf-ink">{children}</h1>
+    return <h1 className="mb-1 mt-3 border-l-[3px] pl-2 text-[1.2rem] font-semibold text-sf-ink" style={{ borderColor: 'var(--color-brand-1)' }}>{children}</h1>
   },
   h2({ children }) {
-    return <h2 className="mb-1 mt-3 text-[1.08rem] font-semibold text-sf-ink">{children}</h2>
+    return <h2 className="mb-1 mt-3 border-l-[3px] pl-2 text-[1.08rem] font-semibold text-sf-ink" style={{ borderColor: 'var(--color-brand-1)' }}>{children}</h2>
   },
   h3({ children }) {
-    return <h3 className="mb-1 mt-2 text-[1rem] font-semibold text-sf-ink">{children}</h3>
+    // AI 回应的「结论 / 板块方向 / 综合判断」等分节标题：品牌色条 + 提亮，扫读时一眼定位
+    return <h3 className="mb-1 mt-2 border-l-[3px] pl-2 text-[1rem] font-bold text-sf-ink" style={{ borderColor: 'var(--color-brand-2)' }}>{children}</h3>
   },
   p({ children }) {
     return <p className="my-1.5 leading-relaxed text-sf-ink-2">{children}</p>
   },
   ul({ children }) {
-    return <ul className="my-1.5 list-disc space-y-1 pl-5 text-sf-ink-2">{children}</ul>
+    return (
+      <ul
+        className="my-1.5 list-disc space-y-1 pl-5 text-sf-ink-2 [&::marker]:text-sf-accent"
+      >
+        {children}
+      </ul>
+    )
   },
   ol({ children }) {
-    return <ol className="my-1.5 list-decimal space-y-1 pl-5 text-sf-ink-2">{children}</ol>
+    return (
+      <ol
+        className="my-1.5 list-decimal space-y-1 pl-5 text-sf-ink-2 [&::marker]:text-sf-accent"
+      >
+        {children}
+      </ol>
+    )
   },
   blockquote({ children }) {
-    return <blockquote className="my-2 border-l-2 border-sf-line pl-3 text-sf-ink-3">{children}</blockquote>
+    return (
+      <blockquote className="my-2 rounded-tile border-l-2 py-1.5 pl-3 text-sf-ink-2" style={{ borderColor: 'var(--color-sf-warn)' }}>
+        {children}
+      </blockquote>
+    )
   },
   hr() {
     return <hr className="my-3 border-sf-line" />
   },
   strong({ children }) {
-    return <strong className="font-semibold text-sf-ink">{children}</strong>
+    // 重点词从「纯加粗」升级为品牌色加粗——AI 回应的关键结论/数据不再淹没在正文里
+    return (
+      <strong className="font-bold" style={{ color: 'var(--color-brand-1)' }}>
+        {children}
+      </strong>
+    )
   },
   code({ className, children }) {
     const isBlock = /language-/.test(className || '')

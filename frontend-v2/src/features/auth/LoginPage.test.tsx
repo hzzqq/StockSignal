@@ -175,7 +175,8 @@ describe('LoginPage · 上证分时 + 今日推荐（2026-11-21 老板需求）'
     expect(screen.getByText('演示半导体')).toBeTruthy()
     expect(screen.getByText('+10.0%')).toBeTruthy()
     expect(screen.getByText('电池')).toBeTruthy()
-    expect(screen.getByText('净额 -12.50亿')).toBeTruthy()
+    // 净流入为正 → 红色净额文本（交易屏语义）；测试夹具 -12.50亿 为净流出 → 绿色
+    expect(screen.getByText('-12.50亿')).toBeTruthy()
     expect(screen.getByText('量化信号与资金流均为灰度参考，不构成投资建议')).toBeTruthy()
   })
 
