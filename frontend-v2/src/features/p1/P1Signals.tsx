@@ -12,6 +12,7 @@ function P1Table({ title, rows }: { title: string; rows?: P1TopItem[] }) {
           <thead>
             <tr className="text-sf-ink-3 text-left">
               <th className="py-1">代码</th>
+              <th className="py-1">名称</th>
               <th className="py-1">预测</th>
               <th className="py-1">排名</th>
             </tr>
@@ -20,6 +21,7 @@ function P1Table({ title, rows }: { title: string; rows?: P1TopItem[] }) {
             {rows.map((r, i) => (
               <tr key={`${r.symbol}-${i}`} className="border-t border-sf-line">
                 <td>{r.symbol}</td>
+                <td>{r.name ?? '—'}</td>
                 <td>{r.pred != null ? r.pred.toFixed(4) : '—'}</td>
                 <td>{r.rank != null ? r.rank.toFixed(3) : '—'}</td>
               </tr>

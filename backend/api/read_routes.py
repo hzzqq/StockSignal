@@ -281,6 +281,42 @@ def p1_signals():
         status, data = _read_json(fp)
         if status == "ok":
             out[fp.name] = data
+
+    # 水合股票名称：P1 原始 JSON 的 top_long/top_short 只有 symbol/pred/rank，
+    # 从零网络真实股票池建一次性 code->name 映射补 name；未命中写 None（诚实空，
+    # 前端显示 —），绝不编造。只读响应数据，绝不写回原 JSON 文件。
+    try:
+        from ..services.stock_pool_fallback import load_stock_pool
+
+        _pool = load_stock_pool()  # 单次调用，复用 lru_cache
+        _name_by_code = {
+            str(it.get("code") or "").strip(): str(it.get("name") or "").strip()
+            for it in _pool
+            if isinstance(it, dict)
+        }
+        _hydrated: dict[str, object] = {}
+        for _fname, _sig in out.items():
+            if not isinstance(_sig, dict):
+                _hydrated[_fname] = _sig
+                continue
+            _new_sig = dict(_sig)
+            for _key in ("top_long", "top_short"):
+                _items = _new_sig.get(_key)
+                if not isinstance(_items, list):
+                    continue
+                _new_items = []
+                for _item in _items:
+                    if isinstance(_item, dict):
+                        _code = str(_item.get("symbol") or "")[-6:].zfill(6)
+                        _new_items.append({**_item, "name": _name_by_code.get(_code)})
+                    else:
+                        _new_items.append(_item)
+                _new_sig[_key] = _new_items
+            _hydrated[_fname] = _new_sig
+        out = _hydrated
+    except Exception as e:  # T-239：名称水合失败不得静默/500，留痕后降级为原样返回
+        logging.getLogger(__name__).warning("p1-signals 名称水合失败，降级为原样返回: %s", e)
+
     return ok(data=out, message="p1_signals/")
 
 

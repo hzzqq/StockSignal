@@ -91,13 +91,13 @@ export const p1Signals: Record<string, unknown> = {
     generated_at: '2026-11-05T02:02:29',
     latest_date: '2026-10-21',
     top_long: [
-      { symbol: 'sh688048', pred: 0.0479, rank: 1 },
-      { symbol: 'sh688668', pred: 0.0447, rank: 0.999 },
-      { symbol: 'sz300475', pred: 0.0423, rank: 0.998 },
+      { symbol: 'sh688048', name: '长光华芯', pred: 0.0479, rank: 1 },
+      { symbol: 'sh688668', name: '鼎通科技', pred: 0.0447, rank: 0.999 },
+      { symbol: 'sz300475', name: '香农芯创', pred: 0.0423, rank: 0.998 },
     ],
     top_short: [
-      { symbol: 'sz002594', pred: -0.0312, rank: 1 },
-      { symbol: 'sh601012', pred: -0.0288, rank: 0.997 },
+      { symbol: 'sz002594', name: '比亚迪', pred: -0.0312, rank: 1 },
+      { symbol: 'sh601012', name: '隆基绿能', pred: -0.0288, rank: 0.997 },
     ],
     model: { name: 'fusion_h10', horizon: 10 },
   },
@@ -105,10 +105,10 @@ export const p1Signals: Record<string, unknown> = {
     generated_at: '2026-11-04T22:11:03',
     latest_date: '2026-10-21',
     top_long: [
-      { symbol: 'sh600519', pred: 0.0391, rank: 1 },
-      { symbol: 'sz000858', pred: 0.0355, rank: 0.992 },
+      { symbol: 'sh600519', name: '贵州茅台', pred: 0.0391, rank: 1 },
+      { symbol: 'sz000858', name: '五粮液', pred: 0.0355, rank: 0.992 },
     ],
-    top_short: [{ symbol: 'sz300750', pred: -0.0291, rank: 1 }],
+    top_short: [{ symbol: 'sz300750', name: '宁德时代', pred: -0.0291, rank: 1 }],
     model: { name: 'gru_h10', horizon: 10 },
   },
 }

@@ -118,6 +118,7 @@ export type PublicOverview = z.infer<typeof PublicOverviewSchema>
 // ───────── P1 量化信号（p1_signals/signal_*.json）─────────
 export const P1TopItemSchema = z.object({
   symbol: z.string(),
+  name: z.string().nullable().optional(),
   pred: z.number().optional(),
   rank: z.number().optional(),
 })
