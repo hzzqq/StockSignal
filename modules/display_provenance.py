@@ -22,6 +22,7 @@ import logging
 import os
 import re
 import sqlite3
+from contextlib import closing
 
 from modules.decision import assess_freshness
 
@@ -58,7 +59,8 @@ def _sqlite_json_max_date(db_path: str, table: str, *, field: str = None,
 
             conn_cm = open_connection(resolve_bypass_url(bypass_env, db_path))
         else:
-            conn_cm = sqlite3.connect(db_path)
+            # with sqlite3.Connection 只提交/回滚、不关闭；closing 才会真正释放文件句柄
+            conn_cm = closing(sqlite3.connect(db_path))
         with conn_cm as conn:
             if prefix:
                 rows = conn.execute(

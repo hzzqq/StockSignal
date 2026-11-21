@@ -66,6 +66,34 @@ _ROUTE_WORDS: List[tuple] = [  # noqa: UP006
 
 _PICK_WORDS = ("选股", "挑股票", "找股票", "推荐股票", "筛选", "选几只", "选几支", "帮我选")
 
+# 板块/行业问题路由（2026-11-21）：旧规划器只认「资金」二字，用户问
+# 「新能源板块后市怎么走」被兜底成市场情绪 + 数据健康，答不出板块方向。
+# 这里识别板块语境与常见赛道名，把问题导向 fund_flow(scope=industry) + 市场环境。
+_SECTOR_CONTEXT_WORDS = ("板块", "行业", "赛道", "概念股")
+_SECTOR_OUTLOOK_WORDS = (
+    "后市", "怎么走", "走势", "方向", "前景", "未来", "机会", "还能", "能不能买",
+    "强不强", "强弱", "怎么看", "值得", "配置", "参与", "拐点", "空间",
+)
+_SECTOR_NAMES = (
+    "新能源", "光伏", "风电", "储能", "电池", "锂电", "能源金属", "电力设备",
+    "半导体", "芯片", "集成电路", "人工智能", "AI", "机器人", "低空经济",
+    "医药", "医疗", "生物医药", "中药", "创新药", "白酒", "食品饮料", "消费",
+    "军工", "国防", "汽车", "新能源车", "银行", "证券", "券商", "保险",
+    "地产", "房地产", "煤炭", "钢铁", "有色", "化工", "家电", "传媒", "游戏",
+    "通信", "计算机", "数字经济", "环保", "农业", "旅游",
+)
+
+
+def _detect_sector(question: str) -> Optional[str]:  # noqa: UP045
+    """识别问题里的赛道名；仅在板块语境或后市语境下返回，避免个股问题误路由。"""
+    q = str(question or "")
+    if not any(w in q for w in _SECTOR_CONTEXT_WORDS + _SECTOR_OUTLOOK_WORDS):
+        return None
+    for name in _SECTOR_NAMES:
+        if name in q:
+            return name
+    return None
+
 _CODE_RE = re.compile(r"\b\d{6}\b")
 
 # 多轮历史规范化上限（T-138 M1）：内容截断 / 条数上限 / 合法角色
@@ -143,6 +171,13 @@ def plan_steps(question: str, history: Any = None) -> List[Dict[str, Any]]:  # n
             continue
         args = {"code": code} if needs_code else {}
         _add(tool, args, f"关键词命中：{tool}")
+        lowered_hit = True
+
+    sector_name = _detect_sector(q)
+    if sector_name:
+        _add("fund_flow", {"scope": "industry", "name": sector_name},
+             f"板块问题：取 {sector_name} 行业资金流与涨跌排名")
+        _add("get_market_sentiment", {}, "板块问题：补市场环境（整体强弱与情绪位置）")
         lowered_hit = True
 
     if any(w in q for w in _PICK_WORDS):
@@ -265,6 +300,9 @@ def _plan_with_llm(
             '只输出 JSON：{"steps":[{"tool":"工具名","args":{...},"why":"一句话"}]}，'
             "不要输出其它文字。args 只能用工具支持的简单参数；code 只能是当前问题或"
             "历史里出现过的 6 位代码。\n"
+            "板块/行业/赛道问题（如「新能源板块后市怎么走」）必须调用 "
+            "fund_flow 且 args={\"scope\":\"industry\",\"name\":\"板块口语名\"}，"
+            "并同时调用 get_market_sentiment 判断整体环境；不要把板块问题只规划成数据健康或宏观。\n"
             f"{history_block}"
             f"用户问题：{question}"
         )
@@ -325,6 +363,13 @@ def _synthesize_with_llm(
                 "不得从历史中取任何数字充当数据点）：\n" + lines
             )
         _style = str(style or "report").strip().lower()
+        sector_req = (
+            "\n\n若用户问的是板块/行业/赛道方向：必须基于行业资金流真实结果给出**倾向性判断**"
+            "（偏强/中性/偏弱 + 依据：行业涨跌/净额排名、相对全市场的位置、市场情绪环境），"
+            "并附 3~5 条可验证的后续观察信号。行业数据缺失时如实说明缺什么、"
+            "并给「需要哪些数据才能判断」的清单，不要只回一句「无法判断」。"
+            if _detect_sector(question) else ""
+        )
         structure_req = (
             "\n\n回答按完整研报结构组织：**执行摘要**（结论先行）→ **分维度解读**"
             "（对每个工具数据维度展开，逐条带 [S#] 引用）→ **多情景推演**"
@@ -339,6 +384,7 @@ def _synthesize_with_llm(
             "每个数据点必须标注 [S#] 引用（S 编号见各条目前缀）；数据没覆盖的部分如实说明，"
             "禁止编造或外推。"
             + structure_req
+            + sector_req
             + f"\n\n用户问题：{question}\n\n工具数据：\n" + "\n".join(digest_lines) + history_block
         )
         text = llm.chat_completion(
@@ -356,6 +402,101 @@ def _synthesize_with_llm(
 _STATUS_LABEL = {"ok": "完成", "partial": "部分完成", "unavailable": "数据不可用"}
 
 
+def _as_number(v: Any) -> Optional[float]:  # noqa: UP045
+    """从数值/「12.5亿」「3,400万」中抽数值；抽不到返回 None（不补 0）。"""
+    if v is None or isinstance(v, bool):
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v).replace(",", "").strip()
+    m = re.search(r"-?\d+(?:\.\d+)?", s)
+    if not m:
+        return None
+    try:
+        x = float(m.group())
+    except (TypeError, ValueError):
+        # ui_audit_exempt: 数值解析失败返回 None 是诚实降级（不补 0），非异常吞噬
+        return None
+    if "万" in s:
+        x /= 10000.0
+    return x
+
+
+def _sector_bias(rows: List[Dict[str, Any]]) -> str:  # noqa: UP006
+    """基于真实行业行的涨跌/净额符号给方向判断，缺项明确说明，不编造。"""
+    chg = [x for x in (_as_number(r.get("涨跌幅")) for r in rows) if x is not None]
+    net = [x for x in (_as_number(r.get("净额")) for r in rows) if x is not None]
+    if not chg and not net:
+        return "中性（涨跌幅与净额数值缺失，不据缺失数据下方向结论）"
+    up, down = sum(1 for x in chg if x > 0), sum(1 for x in chg if x < 0)
+    inflow, outflow = sum(1 for x in net if x > 0), sum(1 for x in net if x < 0)
+    if not net:
+        if up and not down:
+            return "偏强（样本行业普涨；资金净额缺失，未做资金确认）"
+        if down and not up:
+            return "偏弱（样本行业普跌；资金净额缺失，未做资金确认）"
+        return "中性（样本行业涨跌分化；资金净额缺失）"
+    if not chg:
+        if inflow > outflow:
+            return "偏强（资金净流入占优；涨跌幅缺失，未做价格确认）"
+        if outflow > inflow:
+            return "偏弱（资金净流出占优；涨跌幅缺失，未做价格确认）"
+        return "中性（资金方向分化；涨跌幅缺失）"
+    if up and not down and inflow > outflow:
+        return "偏强（样本行业普涨且资金净流入占优）"
+    if down and not up and outflow > inflow:
+        return "偏弱（样本行业普跌且资金净流出占优）"
+    if down and inflow > outflow:
+        return "分化（样本行业下跌但资金逆势净流入占优，偏止跌观察）"
+    if up and outflow > inflow:
+        return "分化（样本行业上涨但资金净流出占优，警惕冲高回落）"
+    return "中性（样本行业涨跌与资金方向不一致，等待进一步确认）"
+
+
+def _step_evidence_line(s: Dict[str, Any]) -> str:  # noqa: UP006
+    """证据行：行业资金流用可读摘要，避免把整段 JSON 原文丢给客户。"""
+    sm = s.get("summary") or {}
+    if s.get("tool") == "fund_flow" and isinstance(sm.get("matched"), list) and sm["matched"]:
+        bits = []
+        for row in sm["matched"][:3]:
+            if not isinstance(row, dict):
+                continue
+            bits.append(
+                f"{row.get('行业') or '未命名行业'} "
+                f"净额{row.get('净额', '—') if row.get('净额') is not None else '—'}"
+                f"/排名{row.get('净额排名', '—') if row.get('净额排名') is not None else '—'}"
+            )
+        core = f"{sm.get('name') or '行业'} 资金流聚焦：{'，'.join(bits)}"
+        if sm.get("_total_matched"):
+            core += f" 等 {sm['_total_matched']} 个行业"
+    elif s.get("tool") == "get_market_sentiment" and sm.get("temperature_label"):
+        temp = sm.get("temperature")
+        temp_text = f"{temp:.1f}" if isinstance(temp, (int, float)) else str(temp if temp is not None else "—")
+        core = f"市场温度 {temp_text}（{sm['temperature_label']}）"
+        ind = sm.get("indicators")
+        if isinstance(ind, str):
+            try:
+                parsed = json.loads(ind)
+            except (TypeError, ValueError):
+                parsed = None
+            if isinstance(parsed, dict):
+                up, down = parsed.get("up_count"), parsed.get("down_count")
+                zt, dt = parsed.get("limit_up"), parsed.get("limit_down")
+                if up is not None and down is not None:
+                    if isinstance(up, (int, float)) and isinstance(down, (int, float)):
+                        core += f"；涨 {up:g} / 跌 {down:g}"
+                    else:
+                        core += f"；涨 {up} / 跌 {down}"
+                if zt is not None and dt is not None:
+                    core += f"，涨停 {zt} / 跌停 {dt}"
+    else:
+        core = json.dumps(sm, ensure_ascii=False, default=str)
+        if len(core) > 200:
+            core = core[:200] + "…"
+    as_of = f"（数据截至 {s['data_as_of']}）" if s.get("data_as_of") else ""
+    return f"- [S{s['idx']}] `{s['tool']}`：{core}{as_of}"
+
+
 def _rule_synthesize(
     question: str, steps: List[Dict[str, Any]], citations: List[Dict[str, Any]],  # noqa: UP006
     limitations: List[str],  # noqa: UP006
@@ -371,11 +512,40 @@ def _rule_synthesize(
         )
     lines = [f"### 研究结论（{_STATUS_LABEL.get('ok', '完成')}，共 {len(ok_steps)} 项有效数据）", ""]
     for s in ok_steps:
-        core = json.dumps(s.get("summary") or {}, ensure_ascii=False, default=str)
-        if len(core) > 200:
-            core = core[:200] + "…"
-        as_of = f"（数据截至 {s['data_as_of']}）" if s.get("data_as_of") else ""
-        lines.append(f"- [S{s['idx']}] `{s['tool']}`：{core}{as_of}")
+        lines.append(_step_evidence_line(s))
+
+    # 零 LLM 兜底也要给板块问题一个基于真实数据的方向，而不是只丢原始 JSON。
+    sector = _detect_sector(question)
+    if sector:
+        focus = next((s for s in ok_steps if s["tool"] == "fund_flow"
+                      and (s.get("summary") or {}).get("name") == sector), None)
+        if focus:
+            sm = focus.get("summary") or {}
+            matched = [r for r in (sm.get("matched") or []) if isinstance(r, dict)]
+            if matched:
+                lines.append("")
+                lines.append(f"### {sector} 板块方向（基于真实行业资金流）")
+                for row in matched[:3]:
+                    industry = row.get("行业") or "未命名行业"
+                    chg = row.get("涨跌幅", "—")
+                    net = row.get("净额", "—")
+                    rank = row.get("净额排名", "—")
+                    lines.append(
+                        f"- [S{focus['idx']}] {industry}：涨跌幅 {chg}，净额 {net}，"
+                        f"全行业净额排名 {rank}。"
+                    )
+                env_step = next((s for s in ok_steps if s["tool"] == "get_market_sentiment"), None)
+                env_label = (env_step.get("summary") or {}).get("temperature_label") if env_step else None
+                env = f"；大盘环境：{env_label}" if env_label else ""
+                lines.append(
+                    f"- 综合判断：{sector} 板块 **{_sector_bias(matched)}**{env}。"
+                    "仅为行业层面短周期资金与涨跌观察，不代表个股收益承诺。"
+                )
+            elif sm.get("available") is False:
+                lines.append("")
+                lines.append(f"### {sector} 板块方向")
+                lines.append(f"- [S{focus['idx']}] 行业资金流未取到该赛道数据，按诚实红线不给方向结论。")
+
     if limitations:
         lines.append("")
         lines.append("> ⚠️ " + "；".join(limitations[:5]))

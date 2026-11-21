@@ -100,8 +100,11 @@ def _resolve_func(name: str):
     return None
 
 
-def call_tool(name: str, **kwargs: Any) -> Dict[str, Any]:  # noqa: UP006
+def call_tool(tool_name: str, **kwargs: Any) -> Dict[str, Any]:  # noqa: UP006
     """同进程调用一个 MCP 工具，返回统一结构。
+
+    注意：首参命名为 tool_name，避免与业务工具参数 ``name``（如 fund_flow 的行业名）
+    在 ``call_tool(tool, **args)`` 展开时发生 ``multiple values for argument 'name'`` 冲突。
 
     返回示例::
 
@@ -112,20 +115,20 @@ def call_tool(name: str, **kwargs: Any) -> Dict[str, Any]:  # noqa: UP006
     """
     from modules.timeout_exec import run_with_timeout
 
-    func = _resolve_func(name)
+    func = _resolve_func(tool_name)
     if func is None:
-        return {"ok": False, "error": f"工具不存在: {name}"}
+        return {"ok": False, "error": f"工具不存在: {tool_name}"}
     try:
         # 总超时护栏：分工具覆盖（T-122）——重工具 ≥ 其内部护栏，未登记回落默认 12s。
         # 任何工具内部无界阻塞（远程取数）都会在此被强制返回 None，网关转成友好错误，
         # 避免站内 AI 页 / 外部客户端永久卡死。
-        result = run_with_timeout(lambda: func(**kwargs), timeout=_timeout_for(name))
+        result = run_with_timeout(lambda: func(**kwargs), timeout=_timeout_for(tool_name))
     except Exception as e:  # noqa: BLE001 - 网关统一兜底，不让异常冒泡到页面
-        logger.warning(f"[mcp_gateway] 工具 {name} 调用异常: {e}")
+        logger.warning(f"[mcp_gateway] 工具 {tool_name} 调用异常: {e}")
         return {"ok": False, "error": f"工具调用异常: {e}"}
 
     if result is None:
-        return {"ok": False, "error": f"工具调用超时（>{_timeout_for(name)}s）或内部无返回: {name}"}
+        return {"ok": False, "error": f"工具调用超时（>{_timeout_for(tool_name)}s）或内部无返回: {tool_name}"}
 
     # 工具自身已约定：出错时返回含 "error" 键的 dict
     if isinstance(result, dict) and result.get("error"):

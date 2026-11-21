@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json  # noqa: F401
+import re
 import sys
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional  # noqa: UP035
@@ -294,12 +295,83 @@ def run_backtest(
 # ---------------------------------------------------------------------------
 # 工具 5：资金流向
 # ---------------------------------------------------------------------------
-def fund_flow(code: str = "", scope: str = "individual") -> Dict[str, Any]:  # noqa: UP006
+# 板块别名：用户口语（新能源）与东财行业名（电池/光伏设备/风电设备）不是一一对齐。
+# 只做「包含匹配 + 真实行业名回显」，匹配不到就如实返回空，绝不编造行业条目。
+_SECTOR_ALIASES: Dict[str, tuple] = {  # noqa: UP006
+    "新能源": ("新能源", "光伏", "风电", "电池", "储能", "能源金属", "电力设备"),
+    "新能源车": ("新能源车", "汽车整车", "汽车零部件", "电池"),
+    "半导体": ("半导体", "芯片", "集成电路"),
+    "人工智能": ("人工智能", "AI", "软件", "计算机", "通信"),
+    "医药": ("医药", "医疗", "生物", "中药", "创新药"),
+    "白酒": ("白酒", "食品饮料", "酿酒"),
+    "消费": ("消费", "食品饮料", "家电", "商业", "旅游", "零售"),
+    "军工": ("军工", "国防", "航天", "航空"),
+    "券商": ("证券", "券商", "金融"),
+    "地产": ("房地产", "地产", "建筑"),
+    "有色": ("有色", "贵金属", "小金属", "工业金属"),
+}
+
+
+def _num_hint(v: Any) -> Optional[float]:  # noqa: UP045
+    """从「12.3亿 / -5.2 / 3,400万」中抽数值用于排序；抽不到返回 None（不补 0）。"""
+    s = str(v).replace(",", "").strip()
+    m = re.search(r"-?\d+(?:\.\d+)?", s)
+    if not m:
+        return None
+    try:
+        x = float(m.group())
+    except (TypeError, ValueError):
+        # ui_audit_exempt: 数值解析失败返回 None 是诚实降级（不补 0），非异常吞噬
+        return None
+    if "万" in s:
+        x /= 10000.0
+    return x
+
+
+def _industry_focus(df: Any, name: str) -> Dict[str, Any]:  # noqa: UP006
+    """按口语板块名过滤真实行业资金流，并给出在全行业中的排名上下文。"""
+    if df is None or getattr(df, "empty", True):
+        return {"scope": "industry", "name": name, "matched": [], "universe_total": 0,
+                "available": False, "reason": "行业资金流取数失败"}
+    try:
+        rows = df.to_dict("records") if hasattr(df, "to_dict") else list(df)
+    except Exception:  # noqa: BLE001
+        return {"scope": "industry", "name": name, "matched": [], "universe_total": 0,
+                "available": False, "reason": "行业资金流解析失败"}
+    keys = _SECTOR_ALIASES.get(name, (name,))
+    matched = [r for r in rows if any(k in str(r.get("行业", "")) for k in keys)]
+
+    def _rank_map(field: str) -> Dict[int, int]:
+        vals = [(i, _num_hint(r.get(field))) for i, r in enumerate(rows)]
+        valid = sorted((i for i, v in vals if v is not None), key=lambda i: vals[i][1], reverse=True)
+        return {i: pos + 1 for pos, i in enumerate(valid)}
+
+    chg_rank = _rank_map("涨跌幅")
+    net_rank = _rank_map("净额")
+    out = []
+    for r in matched[:8]:
+        item = dict(r)
+        idx = rows.index(r)
+        item["涨跌幅排名"] = chg_rank.get(idx)
+        item["净额排名"] = net_rank.get(idx)
+        out.append(item)
+    return {
+        "scope": "industry", "name": name, "aliases": list(keys),
+        "matched": out, "matched_total": len(matched), "universe_total": len(rows),
+        "available": bool(matched),
+        "note": "行业名来自真实行业资金流；别名仅用于筛选，未命中不编造行业数据",
+        "top_chg": rows[chg_rank and min(chg_rank, key=chg_rank.get)] if chg_rank else None,
+        "top_net": rows[min(net_rank, key=net_rank.get)] if net_rank else None,
+    }
+
+
+def fund_flow(code: str = "", scope: str = "individual", name: str = "") -> Dict[str, Any]:  # noqa: UP006
     """查询资金流向。
 
     Args:
         code: 个股代码（可选）；为空时查市场/行业层面
         scope: individual（个股）/ market（市场）/ northbound（北向）/ industry（行业）
+        name: 行业/板块口语名（仅 scope=industry 生效，如「新能源」）
 
     Returns:
         对应资金流数据（结构随 scope 不同）
@@ -311,7 +383,10 @@ def fund_flow(code: str = "", scope: str = "individual") -> Dict[str, Any]:  # n
     if scope == "northbound":
         return {"scope": "northbound", "data": _jsonable(fundflow.get_northbound_fund_flow())}
     if scope == "industry":
-        return {"scope": "industry", "data": _jsonable(fundflow.get_industry_fund_flow())}
+        df = fundflow.get_industry_fund_flow()
+        if name and str(name).strip():
+            return _industry_focus(df, str(name).strip())
+        return {"scope": "industry", "data": _jsonable(df)}
     # individual
     if not code:
         return {"error": "查询个股资金流需提供 code"}
@@ -877,6 +952,7 @@ def _register_all() -> None:
                     "enum": ["individual", "market", "northbound", "industry"],
                     "default": "individual",
                 },
+                "name": {"type": "string", "description": "行业口语名（scope=industry 时可选，如 新能源）"},
             },
             "required": [],
         },

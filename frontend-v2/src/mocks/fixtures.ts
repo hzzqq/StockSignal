@@ -1247,6 +1247,8 @@ export const diagnosticsEndpoints = [
   { path: '/api/v2/read/backtest-runs', needs_params: false, probe_path: '/api/v2/read/backtest-runs', required_query: [], sample_query: null },
   { path: '/api/v2/read/snapshot/<date>', needs_params: true, probe_path: null, required_query: ['<path>'], sample_query: null },
   { path: '/api/v2/read/six-dim', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
+  { path: '/api/v2/read/stock-profile', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
+  { path: '/api/v2/read/technical-score', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
   { path: '/api/v2/read/financials', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
   { path: '/api/v2/read/paper-trades', needs_params: true, probe_path: null, required_query: ['user'], sample_query: 'user=admin' },
   { path: '/api/v2/read/index-kline', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=sh000001' },

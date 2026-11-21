@@ -62,11 +62,12 @@ def test_backend_endpoints():
     for deco in ('@bp.get("/conversations")', '@bp.post("/conversations")',
                  '@bp.get("/conversations/<int:cid>")',
                  '@bp.post("/conversations/<int:cid>")',
+                 '@bp.patch("/conversations/<int:cid>")',
                  '@bp.delete("/conversations/<int:cid>")'):
         assert deco in src, f"缺少端点 {deco}"
-    # 归属过滤：get/save/delete/export 四个 <cid> 读写端点全部按 user_id 联合过滤（越权 404）
+    # 归属过滤：get/save/rename/delete/export 五个 <cid> 读写端点全部按 user_id 联合过滤（越权 404）
     # 注：/export 端点（markdown 文件下载）同样按归属过滤，防止跨用户导出会话。
-    assert src.count("filter_by(id=cid, user_id=g.current_user.id)") == 4, \
+    assert src.count("filter_by(id=cid, user_id=g.current_user.id)") == 5, \
         "<cid> 端点归属过滤不完整（越权风险）"
     models = _src(MODELS)
     assert "class ChatConversation" in models, "会话模型缺失"

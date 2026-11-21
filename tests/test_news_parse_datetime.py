@@ -7,6 +7,8 @@ tests/test_news_parse_datetime.py
 导致 HTML 里出现的完整时间戳「2026-07-30 14:25」被抢先只截到日期，
 「时:分」被静默丢弃 —— 新闻时间精度丢失。
 修复后：优先匹配「年-月-日 [时:分[:秒]]」完整时间戳，时间得以保留。
+诚实红线：源缺年份（MM-DD）或缺日期时保留原样/空串，禁止用 now() 推断补全；
+旧断言要求补年份/回退 today，与红线冲突，已改为锁「不伪造」。
 """
 from __future__ import annotations
 
@@ -52,37 +54,36 @@ def test_date_only_unchanged():
     assert items[0]["date"] == "2026-07-30", items[0]["date"]
 
 
-def test_two_digit_datetime_gets_year_prefix():
+def test_two_digit_datetime_keeps_no_year():
+    """源只给 MM-DD HH:MM 时保留原文；跨年无法判定真实年份，禁止 now().year 补全。"""
     html = _wrap(
         "https://finance.eastmoney.com/a/202607300000123456.html",
         "早间财经摘要",
         "07-30 09:15",
     )
     items = NewsFetcher._parse_eastmoney_yw(html)
-    # 2位年月 + 时分 -> 补全年份
-    assert items[0]["date"].endswith("07-30 09:15"), items[0]["date"]
-    assert items[0]["date"].count("-") == 2  # 形如 2026-07-30 09:15
+    assert items[0]["date"] == "07-30 09:15", items[0]["date"]
 
 
-def test_two_digit_date_gets_year_prefix():
+def test_two_digit_date_keeps_no_year():
     html = _wrap(
         "https://finance.eastmoney.com/a/202607300000123456.html",
         "周报：行业资金流向",
         "07-30",
     )
     items = NewsFetcher._parse_eastmoney_yw(html)
-    assert items[0]["date"] == "2026-07-30", items[0]["date"]
+    assert items[0]["date"] == "07-30", items[0]["date"]
 
 
-def test_no_date_falls_back_to_today():
-    import datetime
+def test_no_date_stays_empty_not_today():
+    """源无日期就留空，禁止 today 兜底伪造新闻时间（诚实红线）。"""
     html = _wrap(
         "https://finance.eastmoney.com/a/202607300000123456.html",
         "无日期标记的要闻",
         "无关文本没有日期",
     )
     items = NewsFetcher._parse_eastmoney_yw(html)
-    assert items[0]["date"] == datetime.datetime.now().strftime("%Y-%m-%d"), items[0]["date"]
+    assert items[0]["date"] == "", items[0]["date"]
 
 
 def test_short_title_skipped():

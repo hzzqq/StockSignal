@@ -2597,6 +2597,7 @@ def _w4x_rows_to_df(rows):
     try:
         cand = pd.DataFrame(rows)
     except Exception:  # noqa: BLE001
+        # ui_audit_exempt: rows 结构异常返回 None 是诚实降级，上层按无 K 线处理
         return None
     if len(cand) == 0:
         return None
@@ -4759,6 +4760,8 @@ _DIAG_REQUIRED_QUERY = {
     "/api/v2/read/paper-trades": {"user": "admin"},
     "/api/v2/read/review-notes": {"date": "2026-09-21"},
     "/api/v2/read/six-dim": {"code": "600519"},
+    "/api/v2/read/stock-profile": {"code": "600519"},
+    "/api/v2/read/technical-score": {"code": "600519"},
     "/api/v2/read/fundamentals": {"code": "600519"},
     "/api/v2/read/financials": {"code": "600519"},
     "/api/v2/read/stock-kline": {"code": "600519"},

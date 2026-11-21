@@ -329,6 +329,43 @@ def test_ac8_plan_dedup_and_cap():
     assert len(tools) <= 8
 
 
+def test_ac8_route_sector_question_to_industry_flow():
+    """「新能源板块后市怎么走」必须查行业资金流 + 市场环境，不能只给大盘情绪。"""
+    plan = ra.plan_steps("新能源板块后市怎么走")
+    tools = [s["tool"] for s in plan]
+    assert "fund_flow" in tools
+    assert "get_market_sentiment" in tools
+    ff = next(s for s in plan if s["tool"] == "fund_flow")
+    assert ff["args"]["scope"] == "industry"
+    assert ff["args"]["name"] == "新能源"
+    assert tools != ["get_data_health", "get_market_sentiment"], "不得落回旧兜底"
+
+
+def test_sector_rule_synthesizer_gives_direction_with_zero_llm():
+    """零 LLM 也要基于真实行业数据给板块方向，不能只丢原始 JSON。"""
+    tools = dict(FAKE_TOOLS)
+    tools["fund_flow"] = _ok({
+        "scope": "industry", "name": "新能源", "available": True,
+        "matched": [{"行业": "电池", "涨跌幅": 2.3, "净额": "12.5亿", "净额排名": 1}],
+        "universe_total": 86,
+    })
+    r = _run("新能源板块后市怎么走", tools=tools)
+    assert "新能源 板块方向" in r["answer"]
+    assert "电池" in r["answer"] and "[S1]" in r["answer"]
+    assert "综合判断" in r["answer"] and "偏强" in r["answer"]
+
+
+def test_sector_bias_honest_on_divergence_and_missing():
+    """行业下跌但资金逆势流入=分化；数值缺失明确说缺失，不硬给方向。"""
+    assert "分化" in ra._sector_bias([
+        {"行业": "电池", "涨跌幅": -5.1, "净额": 3.57},
+        {"行业": "光伏设备", "涨跌幅": -4.9, "净额": 4.2},
+    ])
+    assert "缺失" in ra._sector_bias([
+        {"行业": "未知", "涨跌幅": "—", "净额": "—"},
+    ])
+
+
 # ---------------------------------------------------------------------------
 # gateway registry 兜底（修复 11/16 漂移）
 # ---------------------------------------------------------------------------
@@ -624,11 +661,14 @@ def test_t124_timeout_error_message_reports_actual_tier(monkeypatch):
 def test_t124_timeout_config_defined_before_use():
     """配置块（_PER_TOOL_TIMEOUT/_timeout_for）必须在 call_tool 使用点之前定义（可读性/防误改）。"""
     import inspect
+    import re
 
     import mcp_server.gateway as gw
 
     src = inspect.getsource(gw)
-    pos_use = src.index("timeout=_timeout_for(name)")
+    m_use = re.search(r"timeout=_timeout_for\(\w+\)", src)
+    assert m_use is not None, "call_tool 未找到 _timeout_for 使用点"
+    pos_use = m_use.start()
     pos_def = src.index("_PER_TOOL_TIMEOUT: Dict[str, int] = {")
     assert pos_def < pos_use, "_PER_TOOL_TIMEOUT 定义出现在 call_tool 使用点之后（应上移到常量区）"
 

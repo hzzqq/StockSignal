@@ -155,3 +155,20 @@ def test_t138_call_tool_risk_alerts_smoke(monkeypatch):
     r = gw.call_tool("list_risk_alerts", code="000001")
     assert r.get("ok") is True
     assert r.get("data", {}).get("code") == "000001"
+
+
+def test_gateway_call_tool_accepts_tool_argument_named_name(monkeypatch):
+    """网关首参不能占用业务参数 name（fund_flow 行业口语名）— 参数冲突回归守卫。"""
+    from mcp_server import tools as mtools
+
+    seen = {}
+
+    def fake_fund_flow(code="", scope="individual", name=""):
+        seen.update(code=code, scope=scope, name=name)
+        return {"scope": scope, "name": name, "available": True}
+
+    monkeypatch.setattr(mtools, "fund_flow", fake_fund_flow)
+    r = gw.call_tool("fund_flow", scope="industry", name="新能源")
+    assert r.get("ok") is True
+    assert seen == {"code": "", "scope": "industry", "name": "新能源"}
+    assert r["data"]["name"] == "新能源"

@@ -139,3 +139,38 @@ def test_t138_list_risk_alerts_exception_wraps_ok_false(monkeypatch):
     out = _tools_pkg.list_risk_alerts("000001")
     assert out["ok"] is False
     assert "排雷源不可达" in out["error"]
+
+
+def test_fund_flow_industry_focus_maps_colloquial_sector(monkeypatch):
+    """「新能源」→ 真实行业名（电池/光伏设备），带全行业排名，不编造行业。"""
+    import pandas as pd
+    import modules.fundflow as ff
+
+    df = pd.DataFrame({
+        "行业": ["电池", "光伏设备", "证券"],
+        "涨跌幅": [2.3, 1.1, -0.5],
+        "净额": ["12.5亿", "3.2亿", "-1.1亿"],
+        "领涨股": ["A", "B", "C"],
+    })
+    monkeypatch.setattr(ff, "get_industry_fund_flow", lambda: df)
+
+    out = _tools_pkg.fund_flow(scope="industry", name="新能源")
+    assert out["available"] is True
+    assert out["universe_total"] == 3
+    assert {r["行业"] for r in out["matched"]} == {"电池", "光伏设备"}
+    battery = next(r for r in out["matched"] if r["行业"] == "电池")
+    assert battery["净额排名"] == 1
+    assert battery["涨跌幅排名"] == 1
+
+
+def test_fund_flow_industry_focus_no_match_is_honest(monkeypatch):
+    import pandas as pd
+    import modules.fundflow as ff
+
+    df = pd.DataFrame({"行业": ["电池", "证券"], "涨跌幅": [1.2, -0.3], "净额": ["2亿", "-1亿"]})
+    monkeypatch.setattr(ff, "get_industry_fund_flow", lambda: df)
+
+    out = _tools_pkg.fund_flow(scope="industry", name="游戏")
+    assert out["available"] is False
+    assert out["matched"] == []
+    assert out["universe_total"] == 2
