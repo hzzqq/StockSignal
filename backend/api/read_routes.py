@@ -405,10 +405,16 @@ def _public_top_sectors() -> list[dict]:
             if not industry or net_num is None:
                 continue
             chg = r.get("涨跌幅")
+            # akshare 行业资金流「净额」列为 float64、单位亿（实测 2026-11-22：银行 43.12）；
+            # 纯数值时补「亿」单位文本（列语义标注，与 v1 页面口径一致），带单位原文原样透传。
+            if isinstance(net_raw, (int, float)):
+                net_text: str | None = f"{net_raw:,.2f}亿"
+            else:
+                net_text = str(net_raw) if net_raw is not None else None
             scored.append((net_num, {
                 "industry": industry,
                 "chg_pct": chg if isinstance(chg, (int, float)) else None,
-                "net": str(net_raw) if net_raw is not None else None,
+                "net": net_text,
             }))
         scored.sort(key=lambda x: x[0], reverse=True)
         return [item for _, item in scored[:3]]

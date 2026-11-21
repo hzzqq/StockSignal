@@ -163,6 +163,26 @@ def test_picks_sectors_honest_when_source_fails(client, monkeypatch, tmp_path):
     assert data["sectors"] == []
 
 
+def test_picks_sectors_float_net_gets_yi_unit(monkeypatch):
+    """净额列 float64（单位亿）-> 纯数值补「亿」文本；带单位原文原样透传。"""
+    import modules.fundflow as ff
+
+    df = pd.DataFrame([
+        {"行业": "银行", "涨跌幅": 0.21, "净额": 43.12},
+        {"行业": "保险", "涨跌幅": 0.39, "净额": "-12.50亿"},  # 若上游改文本口径
+    ])
+    monkeypatch.setattr("modules.fundflow.get_industry_fund_flow", lambda: df)
+    cache_utils._CACHE.clear()
+    try:
+        out = rr._public_top_sectors()
+    finally:
+        cache_utils._CACHE.clear()
+    assert out[0]["industry"] == "银行"
+    assert out[0]["net"] == "43.12亿", out[0]["net"]
+    assert out[0]["chg_pct"] == 0.21
+    assert out[1]["net"] == "-12.50亿", "带单位原文不重复补单位"
+
+
 def test_new_endpoints_registered_in_contract_guard():
     src = (ROOT / "tests" / "test_read_contract_drift.py").read_text(encoding="utf-8")
     assert "/api/v2/read/public-index-intraday" in src
