@@ -319,6 +319,8 @@ NET_ENDPOINTS = [
     "/api/v2/read/portfolio",
     "/api/v2/read/watch",
     "/api/v2/read/macro-data",
+    "/api/v2/read/public-index-intraday",
+    "/api/v2/read/public-picks",
     "/api/v2/read/six-dim?code=600519",
     "/api/v2/read/fundamentals?code=600519",
     "/api/v2/read/financials?code=600519",

@@ -25,6 +25,8 @@ import {
   NlScreenSchema,
   DecisionLoopHealthSchema,
   PublicOverviewSchema,
+  PublicIndexIntradaySchema,
+  PublicPicksSchema,
   FundFlowSchema,
   TradingAccountSchema,
   MacroDataSchema,
@@ -93,6 +95,8 @@ import {
   type MarketTemperatureWindow,
   type DecisionLoopHealth,
   type PublicOverview,
+  type PublicIndexIntraday,
+  type PublicPicks,
 } from './schemas/read'
 
 /**
@@ -119,6 +123,16 @@ export function getDailySnapshot(): Promise<DailySnapshot> {
 /** GET /api/v2/read/public-overview —— 登录页公开摘要（无鉴权，脱敏只读） */
 export function getPublicOverview(): Promise<PublicOverview> {
   return readValidated('public-overview', PublicOverviewSchema)
+}
+
+/** GET /api/v2/read/public-index-intraday —— 上证指数当日分时（无鉴权，脱敏只读） */
+export function getPublicIndexIntraday(): Promise<PublicIndexIntraday> {
+  return readValidated('public-index-intraday', PublicIndexIntradaySchema)
+}
+
+/** GET /api/v2/read/public-picks —— 今日股票/板块推荐摘要（无鉴权，脱敏只读） */
+export function getPublicPicks(): Promise<PublicPicks> {
+  return readValidated('public-picks', PublicPicksSchema)
 }
 
 /** GET /api/v2/read/snapshot-dates —— 可回放归档日期清单（97 页下拉源） */

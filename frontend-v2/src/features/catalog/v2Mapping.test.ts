@@ -182,10 +182,11 @@ describe('v2Mapping · v1→v2 双向失真防复发守卫', () => {
     expect(r.status).toBe('native')
     expect(r.to).toBe('/predictions')
     expect(r.note, '64 缺诚实 note').toBeTruthy()
-    expect(r.note).toMatch(/数据源不同|非 v1/)
+    // 2026-11-21 parity 补批：静态报告（MD 正文 + 仪表盘 + 双下载 + KPI 带）已由 /predictions 承接
+    expect(r.note).toMatch(/已承接/)
     expect(r.note).toMatch(/prediction_log/)
     expect(r.note).toMatch(/MD|HTML/)
-    expect(r.note).toMatch(/未迁移/)
+    expect(r.note).toMatch(/stock-report/)
   })
 
   it('2026-11-19 迁移：15 市场驱动力为 native /market-drivers，不再 pinned，note 标明派生', () => {

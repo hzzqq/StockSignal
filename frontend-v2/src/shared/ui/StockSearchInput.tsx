@@ -26,6 +26,8 @@ export interface StockSearchInputProps {
   limit?: number
   /** 允许无匹配时回车直接按 6 位代码查询（默认 true） */
   allowRawCode?: boolean
+  /** 可选：输入文本变化即回传父级（写表单需拿原始输入，不等到选中候选） */
+  onTextChange?: (text: string) => void
   className?: string
 }
 
@@ -44,6 +46,7 @@ export function StockSearchInput({
   placeholder = '代码 / 名称 / 拼音首字母，如 600519、茅台、gzmt',
   limit = 10,
   allowRawCode = true,
+  onTextChange,
   className = '',
 }: StockSearchInputProps) {
   const [text, setText] = useState(value)
@@ -114,6 +117,7 @@ export function StockSearchInput({
         placeholder={placeholder}
         onChange={(e) => {
           setText(e.target.value)
+          onTextChange?.(e.target.value)
           setOpen(true)
           setCursor(0)
         }}

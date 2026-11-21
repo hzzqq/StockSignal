@@ -1,14 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PredictionLogView } from './PredictionLogView'
 import type { PredictionLogRow } from '@/api/schemas/read'
 
 vi.mock('@/api/read', () => ({ getPredictionLog: vi.fn() }))
+vi.mock('@/api/exportBundle', () => ({
+  getRoundtableReportMeta: vi.fn(),
+  getRoundtableReportContent: vi.fn(),
+  downloadRoundtableReport: vi.fn(),
+}))
 vi.mock('@/shared/charts/EChart', () => ({ EChart: () => null }))
 import { getPredictionLog } from '@/api/read'
+import {
+  getRoundtableReportMeta,
+  getRoundtableReportContent,
+  downloadRoundtableReport,
+} from '@/api/exportBundle'
 const mocked = vi.mocked(getPredictionLog)
+const mockedMeta = vi.mocked(getRoundtableReportMeta)
+const mockedContent = vi.mocked(getRoundtableReportContent)
+const mockedDownload = vi.mocked(downloadRoundtableReport)
 
 function renderWithClient(ui: ReactElement) {
   const client = new QueryClient({
@@ -27,6 +40,20 @@ const mixed: PredictionLogRow[] = [
 
 beforeEach(() => {
   mocked.mockReset().mockResolvedValue(mixed)
+  mockedMeta.mockReset().mockResolvedValue({
+    available: true,
+    as_of: '2026-09-11',
+    kpis: [{ label: '市场涨占比', value: '11%', meta: '报告快照值' }],
+    md_available: true,
+    html_available: true,
+    source_note: '静态交付物原文，非实时数据',
+    reason: null,
+  })
+  mockedContent.mockReset().mockResolvedValue({
+    available: true, format: 'md', filename: 'report.md', mime: 'text/markdown',
+    as_of: '2026-09-11', content: '# 报告正文\n\n数据日期：**2026-09-11**', reason: null,
+  })
+  mockedDownload.mockReset().mockResolvedValue(true)
 })
 
 describe('PredictionLogView · 预测校准日志 · 命中率口径诚实守卫', () => {
@@ -81,5 +108,40 @@ describe('PredictionLogView · 预测校准日志 · 命中率口径诚实守卫
     expect(screen.getByText(/命中率仅统计 hit 字段为布尔值的已兑现样本/)).toBeTruthy()
     expect(screen.getByText(/不按「未命中」处理、不补零/)).toBeTruthy()
     expect(screen.getByText(/本页是决策闭环的历史自评记录，不构成未来预测/)).toBeTruthy()
+  })
+})
+
+describe('PredictionLogView · 64 静态报告双预览 + 双下载', () => {
+  it('真实 KPI 来自报告正文，MD 预览与双格式下载按钮齐备', async () => {
+    renderWithClient(<PredictionLogView />)
+    expect(await screen.findByText('投研圆桌 · 静态报告（2026-09-11）')).toBeTruthy()
+    expect(await screen.findByText('11%')).toBeTruthy()
+    expect(await screen.findByText('报告正文')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /报告 MD/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /仪表盘 HTML/ })).toBeTruthy()
+  })
+
+  it('切到仪表盘预览走 iframe 沙箱，不注入不可信脚本', async () => {
+    renderWithClient(<PredictionLogView />)
+    fireEvent.click(await screen.findByRole('tab', { name: /仪表盘预览/ }))
+    expect(await screen.findByTitle('投研圆桌仪表盘预览')).toBeTruthy()
+  })
+
+  it('报告交付物缺失 → 诚实空态，不拿校准日志冒充', async () => {
+    mockedMeta.mockResolvedValue({
+      available: false, as_of: '2026-09-11', kpis: [], md_available: false,
+      html_available: false, source_note: '静态交付物', reason: 'MD / HTML 交付物均缺失',
+    })
+    renderWithClient(<PredictionLogView />)
+    expect(await screen.findByText('静态报告交付物缺失')).toBeTruthy()
+    expect(screen.getByText('MD / HTML 交付物均缺失')).toBeTruthy()
+  })
+
+  it('下载失败给真实错误提示，不谎报成功', async () => {
+    mockedDownload.mockResolvedValue(false)
+    renderWithClient(<PredictionLogView />)
+    await screen.findByText('11%')  // meta 已 resolve，下载按钮此时才可点
+    fireEvent.click(await screen.findByRole('button', { name: /报告 MD/ }))
+    expect(await screen.findByText(/未生成空文件/)).toBeTruthy()
   })
 })

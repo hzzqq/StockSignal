@@ -31,7 +31,14 @@ ROUTE_METHODS = ("route", "get", "post", "put", "delete", "patch")
 # /public-overview：登录页公开摘要（frontend-v2 LoginPage），2026-11-17 设计即为
 # 无鉴权脱敏只读（未登录用户可见项目规模/健康度），数据经 _sanitize 脱敏，
 # 不含任何持仓/账户/用户信息。2026-11-20 补登记（auth 守卫漏登记漂移修复）。
-PUBLIC_ALLOWLIST = {"/public-overview"}
+# /public-index-intraday + /public-picks：登录页左栏行情台补充面板（2026-11-21 老板
+# 需求：上证分时 + 今日股票/板块推荐），同为无鉴权脱敏只读——分时只透传 time/close，
+# 推荐只含 top_long 前 5 代码/名称/预测分与行业净额前 3 原文，无任何持仓/账户/用户信息。
+PUBLIC_ALLOWLIST = {
+    "/public-overview",
+    "/public-index-intraday",
+    "/public-picks",
+}
 
 
 def _decorator_names(node):

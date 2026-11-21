@@ -34,6 +34,7 @@ vi.mock('@/shared/charts/EChart', () => ({
 }))
 
 // BreadthOverview / FundFlow / Portfolio 全部经 '@/lib/queries' 取数，统一 mock。
+// 2026-11-21：Portfolio 新增写面板引用 StockSearchInput（内部用 useStockSearch），mock 需补齐。
 vi.mock('@/lib/queries', () => ({
   useFundFlow: vi.fn(),
   useDailySnapshot: vi.fn(),
@@ -43,6 +44,7 @@ vi.mock('@/lib/queries', () => ({
   useMarketTemperature: vi.fn(),
   usePortfolio: vi.fn(),
   usePositionAllocation: vi.fn(),
+  useStockSearch: vi.fn(() => ({ data: [], isLoading: false })),
 }))
 
 import {

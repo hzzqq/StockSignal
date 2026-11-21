@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { apiFetch } from './client'
 import { LoginData, LoginRequest, type LoginResult } from './schema'
+import { PublicUserSchema, type PublicUser } from './schemas/admin'
 
 /**
  * W1 接契约：按后端 OpenAPI 实跑基线（64 paths / 87 ops，见 frontend-v2/spec/openapi.json）
@@ -33,6 +34,23 @@ export async function login(username: string, password: string): Promise<LoginRe
     body: JSON.stringify(parsed),
   })
   return LoginData.parse(data) // 抛错即失败，不兜底
+}
+
+/**
+ * 注册：POST /api/auth/register（2026-11-21 接入，此前 v2 一直标注「注册未接入」）。
+ * 后端契约：开放注册、新用户角色固定 user（不可自提权），成功返回 201 + to_public。
+ * 注册成功**不自动登录**（无 token 返回）——调用方回填登录表单，用户再登录。
+ */
+export async function register(
+  username: string,
+  password: string,
+  confirm: string,
+): Promise<PublicUser> {
+  const data = await apiFetch<unknown>('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ username, password, confirm }),
+  })
+  return PublicUserSchema.parse(data)
 }
 
 /** 健康检查 */

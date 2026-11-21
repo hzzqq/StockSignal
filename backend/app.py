@@ -102,6 +102,7 @@ def create_app(config_object: type = Config) -> Flask:
     from .api.read_routes import bp as read_bp
     from .api.pattern_routes import bp as pattern_bp
     from .api.paper_write_routes import bp as paper_write_bp
+    from .api.portfolio_write_routes import bp as portfolio_write_bp
     from .api.earnings_routes import bp as earnings_bp
     from .api.export_routes import bp as export_bp
     from .api.nl_execute_routes import bp as nl_execute_bp
@@ -123,6 +124,7 @@ def create_app(config_object: type = Config) -> Flask:
     app.register_blueprint(read_bp)
     app.register_blueprint(pattern_bp)
     app.register_blueprint(paper_write_bp)
+    app.register_blueprint(portfolio_write_bp)
     app.register_blueprint(earnings_bp)
     app.register_blueprint(export_bp)
     app.register_blueprint(nl_execute_bp)

@@ -225,6 +225,197 @@ def public_overview():
     return ok(data=_sanitize(overview), message="登录页公开摘要（脱敏只读）")
 
 
+def _public_index_intraday_fetch():
+    """上证指数 5 分钟 K 底层 fetch（新浪接口，本环境唯一可用指数分时源）。
+
+    异常/空 -> None（绝不 500、绝不编造）；datalen=96 覆盖最近两个交易日的
+    5 分钟 bar，供「当日分时 + 昨收基准」一次取齐。
+    """
+    try:
+        from ..api.market_routes import get_fetcher
+        df = get_fetcher().get_index_kline_sina("000001", scale=5, datalen=96)
+    except Exception:  # noqa: BLE001
+        # ui_audit_exempt: 已知静默降级 — 公开分时取数失败返回 None，上层按空态处理，不伪造结果
+        return None
+    if df is None or not hasattr(df, "columns") or len(df) == 0:
+        return None
+    return df
+
+
+@bp.get("/public-index-intraday")
+def public_index_intraday():
+    """登录页上证指数当日分时（无鉴权，脱敏只读，2026-11-21 老板需求）。
+
+    返回 {code, name, date, prev_close, rows:[{time, close}]}：
+      - date = 最新一个交易日的分时 bar；prev_close = 上一交易日收盘 bar 的 close
+        （真实历史数据作昨收基准，不伪造）；rows 只含 time/close 两个脱敏字段。
+    取不到 -> date=null / prev_close=null / rows=[]，前端诚实显「暂无分时数据」。
+    进程级 TTL 5min 缓存（skip_empty=False：空态也缓存，避免登录页每次加载都打新浪）。
+    """
+    from modules.cache_utils import cached_ttl
+
+    data = cached_ttl(
+        300, "public_index_intraday_sh000001",
+        _public_index_intraday_build,
+        skip_empty=False,
+    )
+    return ok(data=_sanitize(data), message="上证指数当日分时（公开摘要）")
+
+
+def _public_index_intraday_build() -> dict:
+    """public_index_intraday 底层构建（模块级，信封守卫只审计路由函数本身）。"""
+    df = _public_index_intraday_fetch()
+    empty = {"code": "sh000001", "name": "上证指数", "date": None,
+             "prev_close": None, "rows": []}
+    if df is None:
+        return empty
+    by_date: dict[str, list] = {}
+    for r in df.to_dict("records"):
+        t = str(r.get("time") or "")
+        if len(t) < 10:
+            continue
+        by_date.setdefault(t[:10], []).append(r)
+    if not by_date:
+        return empty
+    dates = sorted(by_date)
+    latest = dates[-1]
+    prev_close = None
+    if len(dates) >= 2:
+        try:
+            prev_close = float(by_date[dates[-2]][-1].get("close"))
+        except (TypeError, ValueError):
+            prev_close = None
+    out_rows = []
+    for r in by_date[latest]:
+        try:
+            c = float(r.get("close"))
+        except (TypeError, ValueError):  # ui_audit_exempt: 分时逐行解析，坏行跳过不编造
+            continue
+        out_rows.append({"time": str(r.get("time") or ""), "close": round(c, 2)})
+    if not out_rows:
+        return empty
+    return {
+        "code": "sh000001",
+        "name": "上证指数",
+        "date": latest,
+        "prev_close": None if prev_close is None else round(prev_close, 2),
+        "rows": out_rows,
+    }
+
+
+def _public_stock_name_map() -> dict[str, str]:
+    """code -> name 映射（零网络真实股票池，lru_cache 复用；失败返空 dict）。"""
+    try:
+        from ..services.stock_pool_fallback import load_stock_pool
+        pool = load_stock_pool()
+        return {
+            str(it.get("code") or "").strip(): str(it.get("name") or "").strip()
+            for it in pool if isinstance(it, dict)
+        }
+    except Exception:  # noqa: BLE001
+        # ui_audit_exempt: 名称水合失败降级为无名称（前端显示 —），不编造
+        return {}
+
+
+@bp.get("/public-picks")
+def public_picks():
+    """登录页「今日推荐」公开摘要（无鉴权，脱敏只读，2026-11-21 老板需求）。
+
+    stocks: P1 量化信号 top_long 前 5（按数据日 latest_date 降序选最新文件；
+            名称从股票池水合，未命中 name=None 诚实显示「—」；带数据日标注，
+            绝不把滞后数据包装成「今日实时」）。
+    sectors: 行业资金流净额前 3（get_industry_fund_flow，TTL 30min 缓存；
+            净额原文透传 + 可比数值内部排序；失败/空 -> []，绝不编造板块）。
+    两组数据都是灰度参考，不构成投资建议；disclaimer 原文带出。
+    """
+    stocks: list[dict] = []
+    as_of = None
+    d = _DATA_DIR / "p1_signals"
+    if d.is_dir():
+        best = None
+        for fp in sorted(d.glob("signal_*.json")):
+            status, data = _read_json(fp)
+            if status != "ok" or not isinstance(data, dict):
+                continue
+            ld = str(data.get("latest_date") or "")
+            if not ld:
+                continue
+            if best is None or ld > best[0]:
+                best = (ld, data)
+        if best:
+            as_of = best[0]
+            name_by_code = _public_stock_name_map()
+            for it in (best[1].get("top_long") or [])[:5]:
+                if not isinstance(it, dict):
+                    continue
+                code = str(it.get("symbol") or "")[-6:].zfill(6)
+                pred = it.get("pred")
+                stocks.append({
+                    "code": code,
+                    "name": name_by_code.get(code) or None,
+                    "pred": pred if isinstance(pred, (int, float)) else None,
+                })
+
+    sectors = _public_top_sectors()
+    return ok(
+        data=_sanitize({
+            "stocks": stocks,
+            "stocks_as_of": as_of,
+            "sectors": sectors,
+            "disclaimer": "量化信号与资金流均为灰度参考，不构成投资建议",
+        }),
+        message="今日推荐公开摘要（脱敏只读）",
+    )
+
+
+def _public_net_num(v) -> float | None:
+    """行业资金流「净额」原文（如 '-12.50亿'）-> 可比数值（浮点，元口径）。"""
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v or "").strip()
+    m = re.search(r"-?\d+(\.\d+)?", s)
+    if not m:
+        return None
+    x = float(m.group())
+    if "亿" in s:
+        return x * 1e8
+    if "万" in s:
+        return x * 1e4
+    return x
+
+
+def _public_top_sectors() -> list[dict]:
+    """行业资金流净额前 3（TTL 30min）。空/失败 -> []，绝不编造。"""
+    from modules.cache_utils import cached_ttl
+
+    def _build():
+        try:
+            from modules.fundflow import get_industry_fund_flow
+            df = get_industry_fund_flow()
+        except Exception:  # noqa: BLE001
+            # ui_audit_exempt: 已知静默降级 — 公开板块摘要取数失败返回空列表
+            return []
+        if df is None or not hasattr(df, "columns") or len(df) == 0:
+            return []
+        scored: list[tuple[float, dict]] = []
+        for r in df.to_dict("records"):
+            industry = str(r.get("行业") or "").strip()
+            net_raw = r.get("净额")
+            net_num = _public_net_num(net_raw)
+            if not industry or net_num is None:
+                continue
+            chg = r.get("涨跌幅")
+            scored.append((net_num, {
+                "industry": industry,
+                "chg_pct": chg if isinstance(chg, (int, float)) else None,
+                "net": str(net_raw) if net_raw is not None else None,
+            }))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [item for _, item in scored[:3]]
+
+    return cached_ttl(1800, "public_top_sectors", _build, skip_empty=True)
+
+
 @bp.get("/daily-recommendation")
 @jwt_required
 def daily_recommendation():

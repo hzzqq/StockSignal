@@ -1,9 +1,17 @@
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import type { EChartsOption } from 'echarts'
 import type { PredictionLogRow } from '@/api/schemas/read'
 import { usePredictionLog } from '@/lib/queries'
+import {
+  downloadRoundtableReport,
+  getRoundtableReportContent,
+  getRoundtableReportMeta,
+} from '@/api/exportBundle'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
-import { QueryState } from '@/shared/ui/States'
+import { EmptyState, ErrorState, Loading, QueryState } from '@/shared/ui/States'
+import { Markdown } from '@/features/xingchen/Markdown'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { fmtNum } from '@/lib/format'
@@ -31,6 +39,8 @@ export function PredictionLogView() {
         </a>
       </div>
 
+      <RoundtableReport />
+
       <QueryState
         isLoading={log.isLoading}
         isError={log.isError}
@@ -42,6 +52,127 @@ export function PredictionLogView() {
         {log.data ? <PredictionBody rows={log.data} /> : null}
       </QueryState>
     </div>
+  )
+}
+
+/**
+ * 64 投研圆桌静态交付物（MD / HTML 双预览 + 双下载）。
+ * 与 /predictions 的 prediction_log 是**两种数据源**：这里只读 deliverables/ 下固定文件，
+ * 缺文件时显示诚实空态，绝不拿校准日志冒充静态报告。
+ */
+function RoundtableReport() {
+  const meta = useQuery({
+    queryKey: ['roundtable-report', 'meta'],
+    queryFn: getRoundtableReportMeta,
+    staleTime: Infinity,
+  })
+  const [view, setView] = useState<'md' | 'html'>('md')
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+  const formatAvailable = view === 'md'
+    ? meta.data?.md_available === true
+    : meta.data?.html_available === true
+  const content = useQuery({
+    queryKey: ['roundtable-report', view],
+    queryFn: () => getRoundtableReportContent(view),
+    enabled: formatAvailable,
+    staleTime: Infinity,
+  })
+
+  async function onDownload(fmt: 'md' | 'html') {
+    setDownloadError(null)
+    try {
+      const saved = await downloadRoundtableReport(fmt)
+      if (!saved) setDownloadError('交付物缺失或浏览器不支持下载，未生成空文件')
+    } catch (e) {
+      setDownloadError(e instanceof Error ? e.message : '下载失败')
+    }
+  }
+
+  const headerRight = (
+    <div className="flex gap-2">
+      <button
+        type="button"
+        onClick={() => void onDownload('md')}
+        disabled={meta.data?.md_available !== true}
+        className="text-label px-2.5 py-1 rounded-tile border border-sf-line text-sf-ink-2 hover:text-sf-accent disabled:opacity-40"
+      >
+        ⬇️ 报告 MD
+      </button>
+      <button
+        type="button"
+        onClick={() => void onDownload('html')}
+        disabled={meta.data?.html_available !== true}
+        className="text-label px-2.5 py-1 rounded-tile border border-sf-line text-sf-ink-2 hover:text-sf-accent disabled:opacity-40"
+      >
+        ⬇️ 仪表盘 HTML
+      </button>
+    </div>
+  )
+
+  return (
+    <Card title="投研圆桌 · 静态报告（2026-09-11）" right={headerRight}>
+      {meta.isLoading ? <Loading label="加载圆桌报告…" /> : null}
+      {meta.isError ? <ErrorState message={meta.error instanceof Error ? meta.error.message : '圆桌报告加载失败'} /> : null}
+      {meta.data && !meta.data.available ? (
+        <EmptyState
+          label="静态报告交付物缺失"
+          hint={meta.data.reason ?? 'MD / HTML 均不可用，未做任何填充'}
+        />
+      ) : null}
+      {meta.data?.available ? (
+        <div className="flow">
+          <p className="text-label text-sf-ink-3">{meta.data.source_note}</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {meta.data.kpis.map((k) => (
+              <div key={k.label} className="rounded-tile border border-sf-line px-3 py-2">
+                <div className="text-label text-sf-ink-3">{k.label}</div>
+                <div className="text-title text-sf-ink-1 font-medium">{k.value}</div>
+                <div className="text-label text-sf-ink-3">{k.meta}</div>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2" role="tablist" aria-label="报告视图">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === 'md'}
+              onClick={() => setView('md')}
+              className={`text-label px-3 py-1 rounded-tile ${view === 'md' ? 'bg-sf-accent text-white' : 'border border-sf-line text-sf-ink-2'}`}
+            >
+              报告正文 (MD)
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === 'html'}
+              onClick={() => setView('html')}
+              className={`text-label px-3 py-1 rounded-tile ${view === 'html' ? 'bg-sf-accent text-white' : 'border border-sf-line text-sf-ink-2'}`}
+            >
+              仪表盘预览 (HTML)
+            </button>
+          </div>
+          {!formatAvailable ? (
+            <EmptyState label="该格式交付物缺失" hint="未返回样例内容" />
+          ) : content.isLoading ? (
+            <Loading label="加载报告原文…" />
+          ) : content.isError ? (
+            <ErrorState message={content.error instanceof Error ? content.error.message : '原文加载失败'} />
+          ) : content.data?.content ? (
+            view === 'md' ? (
+              <div className="text-body text-sf-ink-2"><Markdown content={content.data.content} /></div>
+            ) : (
+              <iframe
+                title="投研圆桌仪表盘预览"
+                sandbox=""
+                srcDoc={content.data.content}
+                className="w-full h-[560px] rounded-tile border border-sf-line bg-white"
+              />
+            )
+          ) : null}
+          {downloadError ? <ErrorState message={downloadError} /> : null}
+        </div>
+      ) : null}
+    </Card>
   )
 }
 

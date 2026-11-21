@@ -40,12 +40,14 @@ export interface V2Mapping {
   note?: string
 }
 
-/** 已知能力缩水的诚实说明（集中定义，避免多页重复文案漂移）：
- *  - 只读聚合页：主力资金流只读、写能力由本批 /watch 面板承接、实时现价未聚合；
- *  - 只读快照页：组合编辑 / 权重调整等 v1 写操作 v2 未承接。 */
+/** 只读快照页：v1 的组合编辑写操作已于 parity 补批承接（POST/DELETE /api/v2/portfolio），
+ *  但 /portfolio 的只读快照视图本身不提供组合编辑 UI——写操作在页面「模拟账本写操作」面板。 */
+const SNAPSHOT_READONLY_NOTE = '只读快照视图；v1 的组合编辑写操作已在 /portfolio 的模拟账本写面板承接（添加/删除/卖出，本地 CSV 全站共享、非实盘）'
+
+/** 逐只主力资金流为只读聚合：自选股增删/垃圾股标记/自定义打分由 /watch 写面板承接；
+ *  实时现价与涨跌幅未在只读端点聚合（v1 由实时行情单例提供，v2 有意不引入实时单例）。 */
 const WATCH_READONLY_NOTE =
   '逐只主力资金流为只读聚合；自选股增删/垃圾股标记/自定义打分由本批 /watch 页写面板承接；实时现价与涨跌幅未在只读端点聚合'
-const SNAPSHOT_READONLY_NOTE = '只读快照视图，v1 的组合编辑/权重调整等写操作 v2 未承接'
 
 /** ① v2 已实现的等价页面（与 router.tsx / nav.ts 的真实路由一一对应）。
  *  含「漂移收口」：原来被错标成 data / v1-only 的页，因 v2 实际已有完整页面，
@@ -110,17 +112,19 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   '85_龙虎榜.py': { to: '/dragon-tiger' },
   // 2026-11-19 诚实标注：/predictions 是 prediction_log 校准日志 + 温度时序，
   // 与 v1 的静态投研圆桌交付物（本地 MD 报告 + 内嵌 HTML 仪表盘片段 + MD/HTML 双下载 + KPI 带）
-  // 数据源与功能完全不同。静态报告位于 deliverables/stock-partner/2026-09-11/，v2 无对应端点，未迁移。
+  // 数据源不同。2026-11-21 parity 补批：/predictions 顶部新增「投研圆桌 · 静态报告」卡片，
+  // 承接 v1 的 MD 正文 + 内嵌 HTML 仪表盘 + MD/HTML 双预览双下载（GET /api/v2/read/stock-report，
+  // 白名单目录固定为 deliverables/stock-partner/2026-09-11/，KPI 带同款正则提取）。
   '64_投研圆桌.py': {
     to: '/predictions',
-    note: '部分迁移（数据源不同）：/predictions 是 prediction_log 校准日志 + 温度时序，非 v1 的静态投研圆桌报告；v1 读取 deliverables/stock-partner/2026-09-11/ 的 MD 正文 + 内嵌 HTML 仪表盘 + MD/HTML 双下载 + KPI 带，v2 无对应端点，该静态报告展示与双下载未迁移，详见 v1',
+    note: '已承接（2026-11-21 parity 补批）：/predictions 是 prediction_log 校准日志 + 温度时序；v1 静态投研圆桌报告（deliverables/stock-partner/2026-09-11/ 的 MD 正文 + 内嵌 HTML 仪表盘 + MD/HTML 双下载 + KPI 带）由页面顶部静态报告卡承接（GET /api/v2/read/stock-report）',
   },
   // 告警 / 系统 / 教学
   '74_告警引擎.py': { to: '/alerts' },
   '82_数据时效性看板.py': { to: '/ops', note: '以数据与运维状态视图承载' },
   '86_网页作品集.py': { to: '/webapps' },
   '93_系统配置.py': { to: '/settings' },
-  '90_登录.py': { to: '/login', note: '账号密码登录与行情台已实现；验证码登录/注册未接入，v2 不做假功能' },
+  '90_登录.py': { to: '/login', note: '账号密码登录 + 行情台（上证分时/今日推荐合并组件）+ 开放注册已实现（2026-11-21，POST /api/auth/register，注册成功不自动登录）；验证码登录依赖短信网关，v2 不做假功能' },
   '96_新手教程.py': { to: '/guide', note: '四步上手/模块导览/术语表/FAQ/主线/误区已移植；教学视频与 Streamlit 快捷键不适用未移植' },
   // W4-F · v1-only 收口（路径均已在 router.tsx 真实注册）
   '66_维度领先滞后矩阵.py': { to: '/matrix', note: '以有序对明细表承载（带符号 lag），样本下限比 v1 更严格' },

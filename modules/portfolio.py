@@ -281,7 +281,7 @@ class PortfolioManager:
         total_sold = int(trades[trades["ticker"] == ticker]["sell_shares"].sum()) if not trades.empty else 0
         return max(0, total_bought - total_sold)
 
-    def sell_position(self, ticker, sell_date, sell_price, sell_shares, note=""):
+    def sell_position(self, ticker, sell_date, sell_price, sell_shares, note="", name=None):
         """
         记录一笔卖出交易。
         :param ticker: 股票代码
@@ -289,6 +289,8 @@ class PortfolioManager:
         :param sell_price: 卖出成交价
         :param sell_shares: 卖出股数
         :param note: 备注
+        :param name: 股票名称（可选；REST 端点由调用方随请求传入，避免服务端联网取名；
+                     v1 不传时保持原行为，仍走 fetcher.get_stock_name）
         :return: 卖出记录字典
         :raises ValueError: 可卖股数不足或参数非法
         """
@@ -306,7 +308,7 @@ class PortfolioManager:
                 f"{ticker} 可卖股数不足：剩余 {sellable:,} 股，尝试卖出 {sell_shares:,} 股"
             )
 
-        name = self.fetcher.get_stock_name(ticker) or ticker
+        name = name or self.fetcher.get_stock_name(ticker) or ticker
         proceeds = round(sell_price * sell_shares, 2)
         trades = self._load_trades()
         new_row = pd.DataFrame([{

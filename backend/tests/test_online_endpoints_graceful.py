@@ -44,6 +44,8 @@ ONLINE_ENDPOINTS = [
     ("market-sentiment", ""),
     ("momentum-breadth", ""),
     ("limit-up-review", ""),
+    ("public-index-intraday", ""),
+    ("public-picks", ""),
     ("earnings-calendar", "?period=2026-03-31"),
     ("six-dim", "?code=600519"),
     ("fundamentals", "?code=600519"),

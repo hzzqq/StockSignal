@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Portfolio } from './Portfolio'
@@ -12,10 +12,23 @@ vi.mock('@/api/read', () => ({
 vi.mock('@/shared/charts/EChart', () => ({
   EChart: () => null,
 }))
+vi.mock('@/api/portfolioWrite', () => ({
+  addPortfolioPosition: vi.fn(),
+  deletePortfolioPosition: vi.fn(),
+  recordPortfolioSell: vi.fn(),
+}))
 
 import { getPortfolio, getPositionAllocation } from '@/api/read'
+import {
+  addPortfolioPosition,
+  deletePortfolioPosition,
+  recordPortfolioSell,
+} from '@/api/portfolioWrite'
 const mocked = vi.mocked(getPortfolio)
 const mockedAlloc = vi.mocked(getPositionAllocation)
+const mockedAdd = vi.mocked(addPortfolioPosition)
+const mockedDelete = vi.mocked(deletePortfolioPosition)
+const mockedSell = vi.mocked(recordPortfolioSell)
 
 function renderWithClient(ui: ReactElement) {
   const client = new QueryClient({
@@ -49,6 +62,18 @@ const okData: PortfolioData = {
 
 beforeEach(() => {
   mocked.mockReset()
+  mockedAdd.mockReset().mockResolvedValue({
+    note: '本地模拟账本',
+    position: { ticker: '600519', shares: 100 },
+  })
+  mockedDelete.mockReset().mockResolvedValue({
+    note: '本地模拟账本',
+    removed: { ticker: '600519', shares: 100 },
+  })
+  mockedSell.mockReset().mockResolvedValue({
+    note: '本地模拟账本',
+    trade: { ticker: '600519', sell_shares: 100 },
+  })
 })
 
 describe('Portfolio 三态 + 字段渲染', () => {
@@ -138,5 +163,39 @@ describe('Portfolio 三态 + 字段渲染', () => {
     // 绝不编造：无分配表、无目标权重数字
     expect(screen.queryByText(/目标权重分配/)).toBeNull()
     expect(screen.queryByText('60.00%')).toBeNull()
+  })
+})
+
+describe('Portfolio · 本地模拟账本写操作', () => {
+  it('写面板如实标注本地 CSV / 全站共享 / 非实盘', async () => {
+    mocked.mockResolvedValue(okData)
+    renderWithClient(<Portfolio />)
+    expect(await screen.findByText('模拟账本写操作')).toBeTruthy()
+    expect(screen.getByText(/本地 CSV · 全站共享 · 非实盘/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: '添加持仓' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: '记录卖出' })).toBeTruthy()
+  })
+
+  it('添加持仓提交映射为 typed 写请求（代码/价格/股数走数字契约）', async () => {
+    mocked.mockResolvedValue(okData)
+    renderWithClient(<Portfolio />)
+    await screen.findByText('模拟账本写操作')
+    fireEvent.change(screen.getByLabelText('股票代码'), { target: { value: '600519' } })
+    fireEvent.change(screen.getByLabelText('买入日期'), { target: { value: '2026-03-01' } })
+    fireEvent.change(screen.getByLabelText('买入价'), { target: { value: '20.5' } })
+    fireEvent.change(screen.getByLabelText('买入股数'), { target: { value: '100' } })
+    const submit = screen.getByRole('button', { name: '添加持仓' })
+    fireEvent.submit(submit.closest('form')!)
+    await waitFor(() => expect(mockedAdd.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
+      ticker: '600519', buy_date: '2026-03-01', buy_price: 20.5, shares: 100,
+    })))
+  })
+
+  it('明细删除按钮按当前行号调用写端点，不伪造删除结果', async () => {
+    mocked.mockResolvedValue(okData)
+    renderWithClient(<Portfolio />)
+    await screen.findByText('模拟账本写操作')
+    fireEvent.click(screen.getByLabelText('删除 600519 持仓记录'))
+    await waitFor(() => expect(mockedDelete.mock.calls[0]?.[0]).toBe(0))
   })
 })

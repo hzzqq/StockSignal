@@ -115,6 +115,45 @@ export const PublicOverviewSchema = z.object({
 })
 export type PublicOverview = z.infer<typeof PublicOverviewSchema>
 
+/**
+ * 登录页上证指数当日分时（GET /api/v2/read/public-index-intraday，无鉴权，脱敏只读）。
+ * 2026-11-21 老板需求：分时图。rows 只含 time/close 两个脱敏字段；prev_close 为
+ * 上一交易日收盘 bar 的 close（真实历史数据）；取不到 -> date=null、rows=[]（诚实空态）。
+ */
+export const PublicIndexIntradaySchema = z.object({
+  code: z.string(),
+  name: z.string().nullish(),
+  date: z.string().nullish(),
+  prev_close: z.number().nullish(),
+  rows: z.array(z.object({ time: z.string(), close: z.number() })),
+})
+export type PublicIndexIntraday = z.infer<typeof PublicIndexIntradaySchema>
+
+/**
+ * 登录页「今日推荐」公开摘要（GET /api/v2/read/public-picks，无鉴权，脱敏只读）。
+ * stocks = P1 量化信号 top_long 前 5（名称水合未命中 -> null，显示「—」）；
+ * sectors = 行业资金流净额前 3；都带 disclaimer，不构成投资建议。
+ */
+export const PublicPicksSchema = z.object({
+  stocks: z.array(
+    z.object({
+      code: z.string(),
+      name: z.string().nullable(),
+      pred: z.number().nullable(),
+    }),
+  ),
+  stocks_as_of: z.string().nullish(),
+  sectors: z.array(
+    z.object({
+      industry: z.string(),
+      chg_pct: z.number().nullish(),
+      net: z.string().nullish(),
+    }),
+  ),
+  disclaimer: z.string().nullish(),
+})
+export type PublicPicks = z.infer<typeof PublicPicksSchema>
+
 // ───────── P1 量化信号（p1_signals/signal_*.json）─────────
 export const P1TopItemSchema = z.object({
   symbol: z.string(),

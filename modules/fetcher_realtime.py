@@ -93,6 +93,20 @@ from modules.fetcher_core import _safe_json_loads  # noqa: F401, I001
 import modules.fetcher as _fetcher_mod  # noqa: F401
 
 
+def _index_sina_prefix(code: str) -> str:
+    """指数代码 -> 新浪 symbol 前缀（399 开头 -> sz，其余 -> sh）。
+
+    2026-11-21 缺陷修复：旧映射「6 开头 -> sh，其余 -> sz」是**个股**口径，
+    用在指数上会把上证指数 000001 错映成 sz000001（平安银行，个股价格十元级），
+    登录页/v1 widgets 的「上证分时」实际全是平安银行的分时。
+    指数语义：深市指数以 399 开头（399001/399006/399009...），
+    沪市/中证指数以 000 开头（000001 上证、000300 沪深300、000905 中证500...），
+    无「sz000xxx」的常见 A 股指数，故 000 开头归 sh。
+    """
+    c = str(code or "").strip()
+    return "sz" if c.startswith("399") else "sh"
+
+
 class RealtimeMixin:
     """Realtime 领域方法 mixin（机械搬移自 fetcher.py，签名/降级语义不变）。"""
 
@@ -363,13 +377,12 @@ class RealtimeMixin:
 
         返回 DataFrame[time, open, high, low, close] 或 None。
         code 为纯数字指数代码（000001 / 399001 / 399006 等），
-        自动映射新浪前缀：6 开头 -> sh，其余 -> sz。
+        前缀映射走 _index_sina_prefix（399 开头 -> sz，其余 -> sh）。
         该接口在 Eastmoney 被代理拦截的本环境下，是唯一可用的指数分时来源。
         """
         if not code:
             return None
-        prefix = "sh" if code.startswith("6") else "sz"
-        sym = f"{prefix}{code}"
+        sym = f"{_index_sina_prefix(code)}{code}"
         url = (
             "https://quotes.sina.cn/cn/api/json_v2.php/"
             f"CN_MarketDataService.getKLineData?symbol={sym}&scale={scale}"

@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime
+from pathlib import Path
 from urllib.parse import quote
 
 from flask import Blueprint, Response, g, request
@@ -38,6 +39,15 @@ _CODE_RE = re.compile(r"^\d{6}$")
 _PERIOD_RE = re.compile(r"^\d{8}$")
 _FORMATS = ("zip", "excel", "pdf", "json")
 _REPORT_FORMATS = ("html", "md")
+# 64 投研圆桌静态交付物（v1 pages/64_投研圆桌.py 读取的固定路径，右侧文件名白名单，
+# 不接受用户传路径，天然无目录穿越面）。v2 只读取，不写交付物。
+_ROUNDTABLE_DIR = (Path(__file__).resolve().parents[2] / "deliverables"
+                   / "stock-partner" / "2026-09-11")
+_ROUNDTABLE_FILES = {
+    "md": ("大盘主线与情绪研判_投研圆桌.md", "text/markdown; charset=utf-8"),
+    "html": ("大盘主线与情绪研判_投研圆桌.html", "text/html; charset=utf-8"),
+}
+_ROUNDTABLE_FORMATS = ("meta", "md", "html")
 _MIME = {
     "zip": "application/zip",
     "excel": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -51,6 +61,46 @@ def _content_disposition(filename: str) -> str:
     ascii_name = "".join(c for c in filename if ord(c) < 128)
     ascii_name = ascii_name.replace('"', "").replace("\\", "").strip() or f"download{ext}"
     return f"attachment; filename=\"{ascii_name}\"; filename*=utf-8''{quote(filename)}"
+
+
+def _roundtable_read(fmt: str) -> str | None:
+    """读固定白名单交付物；缺文件/坏编码返回 None（诚实空，不补样本文字）。"""
+    name, _ = _ROUNDTABLE_FILES[fmt]
+    path = _ROUNDTABLE_DIR / name
+    if not path.is_file():
+        logger.warning("[roundtable] 交付物缺失: %s", path)
+        return None
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        logger.warning("[roundtable] 交付物读取失败 %s: %s", path, e)
+        return None
+
+
+def _roundtable_kpis(md: str) -> list[dict]:
+    """与 v1 pages/64_投研圆桌.py::_kpi_band 同款口径：只从报告正文正则提取。
+
+    解析失败/字段缺失的卡跳过，整带无卡则空数组；绝不为凑卡编造或新拉数据。
+    """
+    cards: list[dict] = []
+    m = re.search(r"数据日期：\*\*([^*]+)\*\*", md)
+    if m:
+        cards.append({"label": "数据日期", "value": m.group(1).strip(),
+                      "meta": "westock-mcp 实时行情快照（收盘）"})
+    m = re.search(r"涨占比 \*\*(\d+)%\*\*", md)
+    if m:
+        cards.append({"label": "市场涨占比", "value": f"{m.group(1)}%",
+                      "meta": "广度温度官口径（报告快照值）"})
+    n_views = len(re.findall(r"^### [①②③④⑤]", md, flags=re.M)) + (
+        1 if "逆向视角" in md else 0)
+    if n_views:
+        cards.append({"label": "参与视角", "value": str(n_views),
+                      "meta": "广度 / 结构 / 主线 / 资金 / 仓位 / 逆向"})
+    missing = [n for n in ("宏观 PMI", "北向资金") if n in md]
+    if missing:
+        cards.append({"label": "显式缺席维度", "value": str(len(missing)),
+                      "meta": "、".join(missing) + "（凡缺均显式标注）"})
+    return cards
 
 
 def _db_watchlist_codes() -> list:
@@ -172,3 +222,46 @@ def stock_report():
     }
     payload["html" if fmt == "html" else "md"] = rendered
     return ok(data=payload, message="stock-report")
+
+
+@bp.get("/roundtable-report")
+@jwt_required
+def roundtable_report():
+    """GET /api/v2/read/roundtable-report?format=meta|md|html —— 64 静态投研圆桌交付物。
+
+    与 v1 pages/64_投研圆桌.py 读同一对本地 MD / HTML 文件（固定白名单路径）：
+    - meta：KPI 带（从 MD 正文正则提取，同 v1 口径）+ 双格式可用状态；
+    - md / html：原文字符串放统一信封 data.content，前端自行 Blob 下载 / 预览；
+    - 文件缺失或坏编码 → 200 + available=false + reason，绝不补样例报告冒充交付物。
+    """
+    fmt = (request.args.get("format") or "meta").strip().lower()
+    if fmt not in _ROUNDTABLE_FORMATS:
+        return fail(message="format 须为 meta / md / html 之一",
+                    code="validation_error", http_status=422)
+
+    md = _roundtable_read("md")
+    html = _roundtable_read("html")
+
+    if fmt == "meta":
+        return ok(data={
+            "available": bool(md or html),
+            "as_of": "2026-09-11",
+            "kpis": _roundtable_kpis(md) if md else [],
+            "md_available": md is not None,
+            "html_available": html is not None,
+            "source_note": "静态交付物原文（westock-mcp 2026-09-11 收盘快照），非实时数据",
+            "reason": None if (md or html) else "MD / HTML 交付物均缺失，未做任何填充",
+        }, message="roundtable-report")
+
+    content = md if fmt == "md" else html
+    if content is None:
+        return ok(data={
+            "available": False, "format": fmt, "as_of": "2026-09-11",
+            "reason": f"{fmt.upper()} 交付物缺失或无法读取，未返回样例内容",
+        }, message="roundtable-report")
+
+    name, mime = _ROUNDTABLE_FILES[fmt]
+    return ok(data={
+        "available": True, "format": fmt, "filename": name, "mime": mime,
+        "as_of": "2026-09-11", "content": content, "reason": None,
+    }, message="roundtable-report")

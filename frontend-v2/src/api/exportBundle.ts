@@ -2,10 +2,14 @@ import { apiFetch, apiFetchBlob } from './client'
 import {
   ExportBundleJsonSchema,
   StockReportSchema,
+  RoundtableReportMetaSchema,
+  RoundtableReportContentSchema,
   type ExportBundleJson,
   type ExportFormat,
   type StockReport,
   type StockReportFormat,
+  type RoundtableReportMeta,
+  type RoundtableReportContent,
 } from './schemas/exportBundle'
 
 /**
@@ -57,6 +61,29 @@ export async function getStockReport(
     `/v2/read/stock-report?code=${encodeURIComponent(code)}&format=${format}`,
   )
   return StockReportSchema.parse(data)
+}
+
+/** 64 投研圆桌：meta（KPI + 双格式状态）与原文（供 MD 预览 / HTML 沙箱预览 / Blob 下载）。 */
+export async function getRoundtableReportMeta(): Promise<RoundtableReportMeta> {
+  const data = await apiFetch<unknown>('/v2/read/roundtable-report?format=meta')
+  return RoundtableReportMetaSchema.parse(data)
+}
+
+export async function getRoundtableReportContent(
+  format: 'md' | 'html',
+): Promise<RoundtableReportContent> {
+  const data = await apiFetch<unknown>(`/v2/read/roundtable-report?format=${format}`)
+  return RoundtableReportContentSchema.parse(data)
+}
+
+/** 下载静态报告：原文来自统一信封，缺文件时后端 available=false，不造空 Blob。 */
+export async function downloadRoundtableReport(format: 'md' | 'html'): Promise<boolean> {
+  const report = await getRoundtableReportContent(format)
+  if (!report.available || !report.content) return false
+  return saveBlob(
+    new Blob([report.content], { type: report.mime }),
+    report.filename,
+  )
 }
 
 /** 浏览器保存 Blob（环境不支持时静默降级并返回 false，UI 提示）。 */

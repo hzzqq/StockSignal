@@ -1,10 +1,13 @@
 import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { EChartsOption } from 'echarts'
 import type { Portfolio as PortfolioData, PositionAllocation } from '@/api/schemas/read'
 import { usePortfolio, usePositionAllocation } from '@/lib/queries'
+import { addPortfolioPosition, deletePortfolioPosition, recordPortfolioSell } from '@/api/portfolioWrite'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
-import { QueryState } from '@/shared/ui/States'
+import { ErrorState, QueryState } from '@/shared/ui/States'
+import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 
@@ -91,12 +94,154 @@ export function Portfolio() {
   )
 }
 
+/** 本地模拟账本写面板：添加持仓 / 记录卖出 / 按行号删除，写完精确失效组合查询。 */
+function PortfolioWritePanel({ positions }: {
+  positions: Array<{
+    ticker: string
+    name?: string | null
+    buy_price?: number | null
+    remaining_shares?: number | null
+  }>
+}) {
+  const qc = useQueryClient()
+  const [addCode, setAddCode] = useState('')
+  const [addName, setAddName] = useState('')
+  const [addDate, setAddDate] = useState('')
+  const [addPrice, setAddPrice] = useState('')
+  const [addShares, setAddShares] = useState('')
+  const [addNote, setAddNote] = useState('')
+  const [sellCode, setSellCode] = useState('')
+  const [sellName, setSellName] = useState('')
+  const [sellDate, setSellDate] = useState('')
+  const [sellPrice, setSellPrice] = useState('')
+  const [sellShares, setSellShares] = useState('')
+  const [sellNote, setSellNote] = useState('')
+
+  const invalidate = () => { void qc.invalidateQueries({ queryKey: ['read', 'portfolio'] }) }
+  const addMut = useMutation({ mutationFn: addPortfolioPosition, onSuccess: invalidate })
+  const sellMut = useMutation({ mutationFn: recordPortfolioSell, onSuccess: invalidate })
+  const error = addMut.error ?? sellMut.error
+  const errorText = error instanceof Error ? error.message : error ? '写入失败' : null
+
+  return (
+    <Card title="模拟账本写操作" right={<span className="text-label text-sf-ink-3">本地 CSV · 全站共享 · 非实盘</span>}>
+      <div className="grid md:grid-cols-2 gap-4">
+        <form
+          className="flow"
+          onSubmit={(e) => {
+            e.preventDefault()
+            addMut.mutate({
+              ticker: addCode, buy_date: addDate,
+              buy_price: Number(addPrice), shares: Number(addShares),
+              name: addName || undefined, note: addNote || undefined,
+            })
+          }}
+        >
+          <div className="text-body text-sf-ink-2">添加持仓</div>
+          <StockSearchInput
+            value={addCode}
+            label="股票代码"
+            onTextChange={setAddCode}
+            onSelect={(code, item) => { setAddCode(code); if (item?.name) setAddName(item.name) }}
+          />
+          <input aria-label="股票名称" value={addName} onChange={(e) => setAddName(e.target.value)}
+            placeholder="股票名称（可不填，留空用代码）" className="w-full rounded-tile border border-sf-line px-2 py-1 text-xs" />
+          <input aria-label="买入日期" type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)}
+            className="w-full rounded-tile border border-sf-line px-2 py-1 text-xs" />
+          <input aria-label="买入价" type="number" step="0.01" min="0.01" value={addPrice}
+            onChange={(e) => setAddPrice(e.target.value)} placeholder="买入价"
+            className="w-full rounded-tile border border-sf-line px-2 py-1 text-xs" />
+          <input aria-label="买入股数" type="number" step="100" min="1" value={addShares}
+            onChange={(e) => setAddShares(e.target.value)} placeholder="买入股数"
+            className="w-full rounded-tile border border-sf-line px-2 py-1 text-xs" />
+          <input aria-label="买入备注" value={addNote} onChange={(e) => setAddNote(e.target.value)}
+            placeholder="备注（选填）" className="w-full rounded-tile border border-sf-line px-2 py-1 text-xs" />
+          <button type="submit" disabled={addMut.isPending}
+            className="w-fit rounded-tile bg-sf-accent px-3 py-1.5 text-xs text-white disabled:opacity-50">
+            {addMut.isPending ? '写入中…' : '添加持仓'}
+          </button>
+        </form>
+
+        <form
+          className="flow"
+          onSubmit={(e) => {
+            e.preventDefault()
+            sellMut.mutate({
+              ticker: sellCode, sell_date: sellDate,
+              sell_price: Number(sellPrice), sell_shares: Number(sellShares),
+              name: sellName || undefined, note: sellNote || undefined,
+            })
+          }}
+        >
+          <div className="text-body text-sf-ink-2">记录卖出</div>
+          <StockSearchInput
+            value={sellCode}
+            label="卖出股票代码"
+            onTextChange={setSellCode}
+            onSelect={(code, item) => { setSellCode(code); if (item?.name) setSellName(item.name) }}
+          />
+          <input aria-label="卖出股票名称" value={sellName} onChange={(e) => setSellName(e.target.value)}
+            placeholder="股票名称（可不填）" className="w-full rounded-tile border border-sf-line px-2 py-1 text-xs" />
+          <input aria-label="卖出日期" type="date" value={sellDate} onChange={(e) => setSellDate(e.target.value)}
+            className="w-full rounded-tile border border-sf-line px-2 py-1 text-xs" />
+          <input aria-label="卖出价" type="number" step="0.01" min="0.01" value={sellPrice}
+            onChange={(e) => setSellPrice(e.target.value)} placeholder="卖出价"
+            className="w-full rounded-tile border border-sf-line px-2 py-1 text-xs" />
+          <input aria-label="卖出股数" type="number" step="100" min="1" value={sellShares}
+            onChange={(e) => setSellShares(e.target.value)} placeholder="卖出股数"
+            className="w-full rounded-tile border border-sf-line px-2 py-1 text-xs" />
+          <input aria-label="卖出备注" value={sellNote} onChange={(e) => setSellNote(e.target.value)}
+            placeholder="备注（选填）" className="w-full rounded-tile border border-sf-line px-2 py-1 text-xs" />
+          <button type="submit" disabled={sellMut.isPending}
+            className="w-fit rounded-tile bg-sf-accent px-3 py-1.5 text-xs text-white disabled:opacity-50">
+            {sellMut.isPending ? '写入中…' : '记录卖出'}
+          </button>
+        </form>
+      </div>
+      <p className="text-label text-sf-ink-3 mt-3">
+        明细表的「删除」按钮按当前表格行号删除本地模拟记录（行号与后端一致）；卖出只追加交易记录，不改买入批次。
+        {positions.length ? ` 当前 ${positions.length} 批。` : ''}
+      </p>
+      {errorText ? <ErrorState message={errorText} /> : null}
+    </Card>
+  )
+}
+
+/** 按行号删除本地模拟持仓：行号取自 /portfolio 数组下标，与后端同源。 */
+function DeletePositionButton({ index, ticker }: { index: number; ticker: string }) {
+  const qc = useQueryClient()
+  const [error, setError] = useState<string | null>(null)
+  const mut = useMutation({
+    mutationFn: deletePortfolioPosition,
+    onSuccess: () => {
+      setError(null)
+      void qc.invalidateQueries({ queryKey: ['read', 'portfolio'] })
+    },
+    onError: (e: unknown) => setError(e instanceof Error ? e.message : '删除失败'),
+  })
+  return (
+    <span className="inline-flex flex-col items-end">
+      <button
+        type="button"
+        aria-label={`删除 ${ticker} 持仓记录`}
+        disabled={mut.isPending}
+        onClick={() => mut.mutate(index)}
+        className="rounded-tile border border-sf-line px-2 py-0.5 text-label text-sf-ink-2 hover:text-sf-accent disabled:opacity-50"
+      >
+        {mut.isPending ? '删除中' : '删除'}
+      </button>
+      {error ? <span role="alert" className="text-label text-sf-danger">{error}</span> : null}
+    </span>
+  )
+}
+
 function PositionsView({ data }: { data: PortfolioData }) {
   const s = data.summary ?? {}
   const positions = data.positions ?? []
 
   return (
     <div className="space-y-4">
+      <PortfolioWritePanel positions={positions} />
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         <Stat label="总持仓成本" value={typeof s.total_cost === 'number' ? `¥${s.total_cost.toLocaleString('zh-CN')}` : '—'} />
         <Stat label="总市值" value={typeof s.total_market_value === 'number' ? `¥${s.total_market_value.toLocaleString('zh-CN')}` : '—'} />
@@ -122,6 +267,7 @@ function PositionsView({ data }: { data: PortfolioData }) {
                   <th className="text-right py-1.5 pr-3">市值</th>
                   <th className="text-right py-1.5 pr-3">盈亏额</th>
                   <th className="text-right py-1.5">盈亏%</th>
+                  <th className="text-right py-1.5">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -139,6 +285,9 @@ function PositionsView({ data }: { data: PortfolioData }) {
                     </td>
                     <td className="py-1.5 text-right" style={{ color: pnlColor(p.pnl_pct) }}>
                       {pct(p.pnl_pct)}
+                    </td>
+                    <td className="py-1.5 text-right">
+                      <DeletePositionButton index={i} ticker={p.ticker} />
                     </td>
                   </tr>
                 ))}

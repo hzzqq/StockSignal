@@ -195,7 +195,9 @@ describe('W4-F · 接线守卫（源码真扫）', () => {
     }
     const login = mappingOf(V1_PAGES.find((p) => p.file === '90_登录.py')!)
     expect(login.note).toContain('不做假功能')
-    expect(login.note).toContain('未接入')
+    // 2026-11-21 开放注册已接入（POST /api/auth/register），「未接入」只允许留给验证码
+    expect(login.note).toContain('开放注册已实现')
+    expect(login.note).toContain('验证码登录')
     const c = statusCounts()
     expect(c.native + c.data + c['v1-only'] + c['v1-pinned']).toBe(V1_PAGES.length)
     expect(c.native).toBeGreaterThan(17)

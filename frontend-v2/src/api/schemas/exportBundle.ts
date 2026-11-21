@@ -46,3 +46,33 @@ export type StockReport = z.infer<typeof StockReportSchema>
 
 export const STOCK_REPORT_FORMATS = ['html', 'md'] as const
 export type StockReportFormat = (typeof STOCK_REPORT_FORMATS)[number]
+
+/** 64 投研圆桌静态交付物：meta 只给 KPI + 双格式可用状态，content 才是原文。 */
+export const RoundtableKpiSchema = z.object({
+  label: z.string(),
+  value: z.string(),
+  meta: z.string(),
+})
+
+export const RoundtableReportMetaSchema = z.object({
+  available: z.boolean(),
+  as_of: z.string(),
+  kpis: z.array(RoundtableKpiSchema).default([]),
+  md_available: z.boolean(),
+  html_available: z.boolean(),
+  source_note: z.string(),
+  reason: z.string().nullable().default(null),
+})
+
+export const RoundtableReportContentSchema = z.object({
+  available: z.boolean(),
+  format: z.enum(['md', 'html']),
+  filename: z.string(),
+  mime: z.string(),
+  as_of: z.string(),
+  content: z.string(),
+  reason: z.string().nullable().default(null),
+})
+
+export type RoundtableReportMeta = z.infer<typeof RoundtableReportMetaSchema>
+export type RoundtableReportContent = z.infer<typeof RoundtableReportContentSchema>

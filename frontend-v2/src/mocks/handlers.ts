@@ -104,6 +104,54 @@ export const handlers = [
   http.post('/api/auth/refresh', () =>
     ok({ access_token: 'mock-access-token', token_type: 'Bearer' }),
   ),
+  // 开放注册（2026-11-21 前端接入；对齐真后端 register_user 校验语义）：
+  // 用户名重复 -> 409 conflict；密码 <8 位 / 两次不一致 -> 422；成功 -> 201 + to_public（无 token）。
+  http.post('/api/auth/register', async ({ request }) => {
+    const body = (await request.json().catch(() => ({}))) as {
+      username?: string
+      password?: string
+      confirm?: string
+      confirm_password?: string
+    }
+    const username = (body.username ?? '').trim()
+    const password = body.password ?? ''
+    const confirm = body.confirm ?? body.confirm_password ?? ''
+    if (password.length < 8) {
+      return HttpResponse.json(
+        { status: 'error', code: 'validation_error', message: '密码至少 8 位', data: null },
+        { status: 422 },
+      )
+    }
+    if (password !== confirm) {
+      return HttpResponse.json(
+        { status: 'error', code: 'validation_error', message: '两次输入的密码不一致', data: null },
+        { status: 422 },
+      )
+    }
+    if (username === 'admin' || username === 'demo') {
+      return HttpResponse.json(
+        { status: 'error', code: 'conflict', message: '用户名已存在', data: null },
+        { status: 409 },
+      )
+    }
+    return HttpResponse.json(
+      {
+        status: 'ok',
+        code: 'created',
+        message: '注册成功',
+        data: {
+          id: adminMockState.nextId,
+          username,
+          role: 'user',
+          created_at: MOCK_CREATED_AT,
+          is_active: true,
+          avatar: null,
+          settings: {},
+        },
+      },
+      { status: 201 },
+    )
+  }),
   // 健康检测：显式带 source 标记，前端/测试可据实识别「这不是真实后端」。
   http.get('/api/health', () =>
     ok({ service: 'stock-signal', status: 'alive', source: 'msw-mock', components: { backend: 'ok', database: 'ok' } }),
@@ -111,6 +159,10 @@ export const handlers = [
 
   // W1 只读端点
   http.get('/api/v2/read/daily-snapshot', () => ok(fixtures.dailySnapshot)),
+  // 登录页公开摘要三端点（无鉴权脱敏，2026-11-21 老板需求）
+  http.get('/api/v2/read/public-overview', () => ok(fixtures.publicOverview)),
+  http.get('/api/v2/read/public-index-intraday', () => ok(fixtures.publicIndexIntraday)),
+  http.get('/api/v2/read/public-picks', () => ok(fixtures.publicPicks)),
   http.get('/api/v2/read/snapshot-dates', () => ok(fixtures.snapshotDates)),
   // 未知归档日期必须诚实 not_found，绝不回退今日快照冒充历史回放。
   http.get('/api/v2/read/snapshot/:date', ({ params }) => {
@@ -205,6 +257,13 @@ export const handlers = [
   // p1-sync-status 的 fixture 刻意不含 target_dir，与后端递归脱敏行为一致。
   http.get('/api/v2/read/event-pool', () => ok(fixtures.eventPool)),
   http.get('/api/v2/read/prediction-log', () => ok(fixtures.predictionLog)),
+  // 64 投研圆桌静态交付物：meta + md/html 原文（夹具为演示片段，非真实研报）
+  http.get('/api/v2/read/roundtable-report', ({ request }) => {
+    const fmt = new URL(request.url).searchParams.get('format') || 'meta'
+    if (fmt === 'md' || fmt === 'html') return ok(fixtures.roundtableReportContent[fmt])
+    if (fmt === 'meta') return ok(fixtures.roundtableReportMeta)
+    return badRequest('format 须为 meta / md / html 之一')
+  }),
   http.get('/api/v2/read/p1-sync-status', () => ok(fixtures.p1SyncStatus)),
   http.get('/api/v2/read/backtest-runs', () => ok(fixtures.backtestRuns)),
   http.get('/api/v2/read/data-refresh-state', () => ok(fixtures.dataRefreshState)),

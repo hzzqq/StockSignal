@@ -196,6 +196,33 @@ export const predictionLog = [
   { date: '2026-11-06', temp: 33.0, cycle: '修复试探', bias: '中性', pct: 29, event_adj: 2, event_available: true, realized: null, hit: null },
 ]
 
+export const roundtableReportMeta = {
+  available: true,
+  as_of: '2026-09-11',
+  kpis: [
+    { label: '数据日期', value: '2026-09-11', meta: 'westock-mcp 实时行情快照（收盘）' },
+    { label: '市场涨占比', value: '11%', meta: '广度温度官口径（报告快照值）' },
+  ],
+  md_available: true,
+  html_available: true,
+  source_note: '静态交付物原文（westock-mcp 2026-09-11 收盘快照），非实时数据',
+  reason: null,
+}
+
+/** 演示用短原文：真实交付物由后端读取 deliverables/，夹具不等于真实行情。 */
+export const roundtableReportContent = {
+  md: {
+    available: true, format: 'md', filename: '大盘主线与情绪研判_投研圆桌.md',
+    mime: 'text/markdown; charset=utf-8', as_of: '2026-09-11', reason: null,
+    content: '# 大盘主线与情绪研判\n\n数据日期：**2026-09-11**\n\n## 专家视角\n\n报告正文演示片段。',
+  },
+  html: {
+    available: true, format: 'html', filename: '大盘主线与情绪研判_投研圆桌.html',
+    mime: 'text/html; charset=utf-8', as_of: '2026-09-11', reason: null,
+    content: '<html><head><style>body{font-family:sans-serif}</style></head><body><h1>投研圆桌仪表盘</h1><p>演示片段</p></body></html>',
+  },
+}
+
 export const p1SyncStatus = {
   run_at: '2026-11-07T15:19:07',
   mode: 'scheduler',
@@ -3658,4 +3685,53 @@ export const patternScanTaskResult = {
   ],
   n_scanned: 2,
   available: true,
+}
+
+// ───────── 登录页公开摘要（public-overview / public-index-intraday / public-picks）─────────
+// 结构对齐 backend/api/read_routes.py 三端点；数值为演示数据、非真实行情。
+export const publicOverview = {
+  date: '2026-11-20',
+  as_of: '2026-11-20T15:31:19',
+  cycle: '修复试探',
+  temperature: 23,
+  indicators: {
+    up_count: 297,
+    down_count: 4897,
+    limit_up: 28,
+    limit_down: 68,
+    red_ratio: 5.7,
+    median_chg: null,
+  },
+  event_factor: { long_count: 20, adj: 2, as_of: '2026-11-17' },
+}
+
+export const publicIndexIntraday = {
+  code: 'sh000001',
+  name: '上证指数',
+  date: '2026-11-20',
+  prev_close: 3401.0,
+  rows: Array.from({ length: 12 }, (_, i) => {
+    const m = 35 + i * 5
+    const hh = String(9 + Math.floor(m / 60)).padStart(2, '0')
+    const mm = String(m % 60).padStart(2, '0')
+    return {
+      time: `2026-11-20 ${hh}:${mm}:00`,
+      close: 3400 + Math.round(Math.sin(i / 3) * 12 * 100) / 100 + i * 0.6,
+    }
+  }),
+}
+
+export const publicPicks = {
+  stocks: [
+    { code: '688519', name: '演示半导体A', pred: 0.1 },
+    { code: '300394', name: '演示机器人B', pred: 0.0998 },
+    { code: '688766', name: null, pred: 0.0997 },
+  ],
+  stocks_as_of: '2026-11-17',
+  sectors: [
+    { industry: '电池', chg_pct: -1.2, net: '-12.50亿' },
+    { industry: '光伏设备', chg_pct: -0.8, net: '-9.30亿' },
+    { industry: '证券', chg_pct: 1.5, net: '8.10亿' },
+  ],
+  disclaimer: '量化信号与资金流均为灰度参考，不构成投资建议',
 }

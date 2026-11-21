@@ -425,3 +425,53 @@ def test_stock_report_no_token_401(client, monkeypatch):
     r = client.get("/api/v2/read/stock-report?code=600519&format=html")
     assert r.status_code == 401, f"期望 401，实得 {r.status_code}: {r.text[:300]}"
     assert r.get_json()["status"] == "error"
+
+
+# ───────────── 64 投研圆桌静态交付物（v1 双格式展示 + 双下载后端化）─────────────
+URL_ROUNDTABLE = "/api/v2/read/roundtable-report"
+
+
+def test_roundtable_meta_reads_real_deliverable(client, auth):
+    r = client.get(f"{URL_ROUNDTABLE}?format=meta", headers=auth)
+    assert r.status_code == 200, r.text[:300]
+    d = r.get_json()["data"]
+    assert d["available"] is True
+    assert d["as_of"] == "2026-09-11"
+    assert d["md_available"] is True and d["html_available"] is True
+    assert d["kpis"], "真实报告应能从正文提取至少 1 张 KPI 卡"
+    assert all(set(k) >= {"label", "value", "meta"} for k in d["kpis"])
+
+
+@pytest.mark.parametrize("fmt,marker", [
+    ("md", "数据日期"),
+    ("html", "<style>"),
+])
+def test_roundtable_md_html_content(client, auth, fmt, marker):
+    r = client.get(f"{URL_ROUNDTABLE}?format={fmt}", headers=auth)
+    assert r.status_code == 200, r.text[:300]
+    d = r.get_json()["data"]
+    assert d["available"] is True and d["format"] == fmt
+    assert d["filename"].endswith(f".{fmt}") and d["content"]
+    assert marker in d["content"], f"{fmt} 原文缺少预期标记 {marker}"
+
+
+def test_roundtable_invalid_format_422(client, auth):
+    r = client.get(f"{URL_ROUNDTABLE}?format=pdf", headers=auth)
+    _assert_validation_422(r)
+
+
+def test_roundtable_missing_files_is_honest(client, auth, monkeypatch, tmp_path):
+    from backend.api import export_routes
+
+    monkeypatch.setattr(export_routes, "_ROUNDTABLE_DIR", tmp_path)
+    for fmt in ("meta", "md", "html"):
+        r = client.get(f"{URL_ROUNDTABLE}?format={fmt}", headers=auth)
+        assert r.status_code == 200, r.text[:300]
+        d = r.get_json()["data"]
+        assert d["available"] is False and d["reason"], d
+        assert "content" not in d, "缺文件绝不返回样例正文"
+
+
+def test_roundtable_no_token_401(client):
+    r = client.get(URL_ROUNDTABLE)
+    assert r.status_code == 401
