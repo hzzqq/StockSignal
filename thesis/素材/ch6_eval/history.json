@@ -1373,5 +1373,42 @@
         "accuracy": 22.2
       }
     ]
+  },
+  {
+    "run_at": "2026-11-21T19:25:16",
+    "snapshot_count": 40,
+    "prediction_count": 40,
+    "scored": 24,
+    "hit_rate": 0.375,
+    "cycle_distribution": {
+      "修复试探": 16,
+      "主升高潮": 7,
+      "退潮": 10,
+      "修复确认": 3,
+      "高潮分化": 2,
+      "冰点": 2
+    },
+    "by_group": [
+      {
+        "group": "进攻期",
+        "n_call": 10,
+        "accuracy": 50.0
+      },
+      {
+        "group": "分化期",
+        "n_call": 2,
+        "accuracy": 50.0
+      },
+      {
+        "group": "修复期",
+        "n_call": 2,
+        "accuracy": 0.0
+      },
+      {
+        "group": "防守期",
+        "n_call": 10,
+        "accuracy": 30.0
+      }
+    ]
   }
 ]

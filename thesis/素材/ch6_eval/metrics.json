@@ -1,8 +1,8 @@
 {
-  "snapshot_count": 38,
+  "snapshot_count": 40,
   "snapshot_date_range": [
     "2026-08-31",
-    "2026-11-18"
+    "2026-11-20"
   ],
   "temperature_min_max": [
     11.4,
@@ -14,12 +14,12 @@
   ],
   "position_clamp_5_95_ok": true,
   "cycle_distribution": {
-    "修复试探": 15,
+    "修复试探": 16,
     "主升高潮": 7,
     "退潮": 10,
     "修复确认": 3,
     "高潮分化": 2,
-    "冰点": 1
+    "冰点": 2
   },
   "scenario_samples": [
     [
@@ -157,9 +157,9 @@
       "梯队断档（晋级率<20%）：减仓 6%"
     ]
   ],
-  "prediction_count": 38,
-  "prediction_scored": 23,
-  "prediction_hit_rate": 0.34782608695652173,
+  "prediction_count": 40,
+  "prediction_scored": 24,
+  "prediction_hit_rate": 0.375,
   "note": "样本量小时如实标注，不推断统计显著性",
   "grouped_stats": {
     "by_cycle": [
@@ -196,32 +196,32 @@
       {
         "cycle": "修复试探",
         "group": "修复期",
-        "n": 15,
+        "n": 16,
         "n_call": 2,
         "hits": 0,
         "accuracy": 0.0,
-        "avg_pct": 30.2,
+        "avg_pct": 29.0,
         "avg_realized": -0.38
       },
       {
         "cycle": "冰点",
         "group": "修复期",
-        "n": 1,
+        "n": 2,
         "n_call": 0,
         "hits": 0,
         "accuracy": null,
-        "avg_pct": 33.0,
-        "avg_realized": 0.09
+        "avg_pct": 28.0,
+        "avg_realized": -0.96
       },
       {
         "cycle": "退潮",
         "group": "防守期",
         "n": 10,
-        "n_call": 9,
-        "hits": 2,
-        "accuracy": 22.2,
+        "n_call": 10,
+        "hits": 3,
+        "accuracy": 30.0,
         "avg_pct": 10.3,
-        "avg_realized": 0.37
+        "avg_realized": 0.3
       }
     ],
     "by_group": [
@@ -245,31 +245,31 @@
       },
       {
         "group": "修复期",
-        "n": 16,
+        "n": 18,
         "n_call": 2,
         "hits": 0,
         "accuracy": 0.0,
-        "avg_pct": 30.4,
-        "avg_realized": -0.35
+        "avg_pct": 28.9,
+        "avg_realized": -0.44
       },
       {
         "group": "防守期",
         "n": 10,
-        "n_call": 9,
-        "hits": 2,
-        "accuracy": 22.2,
+        "n_call": 10,
+        "hits": 3,
+        "accuracy": 30.0,
         "avg_pct": 10.3,
-        "avg_realized": 0.37
+        "avg_realized": 0.3
       }
     ],
     "summary": {
-      "n": 38,
-      "scored": 23,
-      "n_call": 23,
-      "hits": 8,
-      "accuracy": 34.8,
+      "n": 40,
+      "scored": 24,
+      "n_call": 24,
+      "hits": 9,
+      "accuracy": 37.5,
       "start": "2026-08-31",
-      "end": "2026-11-18"
+      "end": "2026-11-20"
     }
   }
 }
