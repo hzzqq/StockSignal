@@ -1,11 +1,14 @@
+import { useState } from 'react'
 import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 import { Link, useNavigate } from '@tanstack/react-router'
 import type { Fundamentals, FundamentalsPerf, Financials } from '@/api/schemas/stock'
-import { useFundamentals, useFinancials } from '@/lib/queries'
+import { useFundamentals, useFinancialsReport } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState, EmptyState } from '@/shared/ui/States'
+import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { fmtNum } from '@/lib/format'
+import { FinancialTrendChart, hasFinite } from './FinancialTrendChart'
 
 /**
  * W4-B · 基本面分析页（/stock/fundamentals，旧 22 页）。
@@ -39,6 +42,14 @@ const PERF_LABELS: Record<keyof FundamentalsPerf, string> = {
 }
 const PERF_KEYS = Object.keys(PERF_LABELS) as (keyof FundamentalsPerf)[]
 
+/**
+ * 历史业绩趋势可选指标（三选一，均为 income 合并表列名）。
+ * 同比取后端 `_compute_yoy` 算出的真实同比「_同比」列（仅 income 报表提供）；
+ * 若 rows 中该指标无 `_同比` 列，图内只画柱并如实提示，不虚构序列。
+ */
+const TREND_METRICS = ['营业总收入', '归母净利润', '净资产收益率'] as const
+type TrendMetric = (typeof TREND_METRICS)[number]
+
 export interface FundamentalsViewProps {
   /** 来自 validateSearch 的 ?code=；缺/非法时默认 600519（与 W4-A SixDimView / 旧 search_ui.py:235 一致）。 */
   search?: { code?: string }
@@ -48,7 +59,8 @@ export function FundamentalsView({ search }: FundamentalsViewProps) {
   const navigate = useNavigate()
   const code = search?.code && CODE_RE.test(search.code) ? search.code : DEFAULT_CODE
   const fund = useFundamentals(code)
-  const fin = useFinancials(code)
+  // 趋势图与财报表共用同一 income 报表源（useFinancials 即 report 固定 income 的快捷方式）。
+  const fin = useFinancialsReport(code, 'income')
 
   return (
     <div className="flow">
@@ -98,11 +110,15 @@ function FundamentalsBody({
   code,
 }: {
   data: Fundamentals
-  fin: ReturnType<typeof useFinancials>
+  fin: ReturnType<typeof useFinancialsReport>
   code: string
 }) {
   const perf = data.perf
   const degraded = data.date === null || perf === null
+  const [metric, setMetric] = useState<TrendMetric>('营业总收入')
+  const finRows = fin.data?.rows ?? []
+  const hasFinRows = finRows.length > 0
+  const latest = finRows[0] ?? {}
 
   return (
     <div className="flow">
@@ -166,18 +182,67 @@ function FundamentalsBody({
         )}
       </Card>
 
-      <Card title="多期财报（三表合并）">
-        <QueryState
-          isLoading={fin.isLoading}
-          isError={fin.isError}
-          error={fin.error}
-          isEmpty={!!fin.data && fin.data.rows.length === 0}
-          emptyLabel="暂无财报数据"
-          emptyHint="rows 为空数组，未做填充"
-        >
-          {fin.data && fin.data.rows.length > 0 ? <FinancialTable rows={fin.data.rows} /> : null}
-        </QueryState>
-      </Card>
+      {/* 有 rows：趋势卡 + 折叠财报表；无 rows / 取数中 / 失败：诚实态只呈现一次，
+          避免错误 alert 重复（副源失败不得刷屏），趋势卡此时不渲染、不造假图。 */}
+      {hasFinRows ? (
+        <>
+          <Card title="历史业绩趋势">
+            <div role="radiogroup" aria-label="选择业绩指标" className="mb-3 flex flex-wrap gap-2">
+              {TREND_METRICS.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  role="radio"
+                  aria-checked={metric === m}
+                  data-testid={`metric-${m}`}
+                  onClick={() => setMetric(m)}
+                  className={`rounded-full border px-3 py-1 text-label transition-colors ${
+                    metric === m
+                      ? 'border-sf-accent text-sf-accent'
+                      : 'border-sf-line text-sf-ink-3 hover:text-sf-ink-2'
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+            {hasFinite(finRows, metric) ? (
+              <FinancialTrendChart rows={finRows} metric={metric} />
+            ) : (
+              <EmptyState
+                label={`「${metric}」在当前财报 rows 中无有效数值`}
+                hint="null / 缺失期不绘图、不补零"
+              />
+            )}
+            {!hasFinite(finRows, `${metric}_同比`) && (
+              <p role="status" className="mt-2 text-label text-sf-ink-3">
+                {`该指标无同比序列（当前财报未提供「${metric}_同比」），仅绘制柱体，不补零`}
+              </p>
+            )}
+          </Card>
+
+          <CollapsibleCard
+            title="多期财报（三表合并）"
+            summary={`${finRows.length} 期 · 最新报告期 ${fmtNum(latest['报告期'])} · 营业总收入 ${fmtNum(latest['营业总收入'])} 亿`}
+            defaultOpen={false}
+          >
+            <FinancialTable rows={finRows} />
+          </CollapsibleCard>
+        </>
+      ) : (
+        <Card title="多期财报（三表合并）">
+          <QueryState
+            isLoading={fin.isLoading}
+            isError={fin.isError}
+            error={fin.error}
+            isEmpty={!!fin.data && fin.data.rows.length === 0}
+            emptyLabel="暂无财报数据"
+            emptyHint="rows 为空数组，未做填充"
+          >
+            {null}
+          </QueryState>
+        </Card>
+      )}
 
       <Card title="口径说明">
         {/* note 为后端原文，原样展示，不改写、不包装成投资建议。 */}
@@ -187,6 +252,7 @@ function FundamentalsBody({
           <li>财报为利润表 / 资产负债表 / 现金流量表三表合并指标，暂不支持单表切换（report 固定 income）。</li>
           <li>权威数据日与行情快照日均为数据自带时间戳，可能来自过期缓存（旧交易日），不标注「今日」。</li>
           <li>营收 / 净利变化率（revenue_yoy、profit_yoy）为「与上一报告期比」的相邻期口径，非同比或去年同期。</li>
+          <li>历史业绩趋势图的同比为后端 _compute_yoy 算出的真实同比（「_同比」字段），与上方相邻期口径不同；缺失的报告期不绘图、不补零。</li>
         </ul>
       </Card>
     </div>

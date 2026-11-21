@@ -2,16 +2,24 @@ import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import type { StockKline, ResearchDeep } from '@/api/schemas/stock'
+import type { EChartsOption } from 'echarts'
+import type { StockKline, ResearchDeep, SixDim, StockProfile, TechnicalScore, DimKey } from '@/api/schemas/stock'
+import { DIM_KEYS } from '@/api/schemas/stock'
 import type { ResearchView as ViewMode, ResearchRouteSearch } from '@/lib/deeplink'
-import { useStockIntraday, useStockKline } from '@/lib/queries'
+import { useStockIntraday, useStockKline, useSixDim, useStockProfile, useTechnicalScore } from '@/lib/queries'
 import { getResearchDeep } from '@/api/stock'
 import { Card } from '@/shared/ui/Card'
 import { QueryState } from '@/shared/ui/States'
+import { Stat } from '@/shared/ui/Stat'
+import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
+import { ScoreBar } from '@/shared/ui/ScoreBar'
+import { EChart } from '@/shared/charts/EChart'
+import { CHART } from '@/shared/charts/palette'
 import { inkForCell } from '@/lib/domainColor'
 import { fmtNum } from '@/lib/format'
 import { KLineChart } from './charts/KLineChart'
 import { IntradayChart } from './charts/IntradayChart'
+import { submitAnalysisTask, useCompositeTask } from './scoreTask'
 
 /**
  * W4-B · 个股研究页（/stock/research，旧 24 页）。
@@ -62,6 +70,9 @@ export function ResearchView({ search }: ResearchViewProps) {
           {`← 返回基本面分析（${linkCode}）`}
         </Link>
       </div>
+
+      {/* 股票名称+简介信息卡：页面顶部，代码输入区上方；code 变更即随当前有效代码刷新。 */}
+      <ProfileCard code={linkCode} />
 
       {/* 分段 radiogroup：原生 button 键盘可达，aria-checked 标注当前视图。 */}
       <div role="radiogroup" aria-label="研究视图" className="flex flex-wrap gap-2">
@@ -125,6 +136,54 @@ export function ResearchView({ search }: ResearchViewProps) {
   )
 }
 
+/** chip 样式（代码/行业/板块共用）：低强调圆角胶囊。 */
+const CHIP = 'rounded-full border border-sf-line px-2 py-0.5 text-label text-sf-ink-2'
+
+/**
+ * 股票名称+简介信息卡（GET /api/v2/read/stock-profile）。
+ * 诚实红线：name/industry/board/core_business/price/market_cap 逐字段独立降级，
+ * null 如实展示（core_business null → 「暂无简介（同花顺源不可用）」，不拿行业顶替、不编造）；
+ * date 生产恒 null（get_fundamentals 无数据日字段）→ 「暂无权威数据日」，禁当前日期兜底。
+ */
+function ProfileCard({ code }: { code: string }) {
+  const q = useStockProfile(code)
+  return (
+    <Card title="股票信息">
+      <QueryState isLoading={q.isLoading} isError={q.isError} error={q.error} isEmpty={false}>
+        {q.data ? <ProfileBody d={q.data} /> : null}
+      </QueryState>
+    </Card>
+  )
+}
+
+function ProfileBody({ d }: { d: StockProfile }) {
+  return (
+    <div className="flow">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-page font-semibold text-sf-ink">{d.name ?? '—'}</span>
+        <span className={`${CHIP} tabular-nums`}>{d.code}</span>
+        {d.industry !== null && <span className={CHIP}>{d.industry}</span>}
+        {d.board !== null && <span className={CHIP}>{d.board}</span>}
+      </div>
+      {d.core_business === null ? (
+        <p className="text-label text-sf-ink-3">暂无简介（同花顺源不可用）</p>
+      ) : (
+        <p className="text-body text-sf-ink-2">{d.core_business}</p>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <Stat label="最新价" value={d.price === null ? '—' : fmtNum(d.price)} />
+        <Stat label="总市值（亿）" value={d.market_cap === null ? '—' : fmtNum(d.market_cap)} />
+      </div>
+      {d.date === null ? (
+        <p role="status" className="text-label text-sf-warn">暂无权威数据日</p>
+      ) : (
+        <p className="text-label text-sf-ink-3">{`权威数据日：${d.date}`}</p>
+      )}
+      <p className="text-label text-sf-ink-3">{d.note}</p>
+    </div>
+  )
+}
+
 function QuickView({
   kline,
   valid,
@@ -142,8 +201,15 @@ function QuickView({
       </div>
     )
   }
+  // 折叠卡摘要：最新收盘（rows[0]，后端日线按新→旧排列）/ 权威数据日 / 根数；缺失如实「—」。
+  const rows = kline.data?.rows ?? []
+  const lastClose = rows.length > 0 && typeof rows[0]?.close === 'number' ? fmtNum(rows[0].close) : '—'
+  const dateTxt =
+    kline.data === undefined ? '—' : kline.data.date === null ? '暂无权威数据日' : kline.data.date
+  const tableSummary = `最新收盘 ${lastClose} · 权威数据日 ${dateTxt} · ${rows.length} 根`
   return (
-      <Card title="K 线 OHLC 数据表（daily）">
+    <>
+      <Card title="K 线图表（daily）">
         {/* date 为权威数据日：为 null 时如实显示，禁止今天日期兜底。 */}
         {kline.data && (
           <div className="flex flex-wrap items-center gap-3 text-body mb-3">
@@ -193,7 +259,15 @@ function QuickView({
         emptyHint="rows 为空数组，未做填充"
       >
         {kline.data && kline.data.rows.length > 0 ? (
-          <KlineTable rows={kline.data.rows} />
+          /* 超长 OHLC 表折叠：折叠态只留摘要行，children（整张表）不渲染；
+             加载/错误/空态仍在折叠卡之外独立可见，不被折叠藏住。 */
+          <CollapsibleCard
+            title="K 线 OHLC 数据表（daily）"
+            summary={tableSummary}
+            defaultOpen={false}
+          >
+            <KlineTable rows={kline.data.rows} />
+          </CollapsibleCard>
         ) : null}
       </QueryState>
       {/* note 为后端原文，原样展示。 */}
@@ -201,6 +275,9 @@ function QuickView({
         <p className="text-body text-sf-ink-2 mt-3">{kline.data.note}</p>
       )}
     </Card>
+      {/* 多维度评分区：技术面打分 + 六维评分 + 五维综合（异步任务）。 */}
+      <ScoreZone code={code} />
+    </>
   )
 }
 
@@ -229,6 +306,322 @@ function KlineTable({ rows }: { rows: StockKline['rows'] }) {
         </tbody>
       </table>
     </div>
+  )
+}
+
+// ═══════════ 多维度评分区（quick 视图 · K 线卡下方）═══════════
+// 三块数据源各自独立：technical-score（只读端点）/ six-dim（复用 useSixDim）/
+// 五维综合（analysis 异步任务，scoreTask.ts 模块级轮询）。
+// 诚实红线：SignalEngine 信号评分 / 事件评分 / 宏观板块评分是重型多源独立系统（未 API 化），
+// 本区不做也不伪造，仅在底部低强说明可走 /legacy。
+
+/** 六维中文标签（顺序与 DIM_KEYS 一致；与 SixDimView 同源副本，避免跨文件耦合）。 */
+const SIX_DIM_LABELS: Record<DimKey, string> = {
+  technical: '技术',
+  capital: '资金',
+  value: '价值',
+  growth: '成长',
+  fundamental: '基本面',
+  cycle: '周期',
+}
+
+/** 六维雷达 option（自 SixDimView 复制的本地渲染；缺失维以 null 不绘制，不补 0）。 */
+function sixDimRadarOption(d: SixDim): EChartsOption {
+  const radarValues: (number | null)[] = DIM_KEYS.map((k) =>
+    typeof d.dims[k] === 'number' ? d.dims[k] : null,
+  )
+  return {
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'item' },
+    radar: {
+      indicator: DIM_KEYS.map((k) => ({ name: SIX_DIM_LABELS[k], max: 100 })),
+      axisName: { color: CHART.ink2 },
+      axisLine: { lineStyle: { color: CHART.line } },
+      splitLine: { lineStyle: { color: CHART.line } },
+      splitArea: { show: false },
+    },
+    series: [
+      {
+        type: 'radar',
+        symbolSize: 5,
+        data: [
+          {
+            value: radarValues,
+            name: '六维评分',
+            itemStyle: { color: CHART.accent },
+            lineStyle: { color: CHART.accent, width: 1.5 },
+            areaStyle: { color: CHART.accent, opacity: 0.15 },
+          },
+        ],
+      },
+    ],
+  }
+}
+
+function ScoreZone({ code }: { code: string }) {
+  return (
+    <Card title="多维度评分">
+      <div className="flow">
+        <TechnicalScoreSection code={code} />
+        <SixDimSection code={code} />
+        <CompositeSection code={code} />
+        {/* 诚实说明：以下三类评分为重型异步引擎能力，v2 未 API 化，不伪造。 */}
+        <p className="text-label text-sf-ink-3">
+          信号/事件/宏观板块评分依赖重型异步引擎，可走 /legacy 查看旧版
+        </p>
+      </div>
+    </Card>
+  )
+}
+
+/**
+ * 技术面评分（GET /api/v2/read/technical-score）：
+ * ScoreBar×5（趋势/动量/量能/技术综合 + 多周期综合）+ short/mid/long 三个 Stat。
+ * technical=null（三维全失败/无有效K线）→ 诚实显示 note 降级说明，绝不补 0/50；
+ * patterns 空数组 → 「无形态信号」；overall 缺维按底层算法当中性 50 参与（后端语义）。
+ */
+function TechnicalScoreSection({ code }: { code: string }) {
+  const q = useTechnicalScore(code)
+  return (
+    <section className="rounded-tile border border-sf-line bg-sf-surface-2 p-3">
+      <h4 className="text-body font-semibold text-sf-ink mb-2">技术面评分</h4>
+      <QueryState isLoading={q.isLoading} isError={q.isError} error={q.error} isEmpty={false}>
+        {q.data ? <TechScoreBody d={q.data} /> : null}
+      </QueryState>
+    </section>
+  )
+}
+
+function TechScoreBody({ d }: { d: TechnicalScore }) {
+  // 整块降级：technical=null → note 里已注明「technical=null，不补值」，原文展示。
+  if (d.technical === null) {
+    return <p role="status" className="text-body text-sf-ink-2">{d.note}</p>
+  }
+  const t = d.technical
+  const p = d.periods
+  return (
+    <div className="flow">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <ScoreBar label="趋势" value={t.trend} />
+        <ScoreBar label="动量" value={t.momentum} />
+        <ScoreBar label="量能" value={t.volume} />
+        <ScoreBar label="技术综合" value={t.overall} />
+        {/* periods 整块 null → 多周期综合按缺失「—」 */}
+        <ScoreBar label="多周期综合" value={p === null ? null : p.composite} />
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <Stat label="短期" value={p === null || p.short === null ? '—' : fmtNum(p.short)} />
+        <Stat label="中期" value={p === null || p.mid === null ? '—' : fmtNum(p.mid)} />
+        <Stat label="长期" value={p === null || p.long === null ? '—' : fmtNum(p.long)} />
+      </div>
+      {t.patterns.length === 0 ? (
+        <p className="text-label text-sf-ink-3">无形态信号</p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {t.patterns.map((pat) => (
+            <span key={pat} className={CHIP}>{pat}</span>
+          ))}
+        </div>
+      )}
+      {d.date === null ? (
+        <p role="status" className="text-label text-sf-warn">暂无权威数据日</p>
+      ) : (
+        <p className="text-label text-sf-ink-3">{`权威数据日：${d.date}`}</p>
+      )}
+      <p className="text-label text-sf-ink-3">{d.note}</p>
+    </div>
+  )
+}
+
+/**
+ * 六维评分嵌入（复用 useSixDim）：雷达 option 本地渲染 + 6 条 ScoreBar；
+ * coverage<6 显式告知「仅 X/6 维有效」；链接到 /stock/six-dim 完整页。
+ */
+function SixDimSection({ code }: { code: string }) {
+  const q = useSixDim(code)
+  return (
+    <section className="rounded-tile border border-sf-line bg-sf-surface-2 p-3">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <h4 className="text-body font-semibold text-sf-ink">六维评分</h4>
+        <Link
+          to="/stock/six-dim"
+          className="text-label text-sf-accent hover:text-sf-ink underline underline-offset-4"
+        >
+          六维评分完整页 →
+        </Link>
+      </div>
+      <QueryState isLoading={q.isLoading} isError={q.isError} error={q.error} isEmpty={false}>
+        {q.data ? <SixDimMiniBody d={q.data} /> : null}
+      </QueryState>
+    </section>
+  )
+}
+
+function SixDimMiniBody({ d }: { d: SixDim }) {
+  return (
+    <div className="flow">
+      {d.coverage < 6 && (
+        <div role="status" className="text-body text-sf-ink-2">
+          {`仅 ${d.coverage}/6 维有效，缺失维未取到数据`}
+        </div>
+      )}
+      <EChart
+        option={sixDimRadarOption(d)}
+        height={260}
+        ariaLabel="个股六维评分雷达图（缩略）：缺失维度不绘制数据点"
+      />
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        {DIM_KEYS.map((k) => (
+          <ScoreBar key={k} label={SIX_DIM_LABELS[k]} value={d.dims[k]} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ───────── 五维综合（analysis 异步任务，scoreTask.ts 模块级轮询）─────────
+
+/** 评分环配色（评分语义，非价格涨跌语义，用状态令牌色）：≥70 红 / ≤40 绿 / 中间琥珀。 */
+function verdictColor(composite: number): string {
+  if (composite >= 70) return 'var(--color-sf-danger)'
+  if (composite <= 40) return 'var(--color-sf-ok)'
+  return 'var(--color-sf-warn)'
+}
+
+/** verdict 文案：后端给了就用原文；缺 verdict 时按同一阈值派生展示语义（≥70 看多 / ≤40 看空 / 观望）。 */
+function verdictText(r: { verdict: string | null | undefined; composite: number }): string {
+  if (r.verdict) return r.verdict
+  if (r.composite >= 70) return '看多'
+  if (r.composite <= 40) return '看空'
+  return '观望'
+}
+
+/** SVG 评分环（v1 _score_ring_html 概念迁移）：圆环按分值比例填充，中心数字。 */
+function ScoreRing({ score, color }: { score: number; color: string }) {
+  const pct = Math.min(100, Math.max(0, score))
+  const r = 54
+  const c = 2 * Math.PI * r
+  const dash = (c * pct) / 100
+  return (
+    <svg
+      width="140"
+      height="140"
+      viewBox="0 0 140 140"
+      role="img"
+      aria-label={`五维综合评分：${pct}`}
+    >
+      <circle cx="70" cy="70" r={r} fill="none" stroke="var(--color-sf-line)" strokeWidth="12" />
+      <circle
+        cx="70"
+        cy="70"
+        r={r}
+        fill="none"
+        stroke={color}
+        strokeWidth="12"
+        strokeLinecap="round"
+        strokeDasharray={`${dash.toFixed(1)} ${c.toFixed(1)}`}
+        transform="rotate(-90 70 70)"
+      />
+      <text x="70" y="80" textAnchor="middle" fontSize="34" fontWeight="700" fill={color}>
+        {pct}
+      </text>
+    </svg>
+  )
+}
+
+/**
+ * 五维综合评分块：默认 idle 只显示按钮（不自动发起）；提交/轮询态显示阶段与用时；
+ * 完成 → 评分环 + verdict 徽标 + 5 条子分 ScoreBar；失败/超时诚实中文提示，不造假分。
+ * 任务态存于模块级 store（scoreTask.ts）：切页不打断轮询，同会话切回来结果还在。
+ */
+function CompositeSection({ code }: { code: string }) {
+  const st = useCompositeTask(code)
+
+  if (st.phase === 'idle') {
+    return (
+      <section className="rounded-tile border border-sf-line bg-sf-surface-2 p-3">
+        <h4 className="text-body font-semibold text-sf-ink mb-2">五维综合评分</h4>
+        <button
+          type="button"
+          onClick={() => submitAnalysisTask(code)}
+          className="rounded-tile border border-sf-line bg-sf-surface px-4 py-2 text-body text-sf-ink hover:border-sf-accent hover:text-sf-accent"
+        >
+          生成五维综合评分（异步约 10-30 秒）
+        </button>
+        <p className="text-label text-sf-ink-3 mt-2">
+          提交后由后台 analysis 引擎异步计算（技术/新闻/宏观/量能/板块五维合成），本页不自动发起。
+        </p>
+      </section>
+    )
+  }
+
+  if (st.phase === 'submitting' || st.phase === 'polling') {
+    return (
+      <section className="rounded-tile border border-sf-line bg-sf-surface-2 p-3">
+        <h4 className="text-body font-semibold text-sf-ink mb-2">五维综合评分</h4>
+        <div role="status" className="text-body text-sf-ink-2">
+          {st.phase === 'submitting' ? '任务提交中…' : '后台计算中…'}
+          {st.stage !== null && <span>{`（${st.stage}）`}</span>}
+          {st.elapsedS !== null && (
+            <span className="text-label text-sf-ink-3">{` 已用时 ${st.elapsedS}s`}</span>
+          )}
+        </div>
+      </section>
+    )
+  }
+
+  if (st.phase === 'error') {
+    return (
+      <section className="rounded-tile border border-sf-line bg-sf-surface-2 p-3">
+        <h4 className="text-body font-semibold text-sf-ink mb-2">五维综合评分</h4>
+        <div role="alert" className="text-body text-sf-warn">
+          {`五维综合评分失败：${st.error ?? '未知错误'}`}
+        </div>
+        <button
+          type="button"
+          onClick={() => submitAnalysisTask(code)}
+          className="mt-2 rounded-tile border border-sf-line bg-sf-surface px-4 py-2 text-body text-sf-ink hover:border-sf-accent hover:text-sf-accent"
+        >
+          重试
+        </button>
+      </section>
+    )
+  }
+
+  // done：综合分缺失 → 诚实告知，不画 0 分环
+  const r = st.result
+  const composite = r && typeof r.composite === 'number' ? r.composite : null
+  if (r === null || composite === null) {
+    return (
+      <section className="rounded-tile border border-sf-line bg-sf-surface-2 p-3">
+        <h4 className="text-body font-semibold text-sf-ink mb-2">五维综合评分</h4>
+        <div role="status" className="text-body text-sf-ink-2">
+          任务完成但后端未返回综合评分（composite 缺失），如实展示，不伪造分数。
+        </div>
+      </section>
+    )
+  }
+  const color = verdictColor(composite)
+  return (
+    <section className="rounded-tile border border-sf-line bg-sf-surface-2 p-3">
+      <h4 className="text-body font-semibold text-sf-ink mb-2">五维综合评分</h4>
+      <div className="flex flex-wrap items-center gap-4">
+        <ScoreRing score={composite} color={color} />
+        <span
+          className="rounded-full border px-3 py-1 text-body font-semibold"
+          style={{ color, borderColor: color }}
+        >
+          {verdictText({ verdict: r.verdict, composite })}
+        </span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+        <ScoreBar label="技术分" value={r.tech_score ?? null} color={color} />
+        <ScoreBar label="新闻情绪分" value={r.news_score ?? null} color={color} />
+        <ScoreBar label="宏观分" value={r.macro_score ?? null} color={color} />
+        <ScoreBar label="量能分" value={r.vol_score ?? null} color={color} />
+        <ScoreBar label="板块分" value={r.sector_score ?? null} color={color} />
+      </div>
+    </section>
   )
 }
 
@@ -295,41 +688,53 @@ export function DeepBody({ data }: { data: ResearchDeep }) {
 
   return (
     <div className="flow">
-      {/* 真实字段表：有技术字段就照后端原始 key 渲染（域级双色），豁免态不再短路隐藏。 */}
+      {/* 真实字段表：有技术字段就照后端原始 key 渲染（域级双色），豁免态不再短路隐藏。
+          表包折叠卡（默认展开，保持 DeepExemptRendering 守卫「不点击即可见」语义）：
+          summary 给 price/pe_ttm/ma5 摘要，null 用「—」。 */}
       {hasTech && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-body border-collapse">
-            <caption className="sr-only">个股深度技术字段，列名取后端原始响应 key，未做重排</caption>
-            <thead>
-              <tr className="text-label text-sf-ink-3 border-b border-sf-line">
-                <th scope="col" className="text-left py-2 pr-3 font-normal">字段</th>
-                <th scope="col" className="text-left py-2 pr-3 font-normal tabular-nums">数值</th>
-              </tr>
-            </thead>
-            <tbody className="text-sf-ink-2">
-              {techKeys.map((k) => {
-                const v = (data as Record<string, unknown>)[k]
-                return (
-                  <tr key={k} className="border-b border-sf-line last:border-0">
-                    <th
-                      scope="row"
-                      className="text-left py-1.5 pr-3 font-normal text-sf-ink-3"
-                      style={{ color: inkForCell(k, undefined) }}
-                    >
-                      {k}
-                    </th>
-                    <td
-                      className="py-1.5 pr-3 tabular-nums"
-                      style={typeof v === 'number' ? { color: inkForCell(k, v) } : undefined}
-                    >
-                      {fmtNum(v)}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+        <CollapsibleCard
+          title="深度技术字段"
+          summary={(() => {
+            const rec = data as Record<string, unknown>
+            const cell = (k: string) => (typeof rec[k] === 'number' ? fmtNum(rec[k]) : '—')
+            return `price ${cell('price')} · pe_ttm ${cell('pe_ttm')} · ma5 ${cell('ma5')}`
+          })()}
+          defaultOpen={true}
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full text-body border-collapse">
+              <caption className="sr-only">个股深度技术字段，列名取后端原始响应 key，未做重排</caption>
+              <thead>
+                <tr className="text-label text-sf-ink-3 border-b border-sf-line">
+                  <th scope="col" className="text-left py-2 pr-3 font-normal">字段</th>
+                  <th scope="col" className="text-left py-2 pr-3 font-normal tabular-nums">数值</th>
+                </tr>
+              </thead>
+              <tbody className="text-sf-ink-2">
+                {techKeys.map((k) => {
+                  const v = (data as Record<string, unknown>)[k]
+                  return (
+                    <tr key={k} className="border-b border-sf-line last:border-0">
+                      <th
+                        scope="row"
+                        className="text-left py-1.5 pr-3 font-normal text-sf-ink-3"
+                        style={{ color: inkForCell(k, undefined) }}
+                      >
+                        {k}
+                      </th>
+                      <td
+                        className="py-1.5 pr-3 tabular-nums"
+                        style={typeof v === 'number' ? { color: inkForCell(k, v) } : undefined}
+                      >
+                        {fmtNum(v)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CollapsibleCard>
       )}
       {/* 诚实说明：56 键异步深度分析未接入时追加在真实字段表之后（低强调），
           不替换、不短路已有的真实技术字段。 */}

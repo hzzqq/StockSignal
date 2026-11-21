@@ -25,6 +25,12 @@ vi.mock('@tanstack/react-router', async (importOriginal) => {
   }
 })
 
+// 页面新增「历史业绩趋势」图后，jsdom 无 canvas 会让真实 EChart 初始化抛错；
+// 与 w4b-pages 等兄弟测试一致换轻量替身，不改变本文件任何取数/降级断言。
+vi.mock('@/shared/charts/EChart', () => ({
+  EChart: ({ height }: { height?: number }) => <div data-testid="echart" style={{ height }} />,
+}))
+
 const calls = vi.hoisted(() => ({ list: [] as string[] }))
 
 const server = setupServer(...handlers)

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { handlers } from '@/mocks/handlers'
@@ -87,6 +87,16 @@ function renderView() {
   )
 }
 
+/** K 线 OHLC 表已改为折叠卡（defaultOpen=false）：断言表内容前先展开。 */
+async function expandKlineTable() {
+  const region = await screen.findByRole(
+    'region',
+    { name: 'K 线 OHLC 数据表（daily）' },
+    FIND,
+  )
+  fireEvent.click(within(region).getByRole('button', { name: '展开 ▾' }))
+}
+
 describe('ResearchView · 分时数据不得静默省略（诚实红线）', () => {
   it('⚠️ 后端真实「无分时数据」= ok + rows=[] → 显式空态，且 K 线表不受连累', async () => {
     mockIntraday([])
@@ -94,7 +104,8 @@ describe('ResearchView · 分时数据不得静默省略（诚实红线）', () 
 
     expect(await screen.findByText('暂无分时数据', {}, FIND)).toBeTruthy()
     expect(screen.getByText('分时 rows 为空数组，未做填充或补零')).toBeTruthy()
-    // 主数据源独立：K 线表照常渲染
+    // 主数据源独立：K 线表照常渲染（折叠卡需先展开）
+    await expandKlineTable()
     expect(await screen.findByText('open', {}, FIND)).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
   })
@@ -121,6 +132,7 @@ describe('ResearchView · 分时数据不得静默省略（诚实红线）', () 
     )
     renderView()
 
+    await expandKlineTable()
     await waitFor(() => expect(screen.getByText('open')).toBeTruthy())
     const section = screen.getByTestId('intraday-section')
     expect(within(section).getByText('加载中…')).toBeTruthy()
@@ -130,7 +142,8 @@ describe('ResearchView · 分时数据不得静默省略（诚实红线）', () 
     mockIntraday(INTRADAY_ROWS)
     renderView()
 
-    await waitFor(() => expect(screen.getAllByTestId('echart')).toHaveLength(2))
+    // K 线 + 分时两张图都在（多维度评分区的六维雷达图会再挂一个 EChart，故 >= 2）
+    await waitFor(() => expect(screen.getAllByTestId('echart').length).toBeGreaterThanOrEqual(2))
     expect(screen.queryByText('暂无分时数据')).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
   })
@@ -149,7 +162,9 @@ describe('ResearchView · 分时数据不得静默省略（诚实红线）', () 
     mockIntraday(INTRADAY_ROWS, null)
     renderView()
 
-    expect(await screen.findByText(/暂无昨收基准/, {}, FIND)).toBeTruthy()
+    // IntradayChart 在状态行与「分时明细表」折叠摘要中各有一处诚实标注，故用 findAll。
+    const marks = await screen.findAllByText(/暂无昨收基准/, {}, FIND)
+    expect(marks.length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByTestId('echart').length).toBeGreaterThanOrEqual(1)
   })
 })

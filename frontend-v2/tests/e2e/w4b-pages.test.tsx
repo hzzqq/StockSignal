@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { handlers } from '@/mocks/handlers'
@@ -43,6 +43,16 @@ if (!('ResizeObserver' in globalThis)) {
 const NOTE = '逐字段独立取数、独立降级；缺失为 null 且不补 0'
 const FIND = { timeout: 5000 }
 
+/** K 线 OHLC 表已改折叠卡（defaultOpen=false）：断言表内容前先在折叠卡区域内展开。 */
+async function expandKlineTable() {
+  const region = await screen.findByRole(
+    'region',
+    { name: 'K 线 OHLC 数据表（daily）' },
+    FIND,
+  )
+  fireEvent.click(within(region).getByRole('button', { name: '展开 ▾' }))
+}
+
 const server = setupServer(...handlers)
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }))
@@ -64,6 +74,8 @@ describe('W4-B · 基本面分析页 FundamentalsView', () => {
     expect(screen.getByText(NOTE)).toBeTruthy()
     expect(screen.getByText('market')).toBeTruthy()
     expect(screen.getByTestId('perf-revenue_yi').textContent).not.toBe('缺失')
+    // 财报表改为 CollapsibleCard 折叠呈现（defaultOpen=false），展开后再断言表内容
+    fireEvent.click(await screen.findByRole('button', { name: '展开 ▾' }, FIND))
     expect(screen.getByText('报告期')).toBeTruthy()
     expect(screen.getByText('2025-09-30')).toBeTruthy()
   })
@@ -80,6 +92,9 @@ describe('W4-B · 基本面分析页 FundamentalsView', () => {
     expect(screen.getByTestId('perf-roe').textContent).toBe('缺失')
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(5)
     expect(screen.getByText('部分基本面数据未取到，缺失项如实留空，未做补零或日期兜底')).toBeTruthy()
+    // 财报表折叠后隐藏了表内「—」占位；展开恢复原断言口径（含表内 null 列的 —）
+    fireEvent.click(await screen.findByRole('button', { name: '展开 ▾' }, FIND))
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(5)
   })
 
   it('perf 为 9 字段全 null 对象（后端全源失败态）：9 项逐字段显示「缺失」、绝不补 0', async () => {
@@ -152,7 +167,10 @@ describe('W4-B · 个股研究页 ResearchView', () => {
     expect(screen.getByRole('radio', { name: /深度分析/ }).getAttribute('aria-checked')).toBe('false')
     // 缺 code → 输入框默认 600519
     expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('600519')
-    expect(await screen.findByText('权威数据日：2026-11-06', {}, FIND)).toBeTruthy()
+    // 技术面评分卡与 K 线卡各有一处权威数据日 → findAll
+    expect((await screen.findAllByText('权威数据日：2026-11-06', {}, FIND)).length).toBeGreaterThanOrEqual(1)
+    // OHLC 表已折叠：展开后再断言表内容
+    await expandKlineTable()
     expect(screen.getByText('open')).toBeTruthy()
     expect(screen.getByText('close')).toBeTruthy()
     expect(screen.getByText(NOTE)).toBeTruthy()
@@ -165,7 +183,8 @@ describe('W4-B · 个股研究页 ResearchView', () => {
         <ResearchView search={{ view: 'quick', code: '000003' }} />
       </Providers>,
     )
-    expect(await screen.findByText('暂无权威数据日', {}, FIND)).toBeTruthy()
+    // 股票信息卡与 K 线卡各有一处 date:null 诚实提示，用 findAll
+    expect((await screen.findAllByText('暂无权威数据日', {}, FIND)).length).toBeGreaterThanOrEqual(1)
     expect(await screen.findByText('暂无 K 线数据', {}, FIND)).toBeTruthy()
   })
 
@@ -175,7 +194,8 @@ describe('W4-B · 个股研究页 ResearchView', () => {
         <ResearchView search={{ view: 'quick', code: '000004' }} />
       </Providers>,
     )
-    expect(await screen.findByText('暂无权威数据日', {}, FIND)).toBeTruthy()
+    expect((await screen.findAllByText('暂无权威数据日', {}, FIND)).length).toBeGreaterThanOrEqual(1)
+    await expandKlineTable()
     expect(await screen.findByText('open', {}, FIND)).toBeTruthy()
   })
 
@@ -201,6 +221,7 @@ describe('W4-B · 个股研究页 ResearchView', () => {
         <ResearchView search={{ view: 'quick', code: '600519' }} />
       </Providers>,
     )
+    await expandKlineTable()
     expect(await screen.findByText('open', {}, FIND)).toBeTruthy()
     fireEvent.click(screen.getByRole('radio', { name: /深度分析/ }))
     // 豁免态按诚实口径仍展示后端已返回的真实技术字段，下方追加未接入说明；
@@ -237,6 +258,7 @@ describe('W4-B · 个股研究页 ResearchView', () => {
         <ResearchView search={{ view: 'quick', code: '600519' }} />
       </Providers>,
     )
+    await expandKlineTable()
     expect(await screen.findByText('open', {}, FIND)).toBeTruthy()
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'abc' } })
     expect(await screen.findByText('请输入 6 位数字股票代码后再查询', {}, FIND)).toBeTruthy()

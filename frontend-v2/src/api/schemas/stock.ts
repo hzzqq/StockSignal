@@ -191,3 +191,58 @@ export type CompareOne = z.infer<typeof CompareOneSchema>
 /** GET /api/v2/read/research-deep?code=<6位> 的 data（通用透传，含技术字段与豁免键）。 */
 export const ResearchDeepSchema = z.record(z.string(), z.unknown())
 export type ResearchDeep = z.infer<typeof ResearchDeepSchema>
+
+// ═══════════════════ v2 个股研究页：名称/简介信息卡 + 技术面打分 ═══════════════════
+// 契约与 backend/api/read_routes.py::stock_profile / technical_score 逐字对齐：
+// data 字段一个不多一个不少，缺失一律 null，禁止补 0 / 补 50 / 编造 patterns；
+// date 一律权威数据日、取不到 null 禁 now()；解析失败即抛错（不兜底），与全站一致。
+
+/**
+ * GET /api/v2/read/stock-profile?code=<6位> 的 data。
+ *
+ * ⚠️ 生产环境 date 恒 null（get_fundamentals 无数据日字段），前端按 null 显示
+ * 「暂无权威数据日」；industry 同样可能为 null（基本面源缺失），不得拿板块顶替。
+ */
+export const StockProfileSchema = z.object({
+  code: z.string(),
+  name: NullableString,
+  industry: NullableString,
+  board: NullableString,
+  core_business: NullableString,
+  price: NullableNumber,
+  market_cap: NullableNumber,
+  date: NullableString,
+  note: z.string(),
+})
+export type StockProfile = z.infer<typeof StockProfileSchema>
+
+/**
+ * GET /api/v2/read/technical-score?code=<6位> 的 data。
+ *
+ * technical（full_analysis 三维 + patterns + overall 加权）与 periods
+ * （SignalEngine.technical_profile 多周期画像）各自独立降级：整块失败 -> null；
+ * overall 在部分维缺失时按底层算法把缺维当中性 50 参与（仅三维全失败才 null）。
+ */
+export const TechnicalScoreSchema = z.object({
+  code: z.string(),
+  technical: z
+    .object({
+      trend: NullableNumber,
+      momentum: NullableNumber,
+      volume: NullableNumber,
+      patterns: z.array(z.string()),
+      overall: NullableNumber,
+    })
+    .nullable(),
+  periods: z
+    .object({
+      short: NullableNumber,
+      mid: NullableNumber,
+      long: NullableNumber,
+      composite: NullableNumber,
+    })
+    .nullable(),
+  date: NullableString,
+  note: z.string(),
+})
+export type TechnicalScore = z.infer<typeof TechnicalScoreSchema>

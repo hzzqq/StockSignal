@@ -2234,6 +2234,241 @@ def stock_intraday():
     return ok(data=_sanitize(data), message="stock-intraday")
 
 
+# ───────────── v2 个股研究页：名称/简介 + 打分系统（只读）─────────────
+# 契约由前端 Zod schema 逐字约定：data 字段一个不多一个不少，缺失一律 null，
+# 禁止补 0 / 补 50 / 编造 patterns，date 一律权威数据日、取不到 null 禁 now()。
+_SP_NOTE = "名称来自本地股票池/简介来自同花顺实时;逐字段独立降级,缺失为 null 不补值"
+_TS_NOTE_BASE = (
+    "技术面与多周期画像均取现有日K线纯函数计算（full_analysis / overall_technical_score / "
+    "SignalEngine.technical_profile），无新增网络源；SignalEngine 只用其纯计算方法、"
+    "不实例化（跳过会拉 StockFetcher/EventMiner/... 的 __init__）；"
+    "date 为 K 线末根真实数据日，取不到为 null，绝不用 now()"
+)
+
+
+def _sp_name_from_pool(code):
+    """本地股票池水合名称：建 code->name 映射，尾6位归一 str(sym)[-6:].zfill(6)。本地只读零网络。"""
+    try:
+        from ..services.stock_pool_fallback import load_stock_pool
+        pool = load_stock_pool()
+    except Exception:  # noqa: BLE001
+        # ui_audit_exempt: 已知静默降级 — 本地池不可读时返回 None，上层按空态处理，不伪造结果
+        return None
+    for it in pool or ():
+        if not isinstance(it, dict):
+            continue
+        sym = str(it.get("code") or "")
+        if sym[-6:].zfill(6) == code:
+            return _w4b_str(it.get("name"))
+    return None
+
+
+def _sp_fundamentals(code):
+    """get_fundamentals(code) 原始 dict（复用 _w4b_basic 多源降级语义），异常/非 dict -> {}。"""
+    try:
+        d = _w4b_basic(code)
+        return d if isinstance(d, dict) else {}
+    except Exception:  # noqa: BLE001
+        # ui_audit_exempt: 已知静默降级 — 取数异常返回空字典，上层逐字段 null，不伪造结果
+        return {}
+
+
+def _sp_board(code):
+    """由代码派生板块名（纯函数 modules.market_utils.board_name），异常 -> None。"""
+    try:
+        from modules.market_utils import board_name
+        return board_name(code) or None
+    except Exception:  # noqa: BLE001
+        # ui_audit_exempt: 已知静默降级 — 派生失败返回 None，上层按空态处理，不伪造结果
+        return None
+
+
+def _sp_core_business(code):
+    """同花顺主营业务（StockFetcher.get_core_business，此前 backend 零引用、本轮首次 API 化）。
+
+    底层取不到返回 ''，异常也可能；此处保留原始返回，由端点统一规整为 None。
+    绝不用 industry 顶替、绝不编造简介。
+    """
+    try:
+        from ..api.market_routes import get_fetcher
+        return get_fetcher().get_core_business(code)
+    except Exception:  # noqa: BLE001
+        # ui_audit_exempt: 已知静默降级 — 取数异常返回 None，上层按空态处理，不伪造结果
+        return None
+
+
+def _sp_fund_date(fund):
+    """get_fundamentals 自带数据日 -> 'YYYY-MM-DD' | None；无该字段则 None，禁 now() 兜底。"""
+    if not isinstance(fund, dict):
+        return None
+    for key in ("date", "trade_date", "datetime", "as_of", "update_date", "数据日期"):
+        v = fund.get(key)
+        if v in (None, ""):
+            continue
+        s = str(v)[:10]
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s):
+            return s
+    return None
+
+
+@bp.get("/stock-profile")
+@jwt_required
+def stock_profile():
+    """GET /api/v2/read/stock-profile?code=600519 —— 个股名称/简介信息卡。
+
+    data 字段全集逐字约定：code/name/industry/board/core_business/price/market_cap/date/note。
+    四路取数（本地池名称 / fundamentals / 板块派生 / 同花顺主营业务）独立并发，
+    逐字段独立降级；core_business 同花顺取不到 -> None，绝不编造。
+    date 取 fundamentals 自带数据日，取不到 null，禁 now()。
+    """
+    code = request.args.get("code", "")
+    if not re.fullmatch(r"\d{6}", code or ""):
+        return fail(message="code 非法（须为 6 位数字股票代码）",
+                    code="invalid_param", http_status=400)
+    try:
+        from modules.fetch_parallel import fetch_many
+        res = fetch_many([
+            ("name", lambda: _sp_name_from_pool(code)),
+            ("fund", lambda: _sp_fundamentals(code)),
+            ("board", lambda: _sp_board(code)),
+            ("core", lambda: _sp_core_business(code)),
+        ])
+    except Exception:  # noqa: BLE001 - 并发行本身异常：四源全体降级（诚实返回 null）
+        res = {}
+    fund = res.get("fund") if isinstance(res.get("fund"), dict) else {}
+    data = {
+        "code": code,
+        "name": _w4b_str(res.get("name")),
+        "industry": _w4b_str(fund.get("industry")),
+        "board": _w4b_str(res.get("board")),
+        # 失败契约：同花顺取不到（底层 '' 或异常 None）-> None，绝不补 '' / 编造
+        "core_business": _w4b_str(res.get("core")),
+        "price": _w4b_num(fund.get("price")),
+        "market_cap": _w4b_num(fund.get("market_cap")),
+        "date": _sp_fund_date(fund),
+        "note": _SP_NOTE,
+    }
+    return ok(data=_sanitize(data), message="stock-profile")
+
+
+def _sp_tech_block(df):
+    """full_analysis + overall_technical_score -> contract dict | None。
+
+    整块失败（无 df / full_analysis 抛异常）-> None；子项失败 -> 对应 null / patterns=[]。
+    三维全失败时 overall=None（绝不补 50）；overall 仅在至少一维有真值时按底层算法合成。
+    """
+    if df is None or not hasattr(df, "columns") or len(df) == 0:
+        return None
+    try:
+        from modules.technical import full_analysis, overall_technical_score
+        got = full_analysis(df)
+    except Exception:  # noqa: BLE001
+        # ui_audit_exempt: 已知静默降级 — 计算异常返回 None，上层按空态处理，不伪造结果
+        return None
+    if not isinstance(got, dict):
+        return None
+
+    def _score(block, key):
+        if not isinstance(block, dict) or "error" in block:
+            return None
+        return _w4b_num(block.get(key))
+
+    trend = _score(got.get("trend"), "trend_score")
+    momentum = _score(got.get("momentum"), "momentum_score")
+    volume = _score(got.get("volume"), "volume_price_score")
+
+    patterns = []
+    raw_patterns = got.get("patterns")
+    if isinstance(raw_patterns, list):
+        for p in raw_patterns:
+            nm = _w4b_str(p.get("name")) if isinstance(p, dict) else _w4b_str(p)
+            if nm:
+                patterns.append(nm)
+
+    if any(s is not None for s in (trend, momentum, volume)):
+        try:
+            overall = _w4b_num(overall_technical_score(trend, momentum, volume))
+        except Exception:  # noqa: BLE001
+            # ui_audit_exempt: 已知静默降级 — 合成异常返回 None，上层按空态处理，不伪造结果
+            overall = None
+    else:
+        overall = None  # 三维全失败 -> null，绝不补 50
+    return {"trend": trend, "momentum": momentum, "volume": volume,
+            "patterns": patterns, "overall": overall}
+
+
+def _sp_periods_block(df):
+    """多周期画像：复用 SignalEngine.technical_profile 的纯逻辑，零网络。
+
+    已核实（signal.py:118-223）该函数只调用 self._score_by_return / _stable_offset /
+    _clamp（三者均为 @staticmethod），不读任何实例状态。故用 object.__new__ 生成
+    未初始化实例，跳过 __init__ 中 StockFetcher/EventMiner/SentimentAnalyzer/
+    KeywordExtractor 等重型依赖，实现「直接调纯逻辑、零新增网络源」。异常 -> None。
+    """
+    if df is None or not hasattr(df, "columns") or len(df) == 0:
+        return None
+    try:
+        from modules.signal import SignalEngine
+        engine = object.__new__(SignalEngine)
+        prof = engine.technical_profile(df)
+    except Exception:  # noqa: BLE001
+        # ui_audit_exempt: 已知静默降级 — 画像计算异常返回 None，上层按空态处理，不伪造结果
+        return None
+    if not isinstance(prof, dict):
+        return None
+    return {
+        "short": _w4b_num(prof.get("short")),
+        "mid": _w4b_num(prof.get("mid")),
+        "long": _w4b_num(prof.get("long")),
+        "composite": _w4b_num(prof.get("composite")),
+    }
+
+
+@bp.get("/technical-score")
+@jwt_required
+def technical_score():
+    """GET /api/v2/read/technical-score?code=600519 —— 个股技术面打分系统。
+
+    data 字段全集逐字约定：code/technical/periods/date/note。
+    technical = full_analysis 的 trend/momentum/volume/patterns + overall 加权分；
+    periods = SignalEngine.technical_profile 的 short/mid/long/composite（纯计算、零网络）。
+    任一块异常 -> 对应字段 null，note 据实注明；date 为 K 线末根真实日，取不到 null 禁 now()。
+    """
+    code = request.args.get("code", "")
+    if not re.fullmatch(r"\d{6}", code or ""):
+        return fail(message="code 非法（须为 6 位数字股票代码）",
+                    code="invalid_param", http_status=400)
+    try:
+        from modules.fetch_parallel import fetch_many
+        res = fetch_many([("kline", lambda: _w4b_kline(code, "daily"))])
+    except Exception:  # noqa: BLE001 - 并发行本身异常：K线降级为 None
+        res = {}
+    df = res.get("kline")
+    try:
+        tech = _sp_tech_block(df)
+    except Exception:  # noqa: BLE001 - 兜底：任一块意外异常也不 500，诚实 null
+        # ui_audit_exempt: 已知静默降级 — 计算异常返回 None，上层按空态处理，不伪造结果
+        tech = None
+    try:
+        periods = _sp_periods_block(df)
+    except Exception:  # noqa: BLE001 - 兜底：任一块意外异常也不 500，诚实 null
+        # ui_audit_exempt: 已知静默降级 — 计算异常返回 None，上层按空态处理，不伪造结果
+        periods = None
+    note = _TS_NOTE_BASE
+    if tech is None:
+        note += "；技术面计算失败或无有效K线，technical=null，不补值"
+    if periods is None:
+        note += "；多周期画像计算失败或无有效K线，periods=null，不补值"
+    data = {
+        "code": code,
+        "technical": tech,
+        "periods": periods,
+        "date": _w4b_kline_date(df),
+        "note": note,
+    }
+    return ok(data=_sanitize(data), message="technical-score")
+
+
 # ───────────── 指数行情只读端点（index-quotes / index-kline）─────────────
 # 与 W4-B/W4-C 同款红线：@jwt_required + 统一 ok/fail 信封；code 用 ^(sh|sz)\d{6}$ 校验；
 # 多源 fetch_many；异常/空降级为 null/[]，绝不 500、绝不补 0；date 为权威数据日，绝不 now()。

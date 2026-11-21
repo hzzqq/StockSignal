@@ -3543,3 +3543,87 @@ export const marketTemperature = {
     reason: null,
   },
 }
+
+// ───────── v2 个股研究页：stock-profile / technical-score / analysis 任务夹具 ─────────
+// 契约与 backend/api/read_routes.py::stock_profile / technical_score 逐字对齐：
+// 字段一个不多一个不少；缺失一律 null；date 为权威数据日，生产 stock-profile 恒 null
+// （get_fundamentals 无数据日字段），夹具如实给 null，禁止用演示日期冒充权威数据日。
+
+const SP_NOTE =
+  '名称来自本地股票池/简介来自同花顺实时;逐字段独立降级,缺失为 null 不补值'
+
+/** stock-profile（600519）：有名称/简介/价格/市值；⚠️ industry 生产可能 null，如实给 null；date 恒 null。 */
+export const stockProfileFull = {
+  code: '600519',
+  name: '贵州茅台',
+  industry: null,
+  board: '沪市主板',
+  core_business:
+    '公司主营茅台酒及系列酒的生产与销售，为酱香型白酒龙头企业，产品经由经销与直销渠道覆盖国内外市场。',
+  price: 1523.5,
+  market_cap: 19138.2,
+  date: null,
+  note: SP_NOTE,
+}
+
+/** stock-profile（其余 code）：全源降级形态——name 等字段同构但为 null，绝不编造。 */
+export const stockProfileNameless = {
+  code: '000002',
+  name: null,
+  industry: null,
+  board: null,
+  core_business: null,
+  price: null,
+  market_cap: null,
+  date: null,
+  note: SP_NOTE,
+}
+
+const TS_NOTE_BASE =
+  '技术面与多周期画像均取现有日K线纯函数计算（full_analysis / overall_technical_score / ' +
+  'SignalEngine.technical_profile），无新增网络源；SignalEngine 只用其纯计算方法、' +
+  '不实例化（跳过会拉 StockFetcher/EventMiner/... 的 __init__）；' +
+  'date 为 K 线末根真实数据日，取不到为 null，绝不用 now()'
+
+/** technical-score（600519）：technical/periods 双块齐全，patterns 为演示形态名。 */
+export const technicalScoreFull = {
+  code: '600519',
+  technical: {
+    trend: 72.5,
+    momentum: 63.2,
+    volume: 58.0,
+    patterns: ['均线多头排列', 'MACD金叉'],
+    overall: 66.8,
+  },
+  periods: { short: 70.0, mid: 62.5, long: 55.0, composite: 63.4 },
+  date: '2026-11-06',
+  note: TS_NOTE_BASE,
+}
+
+/** technical-score（000002）：K 线不可用降级态——双块 null + note 据实注明，不补值。 */
+export const technicalScoreNull = {
+  code: '000002',
+  technical: null,
+  periods: null,
+  date: null,
+  note: TS_NOTE_BASE + '；技术面计算失败或无有效K线，technical=null，不补值' +
+    '；多周期画像计算失败或无有效K线，periods=null，不补值',
+}
+
+/**
+ * analysis 后台任务 result（GET /api/tasks/<id> 轮询 success 态的 data.result）。
+ * 真后端 result 为 modules.analysis_engine.run_analysis(...) 全集（含 df 等大对象），
+ * 此处只列前端消费的评分键（与 analysis_engine.py:502-558 字段名一致），
+ * 前端 Zod 宽松解析逐键 optional，其余键可存在但被剥离。数值为演示、非真实评分。
+ */
+export const analysisTaskResult = {
+  ticker: '600519',
+  display_name: '贵州茅台',
+  composite: 74.2,
+  verdict: '看多',
+  tech_score: 66.8,
+  news_score: 71.5,
+  macro_score: 60.0,
+  vol_score: 55.3,
+  sector_score: 68.9,
+}

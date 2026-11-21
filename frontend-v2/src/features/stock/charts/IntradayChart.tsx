@@ -4,6 +4,7 @@ import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { Stat } from '@/shared/ui/Stat'
 import { EmptyState } from '@/shared/ui/States'
+import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { DIRECTION_HEX, DIRECTION_INK, type PriceDomain } from './common'
 import { intradayAvg, parseIntradayRows } from './klineMath'
 
@@ -49,6 +50,9 @@ export function IntradayChart({ rows, prevClose, priceDomain, height = 340 }: In
   const chg = base !== null && lastClose !== null ? lastClose - base : null
   const chgPct = chg !== null && base !== null && base !== 0 ? (chg / base) * 100 : null
   const upTone = chg === null ? undefined : chg >= 0 ? ink.up : ink.down
+  const summary = `${model.points.length} 笔 · 最新 ${lastPoint.label} 价格 ${
+    lastClose === null ? '—' : fmt(lastClose)
+  }${base === null ? ' · 暂无昨收基准' : ''}`
 
   return (
     <div>
@@ -75,32 +79,40 @@ export function IntradayChart({ rows, prevClose, priceDomain, height = 340 }: In
           color={upTone}
         />
       </div>
-      {/* 涨跌方向的等价数据表：图形不是关键数值的唯一载体（无障碍）。 */}
-      <div className="overflow-x-auto mt-3">
-        <table className="w-full text-body border-collapse">
-          <caption className="sr-only">分时等价数据表：时间、价格、均价、成交量</caption>
-          <thead>
-            <tr className="text-label text-sf-ink-3 border-b border-sf-line">
-              <th scope="col" className="text-left py-2 pr-3 font-normal">时间</th>
-              <th scope="col" className="text-left py-2 pr-3 font-normal">价格</th>
-              <th scope="col" className="text-left py-2 pr-3 font-normal">均价</th>
-              <th scope="col" className="text-left py-2 pr-3 font-normal">成交量</th>
-            </tr>
-          </thead>
-          <tbody className="text-sf-ink-2">
-            {model.points.map((p, i) => (
-              <tr key={`${p.time}-${i}`} className="border-b border-sf-line last:border-0">
-                <td className="py-1.5 pr-3 tabular-nums">{p.label}</td>
-                <td className="py-1.5 pr-3 tabular-nums">{fmt(p.close)}</td>
-                <td className="py-1.5 pr-3 tabular-nums">{fmt(model.avg[i])}</td>
-                <td className="py-1.5 pr-3 tabular-nums">
-                  {p.volume === null ? '—' : p.volume.toLocaleString('zh-CN')}
-                </td>
+      {/* 涨跌方向的等价数据表：图形不是关键数值的唯一载体（无障碍）。
+          明细动辄 200+ 行，默认折叠为一行摘要，展开后给全量表。 */}
+      <CollapsibleCard
+        title="分时明细表"
+        summary={summary}
+        defaultOpen={false}
+        className="mt-3"
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full text-body border-collapse">
+            <caption className="sr-only">分时等价数据表：时间、价格、均价、成交量</caption>
+            <thead>
+              <tr className="text-label text-sf-ink-3 border-b border-sf-line">
+                <th scope="col" className="text-left py-2 pr-3 font-normal">时间</th>
+                <th scope="col" className="text-left py-2 pr-3 font-normal">价格</th>
+                <th scope="col" className="text-left py-2 pr-3 font-normal">均价</th>
+                <th scope="col" className="text-left py-2 pr-3 font-normal">成交量</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="text-sf-ink-2">
+              {model.points.map((p, i) => (
+                <tr key={`${p.time}-${i}`} className="border-b border-sf-line last:border-0">
+                  <td className="py-1.5 pr-3 tabular-nums">{p.label}</td>
+                  <td className="py-1.5 pr-3 tabular-nums">{fmt(p.close)}</td>
+                  <td className="py-1.5 pr-3 tabular-nums">{fmt(model.avg[i])}</td>
+                  <td className="py-1.5 pr-3 tabular-nums">
+                    {p.volume === null ? '—' : p.volume.toLocaleString('zh-CN')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CollapsibleCard>
       {/* 图表用色与页面语义一致：报告体口径下涨=绿（doc-up）、跌=红（doc-down）。 */}
       <span className="sr-only">
         {`涨跌方向配色：涨 ${dir.up}、跌 ${dir.down}`}

@@ -9,6 +9,8 @@ import {
   IndexKlineSchema,
   CompareOneSchema,
   ResearchDeepSchema,
+  StockProfileSchema,
+  TechnicalScoreSchema,
   type SixDim,
   type Fundamentals,
   type Financials,
@@ -18,6 +20,8 @@ import {
   type IndexKline,
   type CompareOne,
   type ResearchDeep,
+  type StockProfile,
+  type TechnicalScore,
 } from './schemas/stock'
 
 export type ComparePeriod = 'daily' | 'weekly' | 'monthly'
@@ -136,4 +140,22 @@ export async function getResearchDeep(code: string): Promise<ResearchDeep> {
   }
   const data = await apiFetch<unknown>(`/v2/read/research-deep?code=${encodeURIComponent(code)}`)
   return ResearchDeepSchema.parse(data)
+}
+
+/** GET /api/v2/read/stock-profile?code=<6位>：个股名称/简介信息卡（四路取数逐字段独立降级）。 */
+export async function getStockProfile(code: string): Promise<StockProfile> {
+  if (!/^\d{6}$/.test(code)) {
+    throw new Error('股票代码须为 6 位数字')
+  }
+  const data = await apiFetch<unknown>(`/v2/read/stock-profile?code=${encodeURIComponent(code)}`)
+  return StockProfileSchema.parse(data)
+}
+
+/** GET /api/v2/read/technical-score?code=<6位>：技术面打分 + 多周期画像（纯函数计算）。 */
+export async function getTechnicalScore(code: string): Promise<TechnicalScore> {
+  if (!/^\d{6}$/.test(code)) {
+    throw new Error('股票代码须为 6 位数字')
+  }
+  const data = await apiFetch<unknown>(`/v2/read/technical-score?code=${encodeURIComponent(code)}`)
+  return TechnicalScoreSchema.parse(data)
 }

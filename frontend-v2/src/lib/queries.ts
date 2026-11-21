@@ -2,12 +2,12 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import { HEALTH_REFETCH_INTERVAL_MS } from '@/lib/health'
 import * as api from '@/api/read'
 import type { FactorAnalysisParams, BacktestParams, MarketPanoramaParams, PortfolioParams, EventBacktestParams } from '@/api/read'
-import { getSixDim, getFundamentals, getFinancials, getStockKline, getStockIntraday, getIndexQuotes, getIndexKline } from '@/api/stock'
+import { getSixDim, getFundamentals, getFinancials, getStockKline, getStockIntraday, getIndexQuotes, getIndexKline, getStockProfile, getTechnicalScore } from '@/api/stock'
 import type { FinancialReport } from '@/api/stock'
 import { getDiagnostics } from '@/api/diagnostics'
 import { getStockSearch } from '@/api/stockSearch'
 import type { StockSearchResult } from '@/api/schemas/stockSearch'
-import type { SixDim, Fundamentals, Financials, StockKline, StockIntraday, IndexQuotes, IndexKline } from '@/api/schemas/stock'
+import type { SixDim, Fundamentals, Financials, StockKline, StockIntraday, IndexQuotes, IndexKline, StockProfile, TechnicalScore } from '@/api/schemas/stock'
 import type { Diagnostics } from '@/api/schemas/diagnostics'
 import type {
   DailySnapshot,
@@ -526,6 +526,26 @@ export function useIndexKline(code: string): UseQueryResult<IndexKline> {
     queryKey: ['read', 'index-kline', code],
     queryFn: () => getIndexKline(code),
     enabled: /^(sh|sz)\d{6}$/.test(code),
+    staleTime: FIVE_MIN,
+  })
+}
+
+// ───────── v2 个股研究页：名称/简介信息卡 + 技术面打分（5min 缓存）─────────
+// 非法代码 enabled=false，不发起请求；取数失败进入 error 态，由页面诚实渲染。
+export function useStockProfile(code: string): UseQueryResult<StockProfile> {
+  return useQuery({
+    queryKey: ['read', 'stock-profile', code],
+    queryFn: () => getStockProfile(code),
+    enabled: /^\d{6}$/.test(code),
+    staleTime: FIVE_MIN,
+  })
+}
+
+export function useTechnicalScore(code: string): UseQueryResult<TechnicalScore> {
+  return useQuery({
+    queryKey: ['read', 'technical-score', code],
+    queryFn: () => getTechnicalScore(code),
+    enabled: /^\d{6}$/.test(code),
     staleTime: FIVE_MIN,
   })
 }

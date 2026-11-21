@@ -357,6 +357,24 @@ export const handlers = [
     return ok(fixtures.researchDeepExempt)
   }),
 
+  // v2 个股研究页 · stock-profile：600519 返回名称/简介齐全示例（industry/date 如实 null，
+  // 与真后端一致）；其余合法码返回全源降级形态（name 等同构字段为 null），不编造。
+  http.get('/api/v2/read/stock-profile', ({ request }) => {
+    const code = new URL(request.url).searchParams.get('code')
+    if (!code || !/^\d{6}$/.test(code)) return invalidParam('code 须为 6 位数字')
+    if (code === '600519') return ok(fixtures.stockProfileFull)
+    return ok({ ...fixtures.stockProfileNameless, code })
+  }),
+
+  // v2 个股研究页 · technical-score：600519 双块齐全；000002 演示 K 线不可用降级态
+  // （technical/periods=null + note 据实注明）；其余合法码同降级形态。
+  http.get('/api/v2/read/technical-score', ({ request }) => {
+    const code = new URL(request.url).searchParams.get('code')
+    if (!code || !/^\d{6}$/.test(code)) return invalidParam('code 须为 6 位数字')
+    if (code === '600519') return ok(fixtures.technicalScoreFull)
+    return ok({ ...fixtures.technicalScoreNull, code })
+  }),
+
   // W4-C · 分时：600519 有昨收基准（前端画基准虚线）；000002 昨收取不到（prev_close=null，
   // 前端不画基准并如实标注）；其余合法码按后端契约 not_found。
   http.get('/api/v2/read/stock-intraday', ({ request }) => {
@@ -520,6 +538,8 @@ interface ChatTask {
   pollCount: number
   result: unknown | null
   error: string | null
+  /** 任务种类：决定 success 态注入哪份演示 result（ai_consult / analysis）。 */
+  kind: 'ai_consult' | 'analysis'
 }
 interface ChatConv {
   id: number
@@ -545,16 +565,26 @@ const CHAT_MOCK_NOW = '2026-11-13T10:05:00Z'
 // 把 chatMockState 注入到 handlers（模块作用域，供 resetChatMock 在测试间复位）
 void (() => {
   const handlersChat = [
-    // ai_consult 后台任务：POST /api/tasks/ → 返回 {task_id}（data 层）
+    // ai_consult / analysis 后台任务：POST /api/tasks/ → 返回 {task_id}（data 层）。
+    // analysis 供个股研究页「五维综合评分」异步任务演示（契约见 scoreTask.ts）。
     http.post('/api/tasks/', async ({ request }) => {
       const body = (await request.json().catch(() => ({}))) as { type?: string; payload?: unknown }
-      // 仅接受 ai_consult 类型（其余任务类型本页不涉及，单测可注入覆盖）
-      if (body.type !== 'ai_consult') return badRequest('仅支持 ai_consult 类型（演示 Mock）')
-      const taskId = `mock-ai-consult-${Date.now()}-${Math.floor(Math.random() * 1e6)}`
-      chatMockState.tasks.set(taskId, { status: 'running', pollCount: 0, result: null, error: null })
-      return ok({ task_id: taskId })
+      if (body.type !== 'ai_consult' && body.type !== 'analysis') {
+        return badRequest('仅支持 ai_consult / analysis 类型（演示 Mock）')
+      }
+      // 前缀按类型区分（chat-api.test 锁定 mock-ai-consult- 前缀）
+      const prefix = body.type === 'ai_consult' ? 'mock-ai-consult-' : 'mock-analysis-'
+      const taskId = `${prefix}${Date.now()}-${Math.floor(Math.random() * 1e6)}`
+      chatMockState.tasks.set(taskId, {
+        status: 'running',
+        pollCount: 0,
+        result: null,
+        error: null,
+        kind: body.type,
+      })
+      return ok({ task_id: taskId, status: 'pending' })
     }),
-    // GET /api/tasks/<id> → 轮询态；首次 running、二次 success 带样例结果（演示，无真实 LLM）
+    // GET /api/tasks/<id> → 轮询态；首次 running、二次 success 带样例结果（演示，无真实 LLM/评分）
     http.get('/api/tasks/:id', ({ params }) => {
       const id = String(params.id)
       const t = chatMockState.tasks.get(id)
@@ -562,11 +592,11 @@ void (() => {
       t.pollCount += 1
       if (t.pollCount >= 2) {
         t.status = 'success'
-        t.result = fixtures.chatSampleResult
+        t.result = t.kind === 'analysis' ? fixtures.analysisTaskResult : fixtures.chatSampleResult
       }
       return ok({
         task_id: id,
-        task_type: 'ai_consult',
+        task_type: t.kind,
         status: t.status,
         progress: t.status === 'success' ? 1 : 0.5,
         stage: t.status === 'success' ? 'done' : 'analyzing',
