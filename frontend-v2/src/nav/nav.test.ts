@@ -25,6 +25,26 @@ describe('NAV · 侧栏分类单一真理源', () => {
     }
   })
 
+  it('按股民日常动线排序：看盘 → 判环境 → 研个股 → 定策略 → 决策 → 助手社区 → 系统', () => {
+    expect(NAV.map((g) => g.group)).toEqual([
+      '行情与市场',
+      '广度·温度与情绪',
+      '个股研究',
+      '策略与持仓',
+      '决策与晨报',
+      '智能助手与社区',
+      '数据·运维·系统',
+    ])
+    // 组内首项必须是该场景的第一入口，避免后续回填把常用功能挤到末尾。
+    expect(NAV[0].items[0].to).toBe('/quote-board')
+    expect(NAV[1].items[0].to).toBe('/market-sentiment')
+    expect(NAV[2].items[0].to).toBe('/stock/research')
+    expect(NAV[3].items[0].to).toBe('/recommend')
+    expect(NAV[4].items[1].to).toBe('/decision')
+    expect(NAV[5].items[0].to).toBe('/xingchen')
+    expect(NAV[6].items[0].to).toBe('/guide')
+  })
+
   it('图标、路径、标签全部全局唯一', () => {
     const items = NAV.flatMap((g) => g.items)
     expect(new Set(items.map((i) => i.icon)).size).toBe(items.length)

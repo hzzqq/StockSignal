@@ -89,6 +89,9 @@ function SixDimBody({ data }: { data: SixDim }) {
   const radarValues: (number | null)[] = DIM_KEYS.map((k) =>
     typeof data.dims[k] === 'number' ? data.dims[k] : null,
   )
+  // 缺维时有效点往往不相邻，ECharts 会跨过 null 直连成多边形，视觉上谎称中间维有分。
+  // 因此覆盖不足 6 时隐藏线与面积，只保留孤立数据点；6 维齐全才恢复完整雷达。
+  const partial = data.coverage < 6
   const radarOption: EChartsOption = {
     backgroundColor: 'transparent',
     tooltip: { trigger: 'item' },
@@ -102,14 +105,14 @@ function SixDimBody({ data }: { data: SixDim }) {
     series: [
       {
         type: 'radar',
-        symbolSize: 5,
+        symbolSize: partial ? 7 : 5,
         data: [
           {
             value: radarValues,
             name: '六维评分',
             itemStyle: { color: CHART.accent },
-            lineStyle: { color: CHART.accent, width: 1.5 },
-            areaStyle: { color: CHART.accent, opacity: 0.15 },
+            lineStyle: { color: CHART.accent, width: 1.5, opacity: partial ? 0 : 1 },
+            areaStyle: partial ? undefined : { color: CHART.accent, opacity: 0.15 },
           },
         ],
       },
@@ -158,7 +161,7 @@ function SixDimBody({ data }: { data: SixDim }) {
           ariaLabel="个股六维评分雷达图：技术、资金、价值、成长、基本面、周期六个维度的评分，缺失维度不绘制数据点"
         />
         <p className="text-label text-sf-ink-3 mt-2">
-          缺失维以空值呈现，雷达图不补 0 分；下方明细给出各维准确分数。
+          缺失维以空值呈现且不参与绘制，覆盖不足时隐藏连线与填充（避免跨维连线产生假形状），也不补 0 分；下方明细给出各维准确分数。
         </p>
       </Card>
 

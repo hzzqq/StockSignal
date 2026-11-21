@@ -70,6 +70,23 @@ describe('ForumView · 股吧社区（演示态 MSW 真测）', () => {
     expect(screen.getByText('今日盘面随笔')).toBeTruthy()
   })
 
+  it('论坛式双栏：筛选/主题流在左，发帖与社区须知在右；筛选框统一为股票搜索组件', async () => {
+    renderView()
+    expect(await screen.findByText('贵州茅台年报解读', {}, FIND)).toBeTruthy()
+
+    const filter = screen.getByRole('combobox', {
+      name: '按股票筛选（代码 / 名称 / 首字母）',
+    })
+    expect(filter).toBeTruthy()
+    const layout = filter.closest('div.grid')
+    expect(layout?.className).toContain('lg:grid-cols-[minmax(0,1fr)_320px]')
+    expect(screen.getByText('社区须知')).toBeTruthy()
+    expect(screen.getByText('发表新帖')).toBeTruthy()
+    expect(screen.getByText('帖子列表')).toBeTruthy()
+    // 缺数不得补零：comment_count 缺失时显「—」
+    expect(screen.getAllByText(/回复 /).length).toBeGreaterThan(0)
+  })
+
   it('发帖 → 新帖出现在列表（发布→列表出现）', async () => {
     renderView()
     await screen.findByText('贵州茅台年报解读', {}, FIND)

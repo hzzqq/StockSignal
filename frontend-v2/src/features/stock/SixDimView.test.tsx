@@ -55,7 +55,16 @@ function renderView() {
   )
 }
 
-type RadarOption = { series: Array<{ data: Array<{ value: (number | null)[] }> }> }
+type RadarOption = {
+  series: Array<{
+    symbolSize: number
+    data: Array<{
+      value: (number | null)[]
+      lineStyle?: { opacity?: number }
+      areaStyle?: unknown
+    }>
+  }>
+}
 
 describe('SixDimView · 已有 E2E 未覆盖的边界', () => {
   it('⚠️ 雷达 option 缺维为 null，绝不补 0 分（图形层诚实）', async () => {
@@ -80,6 +89,21 @@ describe('SixDimView · 已有 E2E 未覆盖的边界', () => {
     expect(values.filter((v) => v === null)).toHaveLength(2)
     expect(values.some((v) => v === 0)).toBe(false)
     expect(values[0]).toBe(50.2)
+    // 缺维不相邻，连线会跨过 null 形成假多边形 → 必须隐藏线与面积，只留孤立数据点
+    expect(option.series[0].symbolSize).toBe(7)
+    expect(option.series[0].data[0].lineStyle?.opacity).toBe(0)
+    expect(option.series[0].data[0].areaStyle).toBeUndefined()
+  })
+
+  it('⚠️ 六维齐全才恢复雷达连线与面积填充', async () => {
+    mockSixDim(sixDimFull)
+    renderView()
+    await screen.findByText('权威数据日：2026-11-07', {}, FIND)
+
+    const option = captured.options.at(-1) as RadarOption
+    expect(option.series[0].symbolSize).toBe(5)
+    expect(option.series[0].data[0].lineStyle?.opacity).toBe(1)
+    expect(option.series[0].data[0].areaStyle).toBeTruthy()
   })
 
   it('coverage=0 六维全缺失 → 诚实空态，不渲染雷达图、不显 0/6 假数据', async () => {
