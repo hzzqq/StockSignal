@@ -5,10 +5,53 @@ import { clearAuth } from '@/app/guards'
 import { NAV } from '@/nav/nav'
 import { MockBanner } from '@/mocks/MockBanner'
 import { ThemeToggle } from '@/shared/ui/ThemeToggle'
+import { StockSearchInput } from '@/shared/ui/StockSearchInput'
+import { FeatureSearch } from '@/shared/ui/FeatureSearch'
 import { ZenToggle } from '@/shared/ui/ZenToggle'
 import { DecisionLoopAlarm } from './DecisionLoopAlarm'
 import { PageErrorBoundary } from './PageErrorBoundary'
 import { GlobalKLineOverlay } from '@/features/stock/charts/GlobalKLineOverlay'
+import { openKLine } from '@/features/stock/charts/klineOverlayStore'
+import { useXingchenRunning } from '@/features/xingchen/useXingchen'
+
+/** 星辰 AI 入口：从 NAV 单一真理源派生，避免在此硬编码路由。 */
+const XINGCHEN_PATH = NAV.flatMap((g) => g.items).find((it) => it.label === '星辰 AI 助手')?.to
+
+/** 顶栏股票搜索：复用既有 StockSearchInput；命中后走全局 K 线浮层，不新增路由、不改地址栏。 */
+function GlobalStockSearch() {
+  const [code, setCode] = useState('')
+  return (
+    <div className="hidden w-40 md:block lg:w-48" aria-label="股票搜索">
+      <StockSearchInput
+        value={code}
+        label=""
+        placeholder="搜索股票…"
+        onSelect={(next, item) => {
+          setCode(next)
+          openKLine(next, item?.name)
+        }}
+      />
+    </div>
+  )
+}
+
+/** 星辰 AI 运行中徽标：只读订阅 running 布尔值，点击回到星辰页；未运行不占位。 */
+function XingchenRunningBadge() {
+  const running = useXingchenRunning()
+  const navigate = useNavigate()
+  if (!running || !XINGCHEN_PATH) return null
+  return (
+    <button
+      type="button"
+      onClick={() => navigate({ to: XINGCHEN_PATH })}
+      aria-label="星辰 AI 正在运行，点击查看"
+      className="shrink-0 rounded-tile border border-sf-accent px-2 py-1 text-label text-sf-accent hover:bg-sf-surface-2"
+    >
+      <span className="md:hidden" aria-hidden="true">🌟</span>
+      <span className="hidden md:inline">星辰 AI 正在运行</span>
+    </button>
+  )
+}
 
 /**
  * 轻量卡片流 · 鉴权后应用外壳（DESIGN.md §3）。
@@ -137,6 +180,9 @@ export function AppShell() {
         <header className="app-header h-12 shrink-0 border-b border-sf-line flex items-center justify-between px-4 md:px-6">
           <span className="text-label text-sf-ink-3">决策中枢 · 只读视图</span>
           <div className="flex items-center gap-3">
+            <FeatureSearch />
+            <GlobalStockSearch />
+            <XingchenRunningBadge />
             <ThemeToggle />
             <button
               onClick={onLogout}

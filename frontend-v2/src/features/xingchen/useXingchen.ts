@@ -9,11 +9,13 @@ import {
   createConversation,
   getConversationMessages,
   saveConversationMessages,
+  renameConversation,
   deleteConversation,
   exportConversationMarkdown,
   exportConversationJson,
   getChatHistory,
 } from '@/api/chat'
+import { ApiError } from '@/api/client'
 import type { ChatMessage, AiConsultTask, WireMessage } from '@/api/schemas/chat'
 
 export type { XcStyle } from './intent'
@@ -33,6 +35,21 @@ export interface ChatSession {
 const POLL_INTERVAL = 1500
 const POLL_TIMEOUT = 30000
 const SAVE_DEBOUNCE = 800
+/** 会话标题上限，与后端 chat_routes._TITLE_MAX 保持一致。 */
+const TITLE_MAX = 40
+
+/** 标题规范化：trim → 空回退「新对话」→ 40 字截断（与后端 _norm_title 一致）。 */
+function normalizeTitle(title: string): string {
+  const t = (title || '').trim()
+  return (t || '新对话').slice(0, TITLE_MAX)
+}
+
+/** 重命名结果：persisted=false 表示该会话无 convId，仅本地改名（如实标注）。 */
+export interface RenameSessionResult {
+  persisted: boolean
+  /** 最终生效标题（成功时为服务端权威值，未持久化时为本地规范化值）。 */
+  title: string
+}
 
 let _seq = 0
 function genId(prefix: string): string {
@@ -104,7 +121,7 @@ interface XingchenState {
   createSession: (title?: string) => string
   deleteSession: (id: string) => void
   setActive: (id: string) => void
-  renameSession: (id: string, title: string) => void
+  renameSession: (id: string, title: string) => Promise<RenameSessionResult>
   openConversation: (convId: number) => Promise<void>
   bootstrap: () => Promise<void>
   exportSession: (id: string, fmt: 'markdown' | 'json') => Promise<void>
@@ -198,12 +215,55 @@ export const useXingchenStore = create<XingchenState>((set, get) => ({
     if (get().sessions[id]) set({ activeId: id })
   },
 
-  renameSession: (id, title) =>
+  renameSession: async (id, title) => {
+    const original = get().sessions[id]
+    if (!original) throw new Error('会话不存在，无法重命名')
+    const finalTitle = normalizeTitle(title)
+    const prevTitle = original.title
+    const prevUpdatedAt = original.updatedAt
+
+    // 乐观更新：标题与更新时间即时反馈，不等后端往返
     set((st) => {
       const s = st.sessions[id]
       if (!s) return {}
-      return { sessions: { ...st.sessions, [id]: { ...s, title, updatedAt: nowSec() } } }
-    }),
+      return {
+        sessions: { ...st.sessions, [id]: { ...s, title: finalTitle, updatedAt: nowSec() } },
+      }
+    })
+
+    // 无后端 id：只改内存，并如实标注未持久化（不假装已保存）
+    if (original.convId == null) {
+      return { persisted: false, title: finalTitle }
+    }
+
+    try {
+      const res = await renameConversation(original.convId, finalTitle)
+      // 服务端权威标题回填（含规范化/截断）；若期间已发起更新的重命名则跳过，避免旧响应覆盖新标题
+      set((st) => {
+        const s = st.sessions[id]
+        if (!s || s.title !== finalTitle) return {}
+        return {
+          sessions: { ...st.sessions, [id]: { ...s, title: res.title, updatedAt: nowSec() } },
+        }
+      })
+      return { persisted: true, title: res.title }
+    } catch (e) {
+      // 失败回滚内存标题（同样避免旧响应覆盖新标题），给中文错误提示，绝不静默吞
+      set((st) => {
+        const s = st.sessions[id]
+        if (!s || s.title !== finalTitle) return {}
+        return {
+          sessions: {
+            ...st.sessions,
+            [id]: { ...s, title: prevTitle, updatedAt: prevUpdatedAt },
+          },
+        }
+      })
+      const reason =
+        e instanceof ApiError ? e.reason : e instanceof Error ? e.message : '未知错误'
+      throw new Error(`重命名失败：${reason}`)
+    }
+  },
 
   openConversation: async (convId) => {
     const sid = Object.keys(get().sessions).find(
@@ -584,4 +644,12 @@ export function useXingchen() {
     exportSession,
     markRevealed,
   }
+}
+
+/**
+ * 顶栏运行徽标等跨页组件订阅的轻量只读 hook：
+ * 只关心 runningTaskId 是否有值，不暴露 store 动作面，切页卸载不会打断后台轮询。
+ */
+export function useXingchenRunning(): boolean {
+  return useXingchenStore((s) => s.runningTaskId !== null)
 }

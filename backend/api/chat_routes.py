@@ -205,6 +205,25 @@ def save_conversation(cid: int):
     return ok(data={"saved": True, "count": len(messages)})
 
 
+@bp.patch("/conversations/<int:cid>")
+@jwt_required
+def rename_conversation(cid: int):
+    """PATCH /api/chat/conversations/<id> —— 只改标题，绝不改写历史消息。
+
+    body: {"title": "..."}；空/缺失回退「新对话」，超长钳到 _TITLE_MAX。
+    仅更新 title 与 updated_at（updated_at 由模型 onupdate 自动刷新），
+    messages 字段原样保留，不做任何读写覆盖。越权/不存在一律 404。
+    """
+    rec = ChatConversation.query.filter_by(id=cid, user_id=g.current_user.id).first()
+    if rec is None:
+        return fail(message="会话不存在", code="not_found", http_status=404)
+    body = json_body()
+    new_title = _norm_title(body.get("title"))
+    rec.title = new_title
+    db.session.commit()
+    return ok(data={"ok": True, "id": cid, "title": new_title})
+
+
 @bp.delete("/conversations/<int:cid>")
 @jwt_required
 def delete_conversation(cid: int):

@@ -23,6 +23,16 @@ const raf: (cb: (t: number) => void) => number =
 const caf: (h: number) => void =
   typeof cancelAnimationFrame === 'function' ? cancelAnimationFrame : clearTimeout
 
+/**
+ * 已启动流式揭示的消息 id（模块级，跨组件卸载/重挂载存活）。
+ *
+ * 背景：submitQuestion 是模块级 Zustand async action，切页卸载组件不会取消任务，
+ * 但 MessageBubble 的 rAF 揭示动画会随卸载中断。若不记下进度，切回时 fresh 仍为 true，
+ * 动画会从头重播（正文在 store 里并未丢）。用此集合 + store 的 fresh 标记双保险：
+ * 卸载即视为已揭示，重挂载直接显示全文，不重播动画、正文不丢。
+ */
+const revealStartedIds = new Set<string>()
+
 /** 按 msg.kind 判别渲染（借鉴 FinPilot MessageBubble + 全面化外壳）。 */
 export function MessageBubble({
   msg,
@@ -59,7 +69,8 @@ export function MessageBubble({
   }
 
   // ---- assistant（含 tool 态：toolCall/process 均为前端态）----
-  const fresh = !!msg.fresh
+  // 已启动过揭示（哪怕被切页中断）的消息直接按全文渲染，不再重播动画
+  const fresh = !!msg.fresh && !revealStartedIds.has(msg.id)
   const total = msg.content.length
   const [revealDone, setRevealDone] = useState(!fresh)
   const [revealed, setRevealed] = useState(fresh ? 0 : total)
@@ -70,6 +81,8 @@ export function MessageBubble({
   // 客户端流式揭示：fresh 消息一次性拿到全量 content，本地逐段展开「一点一点生成」
   useEffect(() => {
     if (!fresh) return
+    // 启动即登记：卸载后重挂载据此跳过动画（进度可恢复）
+    revealStartedIds.add(msg.id)
     const start = startRef.current
     const DURATION = Math.min(4000, Math.max(1200, total * 12))
     let handle = 0
@@ -82,11 +95,17 @@ export function MessageBubble({
       } else {
         setRevealDone(true)
         setRevealed(total)
+        revealStartedIds.add(msg.id)
         useXingchenStore.getState().markRevealed(msg.id)
       }
     }
     handle = raf(tick)
-    return () => caf(handle)
+    return () => {
+      caf(handle)
+      // 切页/卸载视为已揭示：清 store 的 fresh，重入页面直接显示全文、不重播
+      revealStartedIds.add(msg.id)
+      useXingchenStore.getState().markRevealed(msg.id)
+    }
   }, [fresh, total, msg.id])
 
   const polling = msg.status === 'streaming' && !fresh

@@ -104,6 +104,31 @@ export async function saveConversationMessages(convId: number, messages: WireMes
   })
 }
 
+/**
+ * PATCH /api/chat/conversations/<id> —— 重命名会话标题。
+ *
+ * 后端统一 ok 信封解包后，data 顶层含 {id, title}（额外键如 ok/count 由 Zod 剥离）。
+ * 说明：此处直接用 apiFetch 而非统一写层 apiMutate —— 后者 WriteMethod 仅含
+ * POST/PUT/DELETE，且本批次前端改动范围不含 write.ts，故沿用 chat.ts 既有的
+ * apiFetch 直连写惯例；鉴权/401 单飞刷新/失败抛 ApiError 完全一致。
+ */
+const RenameConversationResultSchema = z.object({
+  id: z.number().int(),
+  title: z.string(),
+})
+export type RenameConversationResult = z.infer<typeof RenameConversationResultSchema>
+
+export async function renameConversation(
+  cid: number,
+  title: string,
+): Promise<RenameConversationResult> {
+  const data = await apiFetch<unknown>(`/chat/conversations/${cid}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ title }),
+  })
+  return RenameConversationResultSchema.parse(data)
+}
+
 /** DELETE /api/chat/conversations/<id> —— 删除会话 */
 export async function deleteConversation(convId: number): Promise<void> {
   await apiFetch<unknown>(`/chat/conversations/${convId}`, { method: 'DELETE' })
