@@ -20,7 +20,15 @@ const ALL_FEATURES: FeatureHit[] = NAV.flatMap((g) =>
  *  - ↑↓ 选择 / Enter 用 useNavigate 跳到 NAV 里的 to / Esc 或失焦关闭；
  *  - 空结果给中文提示，不自造功能、不硬编码路由。
  */
-export function FeatureSearch() {
+export function FeatureSearch({
+  className = 'hidden w-40 md:block lg:w-48',
+  onDone,
+}: {
+  /** 外层响应式宽度：桌面顶栏默认窄屏隐藏；窄屏浮层内传 'w-full' 复用同一份。 */
+  className?: string
+  /** 命中并跳转后的收尾回调（窄屏浮层据此关闭）。 */
+  onDone?: () => void
+} = {}) {
   const navigate = useNavigate()
   const listId = useId()
   const [text, setText] = useState('')
@@ -41,6 +49,7 @@ export function FeatureSearch() {
     setOpen(false)
     setCursor(0)
     void navigate({ to: hit.to })
+    onDone?.()
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -63,7 +72,7 @@ export function FeatureSearch() {
 
   return (
     <div
-      className="relative hidden w-40 md:block lg:w-48"
+      className={`relative ${className}`}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false)
       }}

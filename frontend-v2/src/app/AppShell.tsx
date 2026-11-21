@@ -11,26 +11,90 @@ import { ZenToggle } from '@/shared/ui/ZenToggle'
 import { DecisionLoopAlarm } from './DecisionLoopAlarm'
 import { PageErrorBoundary } from './PageErrorBoundary'
 import { GlobalKLineOverlay } from '@/features/stock/charts/GlobalKLineOverlay'
-import { openKLine } from '@/features/stock/charts/klineOverlayStore'
 import { useXingchenRunning } from '@/features/xingchen/useXingchen'
 
 /** 星辰 AI 入口：从 NAV 单一真理源派生，避免在此硬编码路由。 */
 const XINGCHEN_PATH = NAV.flatMap((g) => g.items).find((it) => it.label === '星辰 AI 助手')?.to
 
-/** 顶栏股票搜索：复用既有 StockSearchInput；命中后走全局 K 线浮层，不新增路由、不改地址栏。 */
-function GlobalStockSearch() {
+/** 顶栏股票搜索：命中后跳个股研究页并预选 code（深链 ?code=），不再开全局 K 线浮层。 */
+export function GlobalStockSearch({
+  className = 'hidden w-40 md:block lg:w-48',
+  onDone,
+}: {
+  className?: string
+  /** 命中跳转后的收尾回调（窄屏浮层据此关闭）。 */
+  onDone?: () => void
+} = {}) {
+  const navigate = useNavigate()
   const [code, setCode] = useState('')
   return (
-    <div className="hidden w-40 md:block lg:w-48" aria-label="股票搜索">
+    <div className={className} aria-label="股票搜索">
       <StockSearchInput
         value={code}
         label=""
         placeholder="搜索股票…"
-        onSelect={(next, item) => {
-          setCode(next)
-          openKLine(next, item?.name)
+        onSelect={(next) => {
+          setCode('')
+          void navigate({ to: '/stock/research', search: { code: next } })
+          onDone?.()
         }}
       />
+    </div>
+  )
+}
+
+/** 顶栏搜索簇：功能搜索 + 股票搜索；桌面常驻，窄屏在搜索浮层内复用同一份实现。 */
+export function SearchCluster({
+  mobile = false,
+  onDone,
+}: {
+  mobile?: boolean
+  onDone?: () => void
+}) {
+  const width = mobile ? 'w-full' : 'hidden w-40 md:block lg:w-48'
+  return (
+    <>
+      <FeatureSearch className={width} onDone={onDone} />
+      <GlobalStockSearch className={width} onDone={onDone} />
+    </>
+  )
+}
+
+/** 窄屏(<768px)搜索入口：图标按钮展开浮层，内嵌 SearchCluster；Esc 关闭。浮层在 header 内，Zen 隐藏顶栏时一并收起。 */
+export function MobileSearch() {
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (!open) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
+
+  return (
+    <div className="relative md:hidden">
+      <button
+        type="button"
+        aria-label="搜索"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="shrink-0 rounded-tile border border-sf-line p-1 text-sf-ink-2 hover:border-sf-accent hover:text-sf-accent"
+      >
+        <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" strokeLinecap="round" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          role="dialog"
+          aria-label="搜索"
+          className="absolute right-0 top-full z-30 mt-2 w-72 space-y-2 rounded-tile border border-sf-line bg-sf-surface p-3 shadow-lg"
+        >
+          <SearchCluster mobile onDone={() => setOpen(false)} />
+        </div>
+      )}
     </div>
   )
 }
@@ -180,8 +244,8 @@ export function AppShell() {
         <header className="app-header h-12 shrink-0 border-b border-sf-line flex items-center justify-between px-4 md:px-6">
           <span className="text-label text-sf-ink-3">决策中枢 · 只读视图</span>
           <div className="flex items-center gap-3">
-            <FeatureSearch />
-            <GlobalStockSearch />
+            <SearchCluster />
+            <MobileSearch />
             <XingchenRunningBadge />
             <ThemeToggle />
             <button

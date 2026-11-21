@@ -1122,34 +1122,33 @@ export const compareOneDateNull = {
   date: null,
 }
 
-// research-deep：技术字段快照（通用透传，前端按 key 渲染技术字段表）。
-// ⚠️ 真后端 read_routes.research_deep() 恒返回 deep_analysis_available=false
-// （56 键 analysis_engine 异步分析本轮未接入）；MSW 必须一致，不得伪造「已接入」。
+// research-deep：严格按真后端 read_routes.research_deep() 口径的诚实夹具。
+// ⚠️ 真后端对任意 6 位 code 返回的字段全集固定为 16 键（见 backend/api/read_routes.py::research_deep）：
+//    code/name/industry/date/price/pe_ttm/pb/market_cap/ma5/ma10/ma20/ma60/amplitude/
+//    turnover/deep_analysis_available/note。
+//    - pb 恒 null（get_fundamentals 无 pb 源）、turnover 恒 null（kline 无流通股本源）；
+//    - 没有 rsi/macd/kdj/boll/revenue_yoy/profit_yoy/roe/gross_margin 这些键，后端从不返回；
+//    - deep_analysis_available 恒 false（56 键 analysis_engine 异步深度分析本轮未接入）。
+// 此处的价格/PE/市值/均线/振幅为演示用真实风格示例值（页面仅作展示）；industry 用 null
+// 让页面如实显示「—」，不编造行业；date 用真实 K 线日风格示例（非 now 兜底）。
 // true 分支仅由组件测试显式注入响应覆盖，不是任何真实/MSW 端点的返回。
 export const researchDeepFull = {
   code: '600519',
   name: '贵州茅台',
-  deep_analysis_available: false,
+  industry: null,
+  date: '2026-11-06',
   price: 1523.5,
   pe_ttm: 28.1,
-  pb: 8.2,
+  pb: null,
   market_cap: 19138.2,
   ma5: 1508.7,
   ma10: 1498.2,
   ma20: 1476.5,
   ma60: 1421.0,
   amplitude: 2.21,
-  turnover: 0.42,
-  rsi: 63.4,
-  macd: 12.3,
-  kdj: 78.1,
-  boll: 1499.0,
-  revenue_yoy: 12.34,
-  profit_yoy: 8.76,
-  roe: 24.3,
-  gross_margin: 91.2,
-  date: '2026-11-06',
-  note: '深度分析为旧版 analysis_engine 异步任务结果透传',
+  turnover: null,
+  deep_analysis_available: false,
+  note: W4B_NOTE + '；轻量同步技术面（价格/PE/市值/均线/振幅）已返回；56 键异步深度分析暂未接入，可走 /legacy',
 }
 
 // 豁免态：明确未接入（前端显示「56 键深度分析 V2 暂未接入，可走 /legacy 查看旧版」）。

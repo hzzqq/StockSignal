@@ -237,9 +237,10 @@ function KlineTable({ rows }: { rows: StockKline['rows'] }) {
  * 56 键深度分析通用透传），渲染 price/pe_ttm/pb/market_cap/ma5/ma10/ma20/ma60/
  * amplitude/turnover 等技术字段表，按 domainInk 域级双色。
  *
- * 诚实豁免卡：若返回 deep_analysis_available === false（或该字段缺失且无任何技术字段），
- * 显示明确说明「56 键深度分析（旧版 analysis_engine 异步任务）V2 暂未接入，可走 /legacy
- * 查看旧版」，绝不造假数据、不画空图表。
+ * 诚实豁免：若返回 deep_analysis_available === false（或该字段缺失且无任何技术字段），
+ * 在真实技术字段表之后追加明确说明「56 键深度分析（旧版 analysis_engine 异步任务）V2
+ * 暂未接入，可走 /legacy 查看旧版」——说明不替换、不短路已返回的真实字段；绝不造假数据、
+ * 不画空图表。
  */
 const DEEP_META = new Set(['code', 'name', 'industry', 'date', 'note', 'period', 'deep_analysis_available'])
 
@@ -277,23 +278,14 @@ function DeepView({ code }: { code: string }) {
   )
 }
 
-function DeepBody({ data }: { data: ResearchDeep }) {
+export function DeepBody({ data }: { data: ResearchDeep }) {
   const techKeys = Object.keys(data).filter((k) => !DEEP_META.has(k))
+  const hasTech = techKeys.length > 0
   // 豁免：明确 false，或字段缺失且无任何技术字段（无法确认已接入）。
   const exempt = isDeepExempt(data)
 
-  if (exempt) {
-    return (
-      <div className="flow">
-        <p className="text-body text-sf-ink-2">
-          56 键深度分析（旧版 analysis_engine 异步任务）V2 暂未接入，可走 /legacy 查看旧版
-        </p>
-        <p className="text-label text-sf-ink-3">{`已预选 code：${String(data['code'] ?? '')}`}</p>
-      </div>
-    )
-  }
-
-  if (techKeys.length === 0) {
+  // 无真实字段且非豁免态：如实空态，不补零、不编造。
+  if (!hasTech && !exempt) {
     return (
       <div role="status" className="py-10 text-center text-body text-sf-ink-2">
         暂无深度数据
@@ -302,38 +294,53 @@ function DeepBody({ data }: { data: ResearchDeep }) {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-body border-collapse">
-        <caption className="sr-only">个股深度技术字段，列名取后端原始响应 key，未做重排</caption>
-        <thead>
-          <tr className="text-label text-sf-ink-3 border-b border-sf-line">
-            <th scope="col" className="text-left py-2 pr-3 font-normal">字段</th>
-            <th scope="col" className="text-left py-2 pr-3 font-normal tabular-nums">数值</th>
-          </tr>
-        </thead>
-        <tbody className="text-sf-ink-2">
-          {techKeys.map((k) => {
-            const v = (data as Record<string, unknown>)[k]
-            return (
-              <tr key={k} className="border-b border-sf-line last:border-0">
-                <th
-                  scope="row"
-                  className="text-left py-1.5 pr-3 font-normal text-sf-ink-3"
-                  style={{ color: inkForCell(k, undefined) }}
-                >
-                  {k}
-                </th>
-                <td
-                  className="py-1.5 pr-3 tabular-nums"
-                  style={typeof v === 'number' ? { color: inkForCell(k, v) } : undefined}
-                >
-                  {fmtNum(v)}
-                </td>
+    <div className="flow">
+      {/* 真实字段表：有技术字段就照后端原始 key 渲染（域级双色），豁免态不再短路隐藏。 */}
+      {hasTech && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-body border-collapse">
+            <caption className="sr-only">个股深度技术字段，列名取后端原始响应 key，未做重排</caption>
+            <thead>
+              <tr className="text-label text-sf-ink-3 border-b border-sf-line">
+                <th scope="col" className="text-left py-2 pr-3 font-normal">字段</th>
+                <th scope="col" className="text-left py-2 pr-3 font-normal tabular-nums">数值</th>
               </tr>
-            )
-          })}
-        </tbody>
-      </table>
+            </thead>
+            <tbody className="text-sf-ink-2">
+              {techKeys.map((k) => {
+                const v = (data as Record<string, unknown>)[k]
+                return (
+                  <tr key={k} className="border-b border-sf-line last:border-0">
+                    <th
+                      scope="row"
+                      className="text-left py-1.5 pr-3 font-normal text-sf-ink-3"
+                      style={{ color: inkForCell(k, undefined) }}
+                    >
+                      {k}
+                    </th>
+                    <td
+                      className="py-1.5 pr-3 tabular-nums"
+                      style={typeof v === 'number' ? { color: inkForCell(k, v) } : undefined}
+                    >
+                      {fmtNum(v)}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {/* 诚实说明：56 键异步深度分析未接入时追加在真实字段表之后（低强调），
+          不替换、不短路已有的真实技术字段。 */}
+      {exempt && (
+        <div className="mt-3">
+          <p className="text-label text-sf-ink-3">
+            56 键深度分析（旧版 analysis_engine 异步任务）V2 暂未接入，可走 /legacy 查看旧版
+          </p>
+          <p className="text-label text-sf-ink-3">{`已预选 code：${String(data['code'] ?? '')}`}</p>
+        </div>
+      )}
     </div>
   )
 }

@@ -2188,7 +2188,7 @@ def research_deep():
         "amplitude": tech.get("amplitude"),
         "turnover": None,  # 换手率需流通股本，kline 无此源，诚实 null
         "deep_analysis_available": False,
-        "note": _W4C_NOTE + "；24页异步深度分析本轮不接入（deep_analysis_available=false），前端据实展示豁免卡，不造假",
+        "note": _W4C_NOTE + "；轻量同步技术面（价格/PE/市值/均线/振幅）已返回；56 键异步深度分析暂未接入，可走 /legacy",
     }
     return ok(data=_sanitize(data), message="research-deep")
 

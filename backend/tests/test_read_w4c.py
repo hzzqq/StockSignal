@@ -278,7 +278,7 @@ def test_research_deep_ok_envelope(client, token, monkeypatch):
     assert d["date"] == str(kl["date"].iloc[-1])[:10]  # K 线末根权威日，非 now()
     # 重要豁免：异步深度分析不接入
     assert d["deep_analysis_available"] is False
-    assert "deep_analysis_available=false" in d["note"]
+    assert "56 键异步深度分析暂未接入" in d["note"]
 
 
 def test_research_deep_invalid_code(client, token):

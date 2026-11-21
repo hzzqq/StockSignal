@@ -195,7 +195,7 @@ describe('W4-B · 个股研究页 ResearchView', () => {
     expect(screen.queryByText('open')).toBeNull()
   })
 
-  it('切换分段：600519 同样显示豁免卡（真后端恒 false，MSW 不得伪造「已接入」）', async () => {
+  it('切换分段：600519 未接入态仍显示真实技术字段 + 保留豁免说明（真后端恒 false）', async () => {
     render(
       <Providers>
         <ResearchView search={{ view: 'quick', code: '600519' }} />
@@ -203,16 +203,17 @@ describe('W4-B · 个股研究页 ResearchView', () => {
     )
     expect(await screen.findByText('open', {}, FIND)).toBeTruthy()
     fireEvent.click(screen.getByRole('radio', { name: /深度分析/ }))
-    // 真后端 research_deep() 恒返回 deep_analysis_available=false；旧 MSW 夹具伪造 true，
-    // 让这个测试建立在错误前提上。现在按真后端口径断言：豁免卡 + 不渲染技术字段表。
+    // 豁免态按诚实口径仍展示后端已返回的真实技术字段，下方追加未接入说明；
+    // 不造假、缺失 null 显示 —（旧断言 pe_ttm 为 null 锁的正是本次修掉的 bug）。
     expect(
       await screen.findByText('56 键深度分析（旧版 analysis_engine 异步任务）V2 暂未接入，可走 /legacy 查看旧版', {}, FIND),
     ).toBeTruthy()
-    expect(screen.queryByText('pe_ttm')).toBeNull()
+    expect(await screen.findByText('pe_ttm', {}, FIND)).toBeTruthy()
+    expect(screen.getByText('ma5')).toBeTruthy()
     expect(screen.queryByText('open')).toBeNull()
   })
 
-  it('技术字段表分支：仅显式注入 true 响应才渲染（组件分支覆盖，非后端真实行为）', async () => {
+  it('技术字段表分支覆盖（注入响应含真实字段；豁免态同样渲染字段表，差异仅在是否追加未接入说明）', async () => {
     server.use(
       http.get('/api/v2/read/research-deep', () =>
         HttpResponse.json({
