@@ -209,7 +209,11 @@ class BaseFetcher(ReferenceMixin):
 
 
 
-    _stocks_loaded = False    # 是否已加载
+    _stocks_loaded = False    # 是否已加载（仅成功加载后置 True）
+
+    _warmup_failures = 0      # 预热连续失败计数（与成功标记分离，允许有限重试）
+
+    _MAX_WARMUP_FAILURES = 3  # 连续失败达上限后停止重试，避免每次实例化都打网络
 
     _fund_cache = ProcTTLCache()  # 进程内TTL缓存（基本面日频，#406）；语义等价于旧裸 dict + _proc_cache_get/set
 
@@ -364,8 +368,13 @@ class BaseFetcher(ReferenceMixin):
             logger.debug(f"[fetcher] PRAGMA 设置降级: {e}")
         return conn
 
+    @classmethod
     def _warmup_stock_db(cls):
-        """预热股票库到内存（类级别缓存，所有实例共享，只加载一次）。"""
+        """预热股票库到内存（类级别缓存，所有实例共享，只加载一次）。
+
+        失败不永久标记成功：连续失败达 _MAX_WARMUP_FAILURES 次才停止重试，
+        瞬时故障（网络抖动/文件锁）允许下次实例化时重新预热。
+        """
         if cls._stocks_loaded:
             return
         try:
@@ -392,9 +401,13 @@ class BaseFetcher(ReferenceMixin):
                 logger.debug(f"[StockFetcher] 拼音缓存预计算: {len(cls._pinyin_initials_cache)} 只 ({_time.time()-t_py:.2f}s)")
                 logger.debug(f"[StockFetcher] 股票库预热完成: {len(df)} 只 ({_time.time()-t0:.2f}s)")
             cls._stocks_loaded = True
+            cls._warmup_failures = 0
         except Exception as e:
-            logger.info(f"[StockFetcher] 股票库预热失败: {e}")
-            cls._stocks_loaded = True  # 标记已尝试，避免反复重试
+            cls._warmup_failures += 1
+            logger.info(f"[StockFetcher] 股票库预热失败({cls._warmup_failures}/{cls._MAX_WARMUP_FAILURES}): {e}")
+            if cls._warmup_failures >= cls._MAX_WARMUP_FAILURES:
+                # 连续失败达上限：停止重试（与成功标记共用入口检查，但语义是「放弃」而非「已加载」）
+                cls._stocks_loaded = True
 
     def _init_cache_table(self, conn, table_name):
         table_name = self._safe_ident(table_name)

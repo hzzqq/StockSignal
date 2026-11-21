@@ -53,6 +53,7 @@ function LadderBody({ history }: { history: LadderDay[] }) {
     tooltip: { trigger: 'axis' },
     legend: { data: ['最高板', '连板总数'], textStyle: { color: CHART.ink2 }, top: 0 },
     grid: { left: 40, right: 16, top: 28, bottom: 48 },
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 6, height: 18 }],
     xAxis: {
       type: 'category',
       data: dates,

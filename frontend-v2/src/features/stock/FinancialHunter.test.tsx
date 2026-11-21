@@ -54,30 +54,37 @@ function renderView(search?: { code?: string }) {
 }
 
 describe('FinancialHunter · 已有 E2E 未覆盖的交互/错误边界', () => {
-  it('非法输入 → 查询按钮 disabled，点击不发起请求', async () => {
+  it('非法输入无查询入口 → Enter 不触发请求，applied 未被污染', async () => {
     recordCalls()
     renderView()
     await screen.findByText('权威数据日：2025-09-30', {}, FIND)
     calls.list.length = 0
 
-    const input = screen.getByRole('textbox', { name: '股票代码' })
+    const input = screen.getByRole('combobox', { name: '搜索股票（代码 / 名称 / 首字母）' })
     fireEvent.change(input, { target: { value: 'abc' } })
-    const button = screen.getByRole('button', { name: '查询财报' }) as HTMLButtonElement
-    expect(button.disabled).toBe(true)
-    fireEvent.click(button)
+    // 'abc' 无候选 → 下拉显「未找到匹配的股票」，也无「直接按代码查询」入口
+    await screen.findByText('未找到匹配的股票', {}, FIND)
+    expect(screen.queryByRole('button', { name: /直接按代码/ })).toBeNull()
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await new Promise((r) => setTimeout(r, 100))
     expect(calls.list).toHaveLength(0)
     expect(screen.getByText('代码 600519')).toBeTruthy() // applied 未被非法值污染
   })
 
-  it('Enter 键提交合法 code，请求参数带新 code', async () => {
+  it('直接代码查询提交合法 code，请求参数带新 code', async () => {
     recordCalls()
     renderView()
     await screen.findByText('权威数据日：2025-09-30', {}, FIND)
     calls.list.length = 0
 
-    const input = screen.getByRole('textbox', { name: '股票代码' })
+    const input = screen.getByRole('combobox', { name: '搜索股票（代码 / 名称 / 首字母）' })
     fireEvent.change(input, { target: { value: '000001' } })
-    fireEvent.keyDown(input, { key: 'Enter' })
+    const rawBtn = await screen.findByRole(
+      'button',
+      { name: /直接按代码 000001 查询/ },
+      FIND,
+    )
+    fireEvent.click(rawBtn)
     await screen.findByText('代码 000001', {}, FIND)
     expect(calls.list.at(-1)?.code).toBe('000001')
   })

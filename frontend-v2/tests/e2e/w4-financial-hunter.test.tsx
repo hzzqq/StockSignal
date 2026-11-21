@@ -25,12 +25,12 @@ afterEach(() => {
 })
 afterAll(() => server.close())
 
-/** 把代码切换为指定 6 位并点击查询（模拟真实用户深链 / 手输）。 */
+/** 切代码：统一股票搜索框支持 6 位代码直接回车查询（allowRawCode）。
+ *  输入后按 Enter：有候选则选中候选、无候选则按原始 6 位码查询，两者 code 一致。 */
 function queryCode(code: string) {
-  fireEvent.change(screen.getByRole('textbox', { name: '股票代码' }), {
-    target: { value: code },
-  })
-  fireEvent.click(screen.getByRole('button', { name: '查询财报' }))
+  const input = screen.getByRole('combobox', { name: '搜索股票（代码 / 名称 / 首字母）' })
+  fireEvent.change(input, { target: { value: code } })
+  fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' })
 }
 
 describe('77 · 财报猎手', () => {

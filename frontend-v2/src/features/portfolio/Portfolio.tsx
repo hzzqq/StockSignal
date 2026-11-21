@@ -194,7 +194,8 @@ function AttributionView({ data }: { data: PortfolioData }) {
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis' },
     legend: { data: ['组合净值', '沪深300'], textStyle: { color: CHART.ink2 }, top: 0 },
-    grid: { left: 48, right: 24, top: 28, bottom: 28 },
+    grid: { left: 48, right: 24, top: 28, bottom: 52 },
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 6, height: 18 }],
     xAxis: { type: 'category', data: dates, axisLabel: { color: CHART.ink2, hideOverlap: true }, axisLine: { lineStyle: { color: CHART.line } } },
     yAxis: { type: 'value', axisLabel: { color: CHART.ink2 }, splitLine: { lineStyle: { color: CHART.line } } },
     series: [

@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useEarningsCalendar } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Loading, EmptyState, ErrorState } from '@/shared/ui/States'
+import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
+import { EarningsFinancialModal } from './EarningsFinancialModal'
 
 const MARKETS = ['沪深京', '沪市', '深市'] as const
 const PERIODS = ['2026年报', '2025年报', '2024年报', '2023年报'] as const
@@ -30,6 +32,9 @@ function pickReportPeriod(row: Record<string, unknown>, fallback: string): strin
 const SELECT_CLS =
   'mt-1 w-full bg-sf-bg border border-sf-line text-sf-ink rounded px-2 py-1.5 outline-none focus:border-sf-accent'
 
+/** A 股个股代码形态（6 位纯数字）才允许行点击弹财报详情；「—」等兜底码不可点。 */
+const A_SHARE_CODE_RE = /^\d{6}$/
+
 /**
  * 16 财报日历（v2 native /earnings-calendar）：财报预约披露日历（真实 akshare 数据源）。
  * 复用新增只读端点 /api/v2/read/earnings-calendar（包装 modules.fundflow.get_disclosure_calendar）。
@@ -39,8 +44,14 @@ const SELECT_CLS =
 export function EarningsCalendar() {
   const [market, setMarket] = useState<string>('沪深京')
   const [period, setPeriod] = useState<string>('2025年报')
+  const [selectedCode, setSelectedCode] = useState<string | null>(null)
+  const [selectedName, setSelectedName] = useState<string | undefined>(undefined)
   const q = useEarningsCalendar(market, period)
   const rows = q.data?.rows ?? []
+
+  // 「最近披露日」：披露时间列的最小有效值（披露时间天然按日期序可比）；全缺如实「—」。
+  const disclosures = rows.map((r) => pickDisclosure(r)).filter((d) => d !== '—')
+  const latestDisc = disclosures.length > 0 ? disclosures.reduce((a, b) => (a < b ? a : b)) : '—'
 
   return (
     <div className="space-y-4">
@@ -93,7 +104,11 @@ export function EarningsCalendar() {
         <EmptyState label="该市场/报告期暂无披露日历数据" hint={q.data.note} />
       )}
       {q.data && !q.data.unavailable && rows.length > 0 && (
-        <Card title={`${q.data.market} · ${q.data.period}（${rows.length} 条）`}>
+        <CollapsibleCard
+          title={`${q.data.market} · ${q.data.period}`}
+          summary={`${rows.length} 条 · 最近披露日 ${latestDisc}`}
+          defaultOpen={false}
+        >
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -113,8 +128,21 @@ export function EarningsCalendar() {
                   const disc = pickDisclosure(r)
                   const status = pickStatus(r)
                   const disclosed = status.includes('已披露')
+                  const clickable = A_SHARE_CODE_RE.test(String(code))
                   return (
-                    <tr key={`${code}-${i}`} className="border-b border-sf-line/60">
+                    <tr
+                      key={`${code}-${i}`}
+                      className={`border-b border-sf-line/60 ${clickable ? 'cursor-pointer hover:bg-sf-surface-2' : ''}`}
+                      title={clickable ? '点击查看财报详情' : undefined}
+                      onClick={
+                        clickable
+                          ? () => {
+                              setSelectedCode(String(code))
+                              setSelectedName(String(name) !== '—' ? String(name) : undefined)
+                            }
+                          : undefined
+                      }
+                    >
                       <td className="py-2 pr-3 text-sf-ink">{String(code)}</td>
                       <td className="py-2 pr-3 text-sf-ink">{String(name)}</td>
                       <td className="py-2 pr-3 text-sf-ink-2">{String(rep)}</td>
@@ -135,8 +163,16 @@ export function EarningsCalendar() {
             </table>
           </div>
           {q.data?.note && <p className="mt-3 text-xs text-sf-ink-3">{q.data.note}</p>}
-        </Card>
+        </CollapsibleCard>
       )}
+
+      {/* 行点击财报弹窗：open=false 或 code=null 时不挂载查询、不发请求 */}
+      <EarningsFinancialModal
+        open={selectedCode !== null}
+        onClose={() => setSelectedCode(null)}
+        code={selectedCode}
+        name={selectedName}
+      />
     </div>
   )
 }

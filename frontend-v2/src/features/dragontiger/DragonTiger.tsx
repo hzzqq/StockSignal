@@ -3,6 +3,7 @@ import type { EChartsOption } from 'echarts'
 import type { DragonTiger, DragonTigerRow } from '@/api/schemas/read'
 import { useDragonTiger } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
+import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
@@ -99,6 +100,13 @@ export function DragonTiger() {
 
   const showChart = !!buyTop && !!sellTop && (buyTop.length > 0 || sellTop.length > 0)
 
+  // 折叠卡 summary：上榜家数 + 数据日，全部真实可算；数据日不可得时如实标注（不用今天冒充）。
+  const foldSummary = d
+    ? `上榜 ${count == null ? '—' : count} 家 · 数据日 ${
+        d.data_date_available && d.date ? d.date : '不可得'
+      }`
+    : ''
+
   return (
     <div className="dragon-tiger">
       <h2 className="text-lg font-semibold">龙虎榜</h2>
@@ -182,14 +190,18 @@ export function DragonTiger() {
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <RankTable title="🔥 净买入 Top" rows={buyTop} />
-              <RankTable title="🧊 净卖出 Top" rows={sellTop} />
+              <RankTable title="🔥 净买入 Top" rows={buyTop} summary={foldSummary} />
+              <RankTable title="🧊 净卖出 Top" rows={sellTop} summary={foldSummary} />
             </div>
 
             {detail && detail.length > 0 && (
-              <Card title={`原始明细（前 ${detail.length} 行）`}>
+              <CollapsibleCard
+                title={`原始明细（前 ${detail.length} 行）`}
+                summary={foldSummary}
+                defaultOpen={false}
+              >
                 <DetailTable rows={detail} />
-              </Card>
+              </CollapsibleCard>
             )}
 
             {unavailable.length > 0 && (
@@ -209,7 +221,15 @@ export function DragonTiger() {
   )
 }
 
-function RankTable({ title, rows }: { title: string; rows: DragonTigerRow[] | null }) {
+function RankTable({
+  title,
+  rows,
+  summary,
+}: {
+  title: string
+  rows: DragonTigerRow[] | null
+  summary: string
+}) {
   if (!rows || rows.length === 0) {
     return (
       <Card title={title}>
@@ -219,8 +239,9 @@ function RankTable({ title, rows }: { title: string; rows: DragonTigerRow[] | nu
       </Card>
     )
   }
+  // 排名表默认折叠为一行摘要（上榜家数 + 数据日）；净买列降级的诚实说明走上方空态分支，不被折叠藏匿。
   return (
-    <Card title={`${title}（${rows.length}）`}>
+    <CollapsibleCard title={title} summary={summary} defaultOpen={false}>
       <div className="overflow-x-auto">
         <table className="w-full text-xs text-sf-ink">
           <thead>
@@ -243,7 +264,7 @@ function RankTable({ title, rows }: { title: string; rows: DragonTigerRow[] | nu
           </tbody>
         </table>
       </div>
-    </Card>
+    </CollapsibleCard>
   )
 }
 

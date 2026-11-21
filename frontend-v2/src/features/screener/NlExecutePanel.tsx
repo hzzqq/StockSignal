@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNlScreenExecute } from '@/lib/queriesBatchD'
 import { Card } from '@/shared/ui/Card'
+import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { fmtNum } from '@/lib/format'
 
 /**
@@ -126,7 +127,14 @@ export function NlExecutePanel() {
           {d.rows.length === 0 ? (
             <p className="text-xs text-sf-ink-3">条件命中为空（或全部被二道闸排除），不伪造结果行。</p>
           ) : (
-            <NlRowsTable rows={d.rows} />
+            /* 结果明细动辄数十行，默认折叠为一行摘要；候选池/命中/排雷统计与空态提示留在折叠卡外，不被藏匿。 */
+            <CollapsibleCard
+              title="执行结果明细"
+              summary={`命中 ${d.rows.length} 条`}
+              defaultOpen={false}
+            >
+              <NlRowsTable rows={d.rows} />
+            </CollapsibleCard>
           )}
           <p className="text-xs text-sf-ink-3">{d.note ?? ''}</p>
         </div>

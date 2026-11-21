@@ -42,11 +42,6 @@ export function FinancialHunter({ search }: FinancialHunterProps) {
   const [report, setReport] = useState<FinancialReport>('income')
   const q = useFinancialsReport(applied, report)
 
-  const applyCode = () => {
-    const v = codeInput.trim()
-    if (CODE_RE.test(v)) setApplied(v)
-  }
-
   return (
     <div className="flow">
       <div className="flex flex-wrap items-center gap-3">
@@ -54,31 +49,8 @@ export function FinancialHunter({ search }: FinancialHunterProps) {
         <span className="text-label text-sf-ink-3">数据源 financials（三表合并，逐报表切换）</span>
       </div>
 
+      {/* 代码输入：统一 StockSearchInput；选中即 setCodeInput + setApplied（无手输 + 查询按钮双轨）。 */}
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex flex-col gap-1 text-label text-sf-ink-2">
-          股票代码
-          <input
-            type="text"
-            value={codeInput}
-            onChange={(e) => setCodeInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') applyCode()
-            }}
-            placeholder="6 位数字，如 600519"
-            aria-label="股票代码"
-            className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-1.5 text-body text-sf-ink w-40"
-          />
-        </label>
-        <button
-          type="button"
-          onClick={applyCode}
-          disabled={!CODE_RE.test(codeInput.trim())}
-          aria-label="查询财报"
-          className="text-label px-3 py-1.5 rounded-tile border border-sf-line disabled:opacity-40"
-        >
-          查询
-        </button>
-
         <div className="w-72">
           <StockSearchInput
             value={codeInput}

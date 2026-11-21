@@ -20,7 +20,7 @@ bp = Blueprint("tasks", __name__, url_prefix="/api/tasks")
 logger = logging.getLogger(__name__)
 
 # 允许的后台任务类型（单一来源：create_task 校验与文档都引用这里）
-_ALLOWED_TASK_TYPES = ("analysis", "compare", "ai_consult", "quant_research", "ai_research")
+_ALLOWED_TASK_TYPES = ("analysis", "compare", "ai_consult", "quant_research", "ai_research", "pattern_scan")
 
 
 def _validate_task_payload(task_type: str, payload: Any) -> tuple[bool, Any]:
@@ -44,7 +44,7 @@ def _validate_task_payload(task_type: str, payload: Any) -> tuple[bool, Any]:
 @jwt_required
 def create_task():
     """POST /api/tasks
-    body: {"type": "analysis|compare|ai_consult|quant_research|ai_research", "payload": {...}}
+    body: {"type": "analysis|compare|ai_consult|quant_research|ai_research|pattern_scan", "payload": {...}}
     """
     body = json_body()
     task_type = (body.get("type") or "").strip()

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DragonTiger } from './DragonTiger'
@@ -45,6 +45,13 @@ beforeEach(() => {
   mocked.mockReset()
 })
 
+
+/** 折叠卡默认收起：按 region 名展开后再断言表格行（大表折叠后的正确测试范式）。 */
+async function expandCard(name: RegExp | string) {
+  const region = await screen.findByRole('region', { name })
+  fireEvent.click(within(region).getByRole('button', { name: /展开/ }))
+}
+
 describe('DragonTiger 三态 + 排名渲染 + 诚实降级', () => {
   it('loading 显示加载中占位', () => {
     mocked.mockImplementation(() => new Promise<never>(() => {}))
@@ -68,13 +75,14 @@ describe('DragonTiger 三态 + 排名渲染 + 诚实降级', () => {
     expect(screen.getByText('净买额合计')).toBeTruthy()
     expect(screen.getByText('识别到的净买列')).toBeTruthy()
     // 排名表
-    expect(screen.getByText('🔥 净买入 Top（2）')).toBeTruthy()
-    expect(screen.getByText('🧊 净卖出 Top（1）')).toBeTruthy()
-    // 贵州茅台/平安银行同时出现在排名表与原始明细，故用 getAllByText
+    // 大表折叠：RankTable title 与 summary 拆分，展开后才渲染真实行
+    expect(screen.getByText('🔥 净买入 Top')).toBeTruthy()
+    expect(screen.getByText('🧊 净卖出 Top')).toBeTruthy()
+    expect(screen.getByText(/原始明细/)).toBeTruthy()
+    await expandCard('🔥 净买入 Top')
+    await expandCard('🧊 净卖出 Top')
     expect(screen.getAllByText('贵州茅台').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText('平安银行').length).toBeGreaterThanOrEqual(1)
-    // 原始明细
-    expect(screen.getByText('原始明细（前 3 行）')).toBeTruthy()
     // 正常态不应出现「取不到」清单
     expect(screen.queryByText(/以下情况本次发生/)).toBeNull()
   })

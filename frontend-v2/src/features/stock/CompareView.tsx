@@ -157,6 +157,16 @@ export function CompareView({ search }: CompareViewProps) {
     return Array.from(new Set([...(search?.codes ?? []), ...fromInput]))
   }, [codesInput, search?.codes])
 
+  // 非法码提示：仅展示（过滤行为不变——非 6 位数字码静默忽略，不写进查询）。
+  const invalidCodes = useMemo(
+    () =>
+      codesInput
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0 && !CODE_RE.test(s)),
+    [codesInput],
+  )
+
   const { rows, perCode } = useCompareMany(codes, period)
   const fields = unionFields(rows)
 
@@ -180,6 +190,11 @@ export function CompareView({ search }: CompareViewProps) {
           className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-2 text-body text-sf-ink tabular-nums"
         />
         <span className="text-label text-sf-ink-3">{`已选 ${codes.length} 只`}</span>
+        {invalidCodes.length > 0 && (
+          <span role="status" className="text-label text-sf-warn">
+            {`存在非 6 位数字码（${invalidCodes.join('、')}），已忽略，仅合法码参与对比`}
+          </span>
+        )}
       </label>
 
       <div className="w-72">

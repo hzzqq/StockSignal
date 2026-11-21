@@ -3627,3 +3627,33 @@ export const analysisTaskResult = {
   vol_score: 55.3,
   sector_score: 68.9,
 }
+
+/**
+ * pattern_scan 后台任务 result（GET /api/tasks/<id> 轮询 success 态的 data.result）。
+ * 形状与 POST /api/v2/pattern-scan 同步端点 data 同构：{results, n_scanned, available}。
+ * 第二只股票用诚实降级态（available=false + reason，样本 0 根），演示「单股失败不中断整批、
+ * 不补零、不伪造形态」。数值/形态为演示数据、非真实行情识别结果。
+ */
+export const patternScanTaskResult = {
+  results: [
+    {
+      code: '600519',
+      available: true,
+      patterns: [
+        { date: '2026-11-18', name: 'MACD金叉', bias: '看涨', desc: '演示形态：MACD 金叉（非真实行情）' },
+        { date: '2026-11-17', name: '均线金叉', bias: '看涨', desc: '演示形态：MA5 上穿 MA20（非真实行情）' },
+      ],
+      reason: null,
+      n_bars: 250,
+    },
+    {
+      code: '000001',
+      available: false,
+      patterns: [],
+      reason: 'K线数据为空',
+      n_bars: 0,
+    },
+  ],
+  n_scanned: 2,
+  available: true,
+}

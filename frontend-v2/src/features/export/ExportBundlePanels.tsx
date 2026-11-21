@@ -16,6 +16,7 @@ import {
 } from '@/api/exportBundle'
 import { ApiError } from '@/api/client'
 import { Card } from '@/shared/ui/Card'
+import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 import { fmtNum } from '@/lib/format'
 
 /**
@@ -110,16 +111,24 @@ export function ExportBundlePanel() {
               className={INPUT_CLS}
             />
           </label>
-          <label className={LABEL_CLS}>
-            个股代码（可选，6 位）
-            <input
-              aria-label="导出个股代码"
+          {/* 个股代码：统一 StockSearchInput；留空=全市场语义不变（code='' 时 params.code=undefined）。
+              受控清空可行：value='' 经内部 useEffect 同步显示，下方清空按钮置空字符串即恢复全市场。 */}
+          <div className="space-y-1">
+            <StockSearchInput
+              label="个股代码（可选，留空=全市场）"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="个股主力资金数据集用"
-              className={INPUT_CLS}
+              onSelect={(c) => setCode(c)}
             />
-          </label>
+            {code.trim() !== '' && (
+              <button
+                type="button"
+                onClick={() => setCode('')}
+                className="text-label text-sf-ink-3 hover:text-sf-accent"
+              >
+                清空个股代码（恢复全市场导出）
+              </button>
+            )}
+          </div>
         </div>
         {!periodValid && (
           <p className="text-label text-sf-danger">报告期须为 8 位数字（YYYYMMDD）</p>
@@ -205,6 +214,8 @@ function JsonBundlePreview({ data }: { data: ExportBundleJson }) {
 
 export function StockReportPanel() {
   const [codeInput, setCodeInput] = useState('600519')
+  // 选中项名称（来自搜索结果 item），仅用于回显；未匹配到名称（直接按代码查询）时如实只显代码。
+  const [codeName, setCodeName] = useState<string | null>(null)
   const [format, setFormat] = useState<StockReportFormat>('html')
   const [busy, setBusy] = useState(false)
   const [report, setReport] = useState<StockReport | null>(null)
@@ -246,15 +257,20 @@ export function StockReportPanel() {
     <Card title="一键研报（个股 HTML / Markdown）">
       <div className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-3">
-          <label className={LABEL_CLS}>
-            股票代码
-            <input
-              aria-label="研报股票代码"
+          {/* 股票代码：统一 StockSearchInput + name(code) 回显；提交前 6 位校验保留。 */}
+          <div className="space-y-1">
+            <StockSearchInput
+              label="股票代码"
               value={codeInput}
-              onChange={(e) => setCodeInput(e.target.value)}
-              className={INPUT_CLS}
+              onSelect={(c, item) => {
+                setCodeInput(c)
+                setCodeName(item?.name ?? null)
+              }}
             />
-          </label>
+            {codeName && CODE_RE.test(codeInput.trim()) && (
+              <p className="text-label text-sf-ink-2">{`已选标的：${codeName}（${codeInput.trim()}）`}</p>
+            )}
+          </div>
           <label className={LABEL_CLS}>
             格式
             <select

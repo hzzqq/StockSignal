@@ -6,6 +6,7 @@ import {
 } from '@/lib/queriesPatternPaper'
 import { usePaperTrades } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
+import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 
 /**
  * 42 模拟交易写面板（parity C）：把 v1 的模拟账本写能力接进 v2 /paper。
@@ -66,11 +67,9 @@ export function PaperWritePanels() {
       <Card title="记一笔模拟成交">
         <form onSubmit={submitTrade} className="space-y-2">
           <div className="grid gap-2 sm:grid-cols-4">
-            <label className={LABEL_CLS}>
-              代码
-              <input aria-label="模拟成交代码" value={code}
-                onChange={(e) => setCode(e.target.value)} className={INPUT_CLS} />
-            </label>
+            {/* 代码：统一 StockSearchInput（代码/名称/拼音召回 + 键盘选择）；
+                提交前的 6 位数字校验保留（直接按代码查询也回写合法码）。 */}
+            <StockSearchInput label="代码" value={code} onSelect={(c) => setCode(c)} />
             <label className={LABEL_CLS}>
               方向
               <select aria-label="模拟成交方向" value={side}

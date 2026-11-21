@@ -48,14 +48,19 @@ _RULES_PATH = os.path.join(
 
 def load_rules(path: str | None = None) -> list:
     p = path or _RULES_PATH
+    if not os.path.exists(p):
+        # 首次使用：用默认规则初始化落盘（写失败不影响返回默认值），
+        # 让 data/alert_rules.json 从进程启动即存在，而非依赖 v1 页面手动保存。
+        save_rules([dict(r) for r in DEFAULT_RULES], p)
+        return [dict(r) for r in DEFAULT_RULES]
     try:
-        if os.path.exists(p):
-            with open(p, encoding="utf-8") as f:
-                data = json.load(f)
-            rules = data.get("rules") if isinstance(data, dict) else data
-            if isinstance(rules, list) and rules:
-                return rules
+        with open(p, encoding="utf-8") as f:
+            data = json.load(f)
+        rules = data.get("rules") if isinstance(data, dict) else data
+        if isinstance(rules, list) and rules:
+            return rules
     except Exception as e:  # noqa: BLE001
+        # 文件存在但损坏：不覆盖用户文件，如实降级返回默认规则
         logger.warning(f"[alert] 读取规则失败: {e}")
     return [dict(r) for r in DEFAULT_RULES]
 

@@ -38,11 +38,29 @@ import sys
 _MAX_ROWS = 240
 _COLS = ("日期", "开盘", "收盘", "最高", "最低", "成交量")
 
+# akshare 列名口径兼容：1.19.1 stock_zh_index_daily 返回英文列
+# date/open/high/low/close/volume，旧版返回中文列——统一映射成中文列再出管道。
+_EN2CN_COLS = {
+    "date": "日期",
+    "open": "开盘",
+    "close": "收盘",
+    "high": "最高",
+    "low": "最低",
+    "volume": "成交量",
+}
+
 
 def _rows_for(df) -> list[dict]:
     """DataFrame -> 可 JSON 化的中文列 records；只取尾部，避免全历史灌进管道。"""
     if df is None or not hasattr(df, "columns") or len(df) == 0:
         return []
+    rename = {
+        c: _EN2CN_COLS[str(c).strip().lower()]
+        for c in df.columns
+        if str(c).strip().lower() in _EN2CN_COLS
+    }
+    if rename:
+        df = df.rename(columns=rename)
     cols = [c for c in _COLS if c in df.columns]
     if not cols:
         return []

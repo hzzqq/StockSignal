@@ -1,8 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import type { ReactElement } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ExportBundlePanel, StockReportPanel } from './ExportBundlePanels'
 import { getExportBundleJson, downloadExportBundle, getStockReport, saveBlob } from '@/api/exportBundle'
 import { stockReportFixture, exportBundleJsonFixture } from '@/mocks/fixturesBatchD'
+
+// 面板内 StockSearchInput 使用 react-query（股票搜索），须挂 Provider 才能渲染。
+function renderWithClient(ui: ReactElement) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 0 } },
+  })
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+}
 
 vi.mock('@/api/exportBundle', () => ({
   getExportBundleJson: vi.fn(),
@@ -27,7 +37,7 @@ beforeEach(() => {
 
 describe('ExportBundlePanel · 平台数据集导出', () => {
   it('json 预览：available=true → 数据集表格 + skipped 清单如实透出', async () => {
-    render(<ExportBundlePanel />)
+    renderWithClient(<ExportBundlePanel />)
     fireEvent.change(screen.getByRole('combobox', { name: '导出格式' }), {
       target: { value: 'json' },
     })
@@ -38,7 +48,7 @@ describe('ExportBundlePanel · 平台数据集导出', () => {
   })
 
   it('文件档：saveBlob 成功 → 提示已下载文件名', async () => {
-    render(<ExportBundlePanel />)
+    renderWithClient(<ExportBundlePanel />)
     fireEvent.click(screen.getByRole('button', { name: '开始导出' }))
     await waitFor(() =>
       expect(screen.getByText(/已下载 StockSignal_数据导出.zip/)).toBeTruthy(),
@@ -49,7 +59,7 @@ describe('ExportBundlePanel · 平台数据集导出', () => {
 
   it('文件档：saveBlob 失败 → 如实提示「未能保存」，不静默假装成功', async () => {
     saveMock.mockReturnValue(false)
-    render(<ExportBundlePanel />)
+    renderWithClient(<ExportBundlePanel />)
     fireEvent.click(screen.getByRole('button', { name: '开始导出' }))
     await waitFor(() =>
       expect(screen.getByText(/未能保存/)).toBeTruthy(),
@@ -59,7 +69,7 @@ describe('ExportBundlePanel · 平台数据集导出', () => {
 
 describe('StockReportPanel · 一键研报', () => {
   it('生成研报 → 覆盖率 + 不可用板块 + 下载按钮', async () => {
-    render(<StockReportPanel />)
+    renderWithClient(<StockReportPanel />)
     fireEvent.click(screen.getByRole('button', { name: '生成研报' }))
     await screen.findByText(/数据覆盖率 75%/)
     expect(screen.getByText(/不可用板块/)).toBeTruthy()
@@ -67,7 +77,7 @@ describe('StockReportPanel · 一键研报', () => {
   })
 
   it('切格式未重新生成 → 旧研报立即失效（否则「下载 Markdown」实下 HTML 文件）', async () => {
-    render(<StockReportPanel />)
+    renderWithClient(<StockReportPanel />)
     fireEvent.click(screen.getByRole('button', { name: '生成研报' }))
     await screen.findByText(/数据覆盖率 75%/)
     fireEvent.change(screen.getByRole('combobox', { name: '研报格式' }), {
@@ -80,7 +90,7 @@ describe('StockReportPanel · 一键研报', () => {
 
   it('saveBlob 失败 → 如实提示「未能保存」，不静默假装成功', async () => {
     saveMock.mockReturnValue(false)
-    render(<StockReportPanel />)
+    renderWithClient(<StockReportPanel />)
     fireEvent.click(screen.getByRole('button', { name: '生成研报' }))
     await screen.findByText(/数据覆盖率 75%/)
     fireEvent.click(screen.getByRole('button', { name: '下载 HTML 文件' }))
@@ -92,7 +102,7 @@ describe('StockReportPanel · 一键研报', () => {
       available: false,
       reason: '本报告无有效数据板块（覆盖率 0%）',
     })
-    render(<StockReportPanel />)
+    renderWithClient(<StockReportPanel />)
     fireEvent.click(screen.getByRole('button', { name: '生成研报' }))
     await screen.findByText('研报不可用')
     expect(screen.queryByRole('button', { name: /下载/ })).toBeNull()

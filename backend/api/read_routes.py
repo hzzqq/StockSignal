@@ -1588,7 +1588,22 @@ def _w4b_kline(code, period="daily"):
 def _w4b_financial(code, report_type):
     """get_financial(code, report_type) -> DataFrame | None（异常/空降级）。
     已核实（_market_data_io.py:448-459）= ak.stock_financial_report_sina(...).head(8)，
-    「行=报告期、列=中文科目」wide DataFrame，与旧页 22 财报口径同源同列名。"""
+    「行=报告期、列=中文科目」wide DataFrame，与旧页 22 财报口径同源同列名。
+
+    进程级 TTL 3h 缓存（键 code+report，仿 modules/fundflow._cached 范式，经
+    cache_utils.cached_ttl 收口）：财报三表原为零缓存 akshare 直连，是
+    fundamentals/financials/research-deep 三端点共用的最慢源。季报数据日频更新，
+    3h 远小于披露节奏；skip_empty=True —— None/空表不缓存，瞬时失败不锁 3h。
+    """
+    from modules.cache_utils import cached_ttl
+    return cached_ttl(
+        3 * 3600, f"w4b_financial_{code}_{report_type}",
+        lambda: _w4b_financial_fetch(code, report_type),
+        skip_empty=True,
+    )
+
+
+def _w4b_financial_fetch(code, report_type):
     try:
         from ..api.market_routes import get_fetcher
         df = get_fetcher().get_financial(code, report_type)
@@ -2145,8 +2160,8 @@ def compare_one():
 def research_deep():
     """24 页 deep 子视图的轻量同步技术面（price/pe_ttm/pb/market_cap + 技术字段）。
 
-    GET /api/v2/read/research-deep?code=600519。复用 _w4b_basic/_w4b_spot/_w4b_kline/
-    _w4b_financial；pb 无源->null、turnover（换手率，需流通股本）无源->null。
+    GET /api/v2/read/research-deep?code=600519。复用 _w4b_basic/_w4b_spot/_w4b_kline
+    三源并行；pb 无源->null、turnover（换手率，需流通股本）无源->null。
     旧 24 页 56 键 analysis_engine 异步深度分析**本轮不接入**，deep_analysis_available
     诚实标注为 false（前端据实展示豁免卡，不造假）。
     """
@@ -2156,13 +2171,13 @@ def research_deep():
                     code="invalid_param", http_status=400)
     try:
         from modules.fetch_parallel import fetch_many
+        # 三源并行。曾接入第四源 _w4b_financial(code, "income")，但其输出在本端点
+        # 不被任何字段消费（pb/market_cap 由 basic 提供，财报三表无 pb 估值），
+        # 纯属白拉一次 akshare——已砍掉，提速且不改变任何响应字段。
         res = fetch_many([
             ("basic", lambda: _w4b_basic(code)),
             ("spot", lambda: _w4b_spot(code)),
             ("kline", lambda: _w4b_kline(code, "daily")),
-            # 复用 _w4b_financial（按契约命名接入），但本轮 pb/market_cap 已可由 basic 提供、
-            # financial 三表无 pb 估值，故其输出不消费、不编造；异常按 None 降级。
-            ("financial", lambda: _w4b_financial(code, "income")),
         ])
     except Exception:  # noqa: BLE001
         res = {}
@@ -2288,13 +2303,25 @@ def _sp_core_business(code):
 
     底层取不到返回 ''，异常也可能；此处保留原始返回，由端点统一规整为 None。
     绝不用 industry 顶替、绝不编造简介。
+
+    进程级 TTL 1h 缓存（cache_utils.cached_ttl 收口）：同花顺零缓存直连是
+    stock-profile 四路取数里最慢的一路。诚实边界：''（同花顺取不到）与异常
+    （None）一致按空结果处理——不缓存，避免瞬时失败锁 1h，端点对 ''/None 的
+    规整语义不变（均输出 null）。
     """
-    try:
-        from ..api.market_routes import get_fetcher
-        return get_fetcher().get_core_business(code)
-    except Exception:  # noqa: BLE001
-        # ui_audit_exempt: 已知静默降级 — 取数异常返回 None，上层按空态处理，不伪造结果
-        return None
+    from modules.cache_utils import cached_ttl
+
+    def _fetch():
+        try:
+            from ..api.market_routes import get_fetcher
+            v = get_fetcher().get_core_business(code)
+        except Exception:  # noqa: BLE001
+            # ui_audit_exempt: 已知静默降级 — 取数异常返回 None，上层按空态处理，不伪造结果
+            return None
+        # '' 与 None 同为「取不到」：统一成 None 走 skip_empty（不缓存），透传语义等价
+        return v if isinstance(v, str) and v.strip() else None
+
+    return cached_ttl(3600, f"sp_core_business_{code}", _fetch, skip_empty=True)
 
 
 def _sp_fund_date(fund):
@@ -2552,6 +2579,37 @@ def _w4x_index_daily_batch(symbols):
     return out
 
 
+# akshare 列名口径兼容映射（与 backend/api/_index_daily_worker.py 保持一致；
+# 该文件禁止在 Flask 进程内 import，故此处独立维护同表）
+_W4X_EN2CN_COLS = {
+    "date": "日期",
+    "open": "开盘",
+    "close": "收盘",
+    "high": "最高",
+    "low": "最低",
+    "volume": "成交量",
+}
+
+
+def _w4x_rows_to_df(rows):
+    """子进程 rows -> DataFrame | None；列名兼容英文（akshare 1.19.1 date/open/...）
+    与中文（旧版 日期/开盘/...），无收盘列（无法算涨跌）一律诚实返 None。"""
+    try:
+        cand = pd.DataFrame(rows)
+    except Exception:  # noqa: BLE001
+        return None
+    if len(cand) == 0:
+        return None
+    rename = {}
+    for c in cand.columns:
+        cn = _W4X_EN2CN_COLS.get(str(c).strip().lower())
+        if cn and cn not in cand.columns:
+            rename[c] = cn
+    if rename:
+        cand = cand.rename(columns=rename)
+    return cand if "收盘" in cand.columns else None
+
+
 def _w4x_index_daily(symbol):
     """单只指数日线 -> DataFrame | None（异常/空/子进程崩溃一律诚实降级）。
 
@@ -2573,14 +2631,7 @@ def _w4x_index_daily(symbol):
             frames = {}
         for code in batch_symbols:
             rows = frames.get(code)
-            df = None
-            if rows:
-                try:
-                    cand = pd.DataFrame(rows)
-                    if len(cand) > 0 and "收盘" in cand.columns:
-                        df = cand
-                except Exception:  # noqa: BLE001
-                    df = None
+            df = _w4x_rows_to_df(rows) if rows else None
             _INDEX_DAILY_CACHE[code] = (now, df)
         return _INDEX_DAILY_CACHE[symbol][1]
 

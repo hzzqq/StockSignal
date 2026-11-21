@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { usePaperTrades } from '@/lib/queries'
 import { QueryState } from '@/shared/ui/States'
 import { Card } from '@/shared/ui/Card'
+import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { Stat } from '@/shared/ui/Stat'
 import { PaperWritePanels } from './PaperWritePanels'
 
@@ -71,7 +72,15 @@ export function PaperTrades() {
             )}
 
             {p.trades && p.trades.length > 0 && (
-              <Card title={`成交记录（${p.trades.length}）`}>
+              /* 成交记录随交易累积可达数百行，默认折叠为一行摘要（笔数 + 当前现金，真实可算）；
+                 持仓表行数少（通常 < 10）且为页面核心信息，保持平铺不折叠。 */
+              <CollapsibleCard
+                title="成交记录"
+                summary={`${p.trades.length} 笔 · 可用现金 ${
+                  p.cash != null ? p.cash.toLocaleString() : '—'
+                }`}
+                defaultOpen={false}
+              >
                 <div className="max-h-64 overflow-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -109,7 +118,7 @@ export function PaperTrades() {
                     </tbody>
                   </table>
                 </div>
-              </Card>
+              </CollapsibleCard>
             )}
           </div>
         )}

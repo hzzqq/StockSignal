@@ -77,6 +77,9 @@ describe('16 财报日历（/earnings-calendar）', () => {
     expect(selects.length).toBe(2)
     expect(screen.getByText('沪深京')).toBeTruthy()
     expect(screen.getByText('2025年报')).toBeTruthy()
+    // 大表默认折叠（CollapsibleCard）：等数据到位 → 先展开再断言表内容（真实性断言保留）
+    await waitFor(() => expect(screen.getByText(/沪深京 · 2025年报/)).toBeTruthy(), { timeout: 5000 })
+    fireEvent.click(screen.getByRole('button', { name: '展开 ▾' }))
     // 默认 MSW 返回 6 行 → 表格与数据来源注记落地
     await waitFor(() => expect(screen.getByText('贵州茅台')).toBeTruthy(), { timeout: 5000 })
     expect(screen.getByText('数据来源：东方财富 财报预约披露日历（年报）')).toBeTruthy()
@@ -98,6 +101,9 @@ describe('16 财报日历（/earnings-calendar）', () => {
       ),
     )
     mount(<EarningsCalendar />)
+    // 大表默认折叠：等数据到位 → 先展开再断言（真实性断言保留）
+    await waitFor(() => expect(screen.getByText(/沪深京 · 2025年报/)).toBeTruthy(), { timeout: 5000 })
+    fireEvent.click(screen.getByRole('button', { name: '展开 ▾' }))
     await waitFor(() => expect(screen.getByRole('table')).toBeTruthy(), { timeout: 5000 })
     // 只在表格内断言（下拉里也有「2025年报」，须排除歧义）：三列都有真实值，不是「—」
     const table = screen.getByRole('table')

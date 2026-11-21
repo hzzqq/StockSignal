@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { LimitUpReview } from './LimitUpReview'
@@ -58,6 +58,13 @@ beforeEach(() => {
   mocked.mockReset()
 })
 
+
+/** 折叠卡默认收起：按 region 名展开后再断言表格行（大表折叠后的正确测试范式）。 */
+async function expandCard(name: RegExp | string) {
+  const region = await screen.findByRole('region', { name })
+  fireEvent.click(within(region).getByRole('button', { name: /展开/ }))
+}
+
 describe('LimitUpReview 三态 + 诚实降级', () => {
   it('loading 显示加载占位', () => {
     mocked.mockImplementation(() => new Promise<never>(() => {}))
@@ -75,6 +82,8 @@ describe('LimitUpReview 三态 + 诚实降级', () => {
     mocked.mockResolvedValue(okData)
     renderWithClient(<LimitUpReview />)
     expect(await screen.findByText('龙头评分榜')).toBeTruthy()
+    await expandCard('涨停池明细')
+    await expandCard('龙头评分榜')
     expect(screen.getAllByText('宁德时代').length).toBeGreaterThan(0)
     expect(screen.getByText('市场上下文')).toBeTruthy()
     // 数值如实展示

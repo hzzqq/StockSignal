@@ -538,8 +538,8 @@ interface ChatTask {
   pollCount: number
   result: unknown | null
   error: string | null
-  /** 任务种类：决定 success 态注入哪份演示 result（ai_consult / analysis）。 */
-  kind: 'ai_consult' | 'analysis'
+  /** 任务种类：决定 success 态注入哪份演示 result（ai_consult / analysis / pattern_scan）。 */
+  kind: 'ai_consult' | 'analysis' | 'pattern_scan'
 }
 interface ChatConv {
   id: number
@@ -565,15 +565,20 @@ const CHAT_MOCK_NOW = '2026-11-13T10:05:00Z'
 // 把 chatMockState 注入到 handlers（模块作用域，供 resetChatMock 在测试间复位）
 void (() => {
   const handlersChat = [
-    // ai_consult / analysis 后台任务：POST /api/tasks/ → 返回 {task_id}（data 层）。
+    // ai_consult / analysis / pattern_scan 后台任务：POST /api/tasks/ → 返回 {task_id}（data 层）。
     // analysis 供个股研究页「五维综合评分」异步任务演示（契约见 scoreTask.ts）。
     http.post('/api/tasks/', async ({ request }) => {
       const body = (await request.json().catch(() => ({}))) as { type?: string; payload?: unknown }
-      if (body.type !== 'ai_consult' && body.type !== 'analysis') {
-        return badRequest('仅支持 ai_consult / analysis 类型（演示 Mock）')
+      if (body.type !== 'ai_consult' && body.type !== 'analysis' && body.type !== 'pattern_scan') {
+        return badRequest('仅支持 ai_consult / analysis / pattern_scan 类型（演示 Mock）')
       }
       // 前缀按类型区分（chat-api.test 锁定 mock-ai-consult- 前缀）
-      const prefix = body.type === 'ai_consult' ? 'mock-ai-consult-' : 'mock-analysis-'
+      const prefix =
+        body.type === 'ai_consult'
+          ? 'mock-ai-consult-'
+          : body.type === 'analysis'
+            ? 'mock-analysis-'
+            : 'mock-pattern-scan-'
       const taskId = `${prefix}${Date.now()}-${Math.floor(Math.random() * 1e6)}`
       chatMockState.tasks.set(taskId, {
         status: 'running',
@@ -584,7 +589,30 @@ void (() => {
       })
       return ok({ task_id: taskId, status: 'pending' })
     }),
-    // GET /api/tasks/<id> → 轮询态；首次 running、二次 success 带样例结果（演示，无真实 LLM/评分）
+    // POST /api/v2/pattern-scan/tasks —— 异步形态扫描专用提交端点（与后端 pattern_routes 对齐）。
+    // 校验同后端：codes 须为 1~50 项 6 位数字；非法 400 validation_error（诚实拒绝，不静默兜底）。
+    http.post('/api/v2/pattern-scan/tasks', async ({ request }) => {
+      const body = (await request.json().catch(() => ({}))) as {
+        codes?: unknown
+        window_days?: unknown
+      }
+      const codes = Array.isArray(body.codes)
+        ? body.codes.map((c) => String(c ?? '').trim()).filter(Boolean)
+        : []
+      if (codes.length < 1 || codes.length > 50 || codes.some((c) => !/^\d{6}$/.test(c))) {
+        return badRequest('codes 须为 1~50 个 6 位数字股票代码')
+      }
+      const taskId = `mock-pattern-scan-${Date.now()}-${Math.floor(Math.random() * 1e6)}`
+      chatMockState.tasks.set(taskId, {
+        status: 'running',
+        pollCount: 0,
+        result: null,
+        error: null,
+        kind: 'pattern_scan',
+      })
+      return ok({ task_id: taskId, status: 'pending' }, 'pattern-scan 任务已提交')
+    }),
+    // GET /api/tasks/<id> → 轮询态；首次 running、二次 success 带样例结果（演示，无真实 LLM/评分/行情）
     http.get('/api/tasks/:id', ({ params }) => {
       const id = String(params.id)
       const t = chatMockState.tasks.get(id)
@@ -592,15 +620,31 @@ void (() => {
       t.pollCount += 1
       if (t.pollCount >= 2) {
         t.status = 'success'
-        t.result = t.kind === 'analysis' ? fixtures.analysisTaskResult : fixtures.chatSampleResult
+        if (t.kind === 'analysis') t.result = fixtures.analysisTaskResult
+        else if (t.kind === 'pattern_scan') t.result = fixtures.patternScanTaskResult
+        else t.result = fixtures.chatSampleResult
       }
+      // pattern_scan 进度由 pollCount 显式决定（mock 后端态，无"缺失"语义，不用 ?? 兜底）。
+      // 非 pattern 任务给固定 0.5 演示进度——这是 mock 产出的真实值，不是缺数补零。
+      const progress =
+        t.status === 'success'
+          ? 1
+          : t.kind === 'pattern_scan'
+            ? Math.min(90, t.pollCount * 30) / 100
+            : 0.5
       return ok({
         task_id: id,
         task_type: t.kind,
         status: t.status,
-        progress: t.status === 'success' ? 1 : 0.5,
-        stage: t.status === 'success' ? 'done' : 'analyzing',
-        logs: [{ stage: t.status === 'success' ? 'done' : 'analyzing', message: '演示任务进度', ts: 1763023200 }],
+        progress,
+        stage: t.status === 'success' ? 'done' : t.kind === 'pattern_scan' ? 'scan' : 'analyzing',
+        logs: [
+          {
+            stage: t.status === 'success' ? 'done' : t.kind === 'pattern_scan' ? 'scan' : 'analyzing',
+            message: t.kind === 'pattern_scan' ? `[${t.pollCount}] 逐股扫描进行中` : '演示任务进度',
+            ts: 1763023200,
+          },
+        ],
         result: t.result,
         error: t.error,
         created_at: 1763023200,

@@ -96,7 +96,8 @@ function PanoramaBody({ data }: { data: MarketPanoramaData }) {
   const trendOption: EChartsOption = {
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis' },
-    grid: { left: 44, right: 16, top: 16, bottom: 28 },
+    grid: { left: 44, right: 16, top: 16, bottom: 52 },
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 6, height: 18 }],
     xAxis: {
       type: 'category',
       data: trendDates,

@@ -50,7 +50,8 @@ export function buildEquityOption(d: ConstructionDiag): EChartsOption {
   const bandEnd = dates[dates.length - 1]
   return {
     backgroundColor: 'transparent',
-    grid: { left: 52, right: 16, top: 32, bottom: 28 },
+    grid: { left: 52, right: 16, top: 32, bottom: 52 },
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 6, height: 18 }],
     tooltip: {
       trigger: 'axis',
       formatter: (params) => {

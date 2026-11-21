@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useLimitUpReview } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
+import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { Loading, EmptyState, ErrorState } from '@/shared/ui/States'
 
 const DATE_RE = /^\d{8}$/
@@ -106,85 +107,100 @@ export function LimitUpReview() {
                 </p>
               )}
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-sf-line text-left text-xs font-medium text-sf-ink-3">
-                      <th className="py-2 pr-3">名称</th>
-                      <th className="py-2 pr-3">代码</th>
-                      <th className="py-2 pr-3">行业</th>
-                      <th className="py-2 pr-3 text-right">板数</th>
-                      <th className="py-2 pr-3 text-right">封单(万)</th>
-                      <th className="py-2 pr-3 text-right">成交额(万)</th>
-                      <th className="py-2 pr-3">首次封板</th>
-                      <th className="py-2 pr-3 text-center">炸板</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.pool.rows.map((r) => (
-                      <tr key={r.code} className="border-b border-sf-line/60">
-                        <td className="py-1.5 pr-3 text-sf-ink">{r.name}</td>
-                        <td className="py-1.5 pr-3 text-sf-ink-2">{r.code}</td>
-                        <td className="py-1.5 pr-3 text-sf-ink-2">{r.industry}</td>
-                        <td className="py-1.5 pr-3 text-right text-sf-ink">{r.boards}</td>
-                        <td className="py-1.5 pr-3 text-right text-sf-ink-2">
-                          {r.seal != null ? r.seal.toFixed(0) : '—'}
-                        </td>
-                        <td className="py-1.5 pr-3 text-right text-sf-ink-2">
-                          {r.amount != null ? r.amount.toFixed(0) : '—'}
-                        </td>
-                        <td className="py-1.5 pr-3 text-sf-ink-2">{r.first_seal_band}</td>
-                        <td className="py-1.5 pr-3 text-center text-sf-ink-2">
-                          {r.broken ? '是' : '否'}
-                        </td>
+              {/* 涨停池明细动辄几十上百行，默认折叠为一行摘要（入池家数 + 最高板，真实可算）；
+                  板位分布 / 字段缺失标注等诚实信息留在折叠卡外，不被藏匿。 */}
+              <CollapsibleCard
+                title="涨停池明细"
+                summary={`入池 ${data.pool.count} 家 · 最高 ${data.pool.max_boards} 板`}
+                defaultOpen={false}
+                className="mt-3"
+              >
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-sf-line text-left text-xs font-medium text-sf-ink-3">
+                        <th className="py-2 pr-3">名称</th>
+                        <th className="py-2 pr-3">代码</th>
+                        <th className="py-2 pr-3">行业</th>
+                        <th className="py-2 pr-3 text-right">板数</th>
+                        <th className="py-2 pr-3 text-right">封单(万)</th>
+                        <th className="py-2 pr-3 text-right">成交额(万)</th>
+                        <th className="py-2 pr-3">首次封板</th>
+                        <th className="py-2 pr-3 text-center">炸板</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {data.pool.rows.map((r) => (
+                        <tr key={r.code} className="border-b border-sf-line/60">
+                          <td className="py-1.5 pr-3 text-sf-ink">{r.name}</td>
+                          <td className="py-1.5 pr-3 text-sf-ink-2">{r.code}</td>
+                          <td className="py-1.5 pr-3 text-sf-ink-2">{r.industry}</td>
+                          <td className="py-1.5 pr-3 text-right text-sf-ink">{r.boards}</td>
+                          <td className="py-1.5 pr-3 text-right text-sf-ink-2">
+                            {r.seal != null ? r.seal.toFixed(0) : '—'}
+                          </td>
+                          <td className="py-1.5 pr-3 text-right text-sf-ink-2">
+                            {r.amount != null ? r.amount.toFixed(0) : '—'}
+                          </td>
+                          <td className="py-1.5 pr-3 text-sf-ink-2">{r.first_seal_band}</td>
+                          <td className="py-1.5 pr-3 text-center text-sf-ink-2">
+                            {r.broken ? '是' : '否'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CollapsibleCard>
 
-              {/* 龙头评分榜 */}
-              <h4 className="mt-5 mb-2 text-sm font-medium text-sf-ink-2">龙头评分榜</h4>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-sf-line text-left text-xs font-medium text-sf-ink-3">
-                      <th className="py-2 pr-3">名称</th>
-                      <th className="py-2 pr-3">代码</th>
-                      <th className="py-2 pr-3 text-right">板数</th>
-                      <th className="py-2 pr-3 text-right">综合</th>
-                      <th className="py-2 pr-3 text-right">高度</th>
-                      <th className="py-2 pr-3 text-right">封单</th>
-                      <th className="py-2 pr-3 text-right">板块</th>
-                      <th className="py-2 pr-3 text-right">成交额</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.pool.leaderboard.map((l) => (
-                      <tr key={l.code} className="border-b border-sf-line/60">
-                        <td className="py-1.5 pr-3 text-sf-ink">{l.name}</td>
-                        <td className="py-1.5 pr-3 text-sf-ink-2">{l.code}</td>
-                        <td className="py-1.5 pr-3 text-right text-sf-ink">{l.boards}</td>
-                        <td className="py-1.5 pr-3 text-right font-medium text-sf-ink">
-                          {l.score != null ? l.score.toFixed(1) : '—'}
-                        </td>
-                        <td className="py-1.5 pr-3 text-right text-sf-ink-2">
-                          {l.s_height != null ? l.s_height.toFixed(1) : '—'}
-                        </td>
-                        <td className="py-1.5 pr-3 text-right text-sf-ink-2">
-                          {l.s_seal != null ? l.s_seal.toFixed(1) : '—'}
-                        </td>
-                        <td className="py-1.5 pr-3 text-right text-sf-ink-2">
-                          {l.s_ind != null ? l.s_ind.toFixed(1) : '—'}
-                        </td>
-                        <td className="py-1.5 pr-3 text-right text-sf-ink-2">
-                          {l.s_amt != null ? l.s_amt.toFixed(1) : '—'}
-                        </td>
+              {/* 龙头评分榜：独立折叠卡，summary=榜单条数（真实可算） */}
+              <CollapsibleCard
+                title="龙头评分榜"
+                summary={`榜单 ${data.pool.leaderboard.length} 条`}
+                defaultOpen={false}
+                className="mt-5"
+              >
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-sf-line text-left text-xs font-medium text-sf-ink-3">
+                        <th className="py-2 pr-3">名称</th>
+                        <th className="py-2 pr-3">代码</th>
+                        <th className="py-2 pr-3 text-right">板数</th>
+                        <th className="py-2 pr-3 text-right">综合</th>
+                        <th className="py-2 pr-3 text-right">高度</th>
+                        <th className="py-2 pr-3 text-right">封单</th>
+                        <th className="py-2 pr-3 text-right">板块</th>
+                        <th className="py-2 pr-3 text-right">成交额</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {data.pool.leaderboard.map((l) => (
+                        <tr key={l.code} className="border-b border-sf-line/60">
+                          <td className="py-1.5 pr-3 text-sf-ink">{l.name}</td>
+                          <td className="py-1.5 pr-3 text-sf-ink-2">{l.code}</td>
+                          <td className="py-1.5 pr-3 text-right text-sf-ink">{l.boards}</td>
+                          <td className="py-1.5 pr-3 text-right font-medium text-sf-ink">
+                            {l.score != null ? l.score.toFixed(1) : '—'}
+                          </td>
+                          <td className="py-1.5 pr-3 text-right text-sf-ink-2">
+                            {l.s_height != null ? l.s_height.toFixed(1) : '—'}
+                          </td>
+                          <td className="py-1.5 pr-3 text-right text-sf-ink-2">
+                            {l.s_seal != null ? l.s_seal.toFixed(1) : '—'}
+                          </td>
+                          <td className="py-1.5 pr-3 text-right text-sf-ink-2">
+                            {l.s_ind != null ? l.s_ind.toFixed(1) : '—'}
+                          </td>
+                          <td className="py-1.5 pr-3 text-right text-sf-ink-2">
+                            {l.s_amt != null ? l.s_amt.toFixed(1) : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CollapsibleCard>
 
               {data.pool.themes.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2 text-xs">

@@ -9,6 +9,7 @@ import {
 } from '@/api/schemas/earningsHunter'
 import { useEarningsHunter } from '@/lib/queriesBatchD'
 import { Card } from '@/shared/ui/Card'
+import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { QueryState } from '@/shared/ui/States'
 import { fmtNum } from '@/lib/format'
 
@@ -172,38 +173,48 @@ function EarningsHunterBody({ data }: { data: EarningsHunter }) {
             key={s}
             className="rounded-tile border border-sf-line px-2 py-0.5 text-label text-sf-ink-2"
           >
-            {s}：{data.signal_counts[s] != null ? data.signal_counts[s] : 0}
+            {s}：{data.signal_counts[s] != null ? data.signal_counts[s] : '—'}
           </span>
         ))}
       </div>
       {data.rows.length === 0 ? (
         <p className="text-xs text-sf-ink-3">筛选条件下无命中预告（不放宽条件重试请自行调整）。</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-body border-collapse">
-            <caption className="sr-only">业绩预告扫描结果，列名来自东财原始响应</caption>
-            <thead>
-              <tr className="text-label text-sf-ink-3 border-b border-sf-line">
-                {cols.map((c) => (
-                  <th key={c} scope="col" className="text-left py-2 pr-3 font-normal">
-                    {c}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="text-sf-ink-2">
-              {data.rows.map((r, i) => (
-                <tr key={i} className="border-b border-sf-line last:border-0">
+        /* 扫描结果默认折叠为一行摘要（命中数 + 各信号计数，全部真实统计自 signal_counts）；
+           扫描统计与空态提示留在折叠卡外，不被藏匿。 */
+        <CollapsibleCard
+          title="扫描结果明细"
+          summary={`命中 ${data.n_total ?? '—'} 条 · ${EARNINGS_SIGNAL_ORDER.map(
+            (s) => `${s} ${data.signal_counts[s] != null ? data.signal_counts[s] : '—'}`,
+          ).join(' · ')}`}
+          defaultOpen={false}
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full text-body border-collapse">
+              <caption className="sr-only">业绩预告扫描结果，列名来自东财原始响应</caption>
+              <thead>
+                <tr className="text-label text-sf-ink-3 border-b border-sf-line">
                   {cols.map((c) => (
-                    <td key={c} className="py-1.5 pr-3 tabular-nums">
-                      {fmtNum(r[c])}
-                    </td>
+                    <th key={c} scope="col" className="text-left py-2 pr-3 font-normal">
+                      {c}
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="text-sf-ink-2">
+                {data.rows.map((r, i) => (
+                  <tr key={i} className="border-b border-sf-line last:border-0">
+                    {cols.map((c) => (
+                      <td key={c} className="py-1.5 pr-3 tabular-nums">
+                        {fmtNum(r[c])}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CollapsibleCard>
       )}
     </div>
   )

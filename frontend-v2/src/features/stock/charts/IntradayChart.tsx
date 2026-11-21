@@ -213,7 +213,10 @@ export function buildIntradayOption(
       },
       { type: 'value', gridIndex: 1, scale: true, axisLabel: { color: CHART.ink3 }, splitLine: { show: false } },
     ],
-    dataZoom: [{ type: 'inside', xAxisIndex: [0, 1] }],
+    dataZoom: [
+      { type: 'inside', xAxisIndex: [0, 1] },
+      { type: 'slider', xAxisIndex: [0, 1], bottom: 6, height: 18 },
+    ],
     series: [
       {
         name: '价格',

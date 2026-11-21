@@ -89,6 +89,9 @@ function WatchlistPanel() {
   const addBatch = useAddWatchlistBatch()
   const delBatch = useDeleteWatchlistBatch()
   const [code, setCode] = useState('')
+  // 选中项名称（来自搜索结果 item），仅用于回显；POST /watchlist 契约只收 {stock_code, note}，
+  // 名称由后端读端点水合，前端不臆造、不额外写库。
+  const [selName, setSelName] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [batchText, setBatchText] = useState('')
   const [idText, setIdText] = useState('')
@@ -118,6 +121,7 @@ function WatchlistPanel() {
         onSuccess: (data) => {
           setNotice(data === null ? '已在自选股中' : `已加入自选股：${data.stock_code}`)
           setCode('')
+          setSelName(null)
           setNote('')
         },
       },
@@ -164,13 +168,21 @@ function WatchlistPanel() {
             <StockSearchInput
               value={code}
               label="添加自选股"
-              onSelect={(nextCode) => setCode(nextCode)}
+              onSelect={(nextCode, item) => {
+                setCode(nextCode)
+                setSelName(item?.name ?? null)
+              }}
             />
             <label className={labelCls}>
               备注（可选）
               <input value={note} onChange={(e) => setNote(e.target.value)} className={inputCls} />
             </label>
           </div>
+          {code.trim() !== '' && (
+            <p className="text-label text-sf-ink-3">
+              {`已选：${selName ?? code.trim()}（${code.trim()}）`}
+            </p>
+          )}
           <button type="submit" disabled={add.isPending} className={btnCls}>
             {add.isPending ? '添加中…' : '加入自选股'}
           </button>
@@ -237,6 +249,9 @@ function JunkStockPanel() {
   const del = useDeleteJunkStock()
   const delBatch = useDeleteJunkStockBatch()
   const [code, setCode] = useState('')
+  // 选中项名称（来自搜索结果 item），仅用于回显；POST /junk-stocks 契约只收 {stock_code, note}，
+  // 名称由后端读端点水合，前端不臆造、不额外写库。
+  const [selName, setSelName] = useState<string | null>(null)
   const [note, setNote] = useState('')
   const [idText, setIdText] = useState('')
   const [localError, setLocalError] = useState<string | null>(null)
@@ -264,6 +279,7 @@ function JunkStockPanel() {
         onSuccess: (data) => {
           setNotice(data === null ? '已在垃圾股中' : `已加入垃圾股：${data.stock_code}`)
           setCode('')
+          setSelName(null)
           setNote('')
         },
       },
@@ -295,13 +311,21 @@ function JunkStockPanel() {
             <StockSearchInput
               value={code}
               label="加入回避池"
-              onSelect={(nextCode) => setCode(nextCode)}
+              onSelect={(nextCode, item) => {
+                setCode(nextCode)
+                setSelName(item?.name ?? null)
+              }}
             />
             <label className={labelCls}>
               备注（可选）
               <input value={note} onChange={(e) => setNote(e.target.value)} className={inputCls} />
             </label>
           </div>
+          {code.trim() !== '' && (
+            <p className="text-label text-sf-ink-3">
+              {`已选：${selName ?? code.trim()}（${code.trim()}）`}
+            </p>
+          )}
           <button type="submit" disabled={add.isPending} className={btnCls}>
             {add.isPending ? '添加中…' : '加入回避池'}
           </button>

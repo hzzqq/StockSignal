@@ -5,6 +5,7 @@ import type { Backtest as BacktestData } from '@/api/schemas/read'
 import type { BacktestParams } from '@/api/read'
 import { useBacktest } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
+import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
@@ -164,6 +165,11 @@ function BacktestBody({ data }: { data: BacktestData }) {
         splitLine: { show: false },
       },
     ],
+    // 资金曲线动辄一年 200+ 交易日：内置缩放 + 滑块，便于长区间拖拽查看。
+    dataZoom: [
+      { type: 'inside', xAxisIndex: 0 },
+      { type: 'slider', xAxisIndex: 0, height: 18, bottom: 4 },
+    ],
     series: [
       {
         name: '累计收益',
@@ -223,10 +229,16 @@ function BacktestBody({ data }: { data: BacktestData }) {
         <EChart option={curveOption} height={320} ariaLabel="策略回测资金曲线图，展示累计收益与回撤" />
       </Card>
 
-      <Card title={`逐笔交易明细（${trades.length} 笔）`}>
-        {trades.length === 0 ? (
-          <div className="text-xs text-sf-ink-3">该区间无完整交易（信号未触发或持仓未了结）。</div>
-        ) : (
+      {trades.length === 0 ? (
+        <div className="text-xs text-sf-ink-3">该区间无完整交易（信号未触发或持仓未了结）。</div>
+      ) : (
+        /* 逐笔明细默认折叠为一行摘要（笔数 + 累计收益，真实可算）；
+           无交易的诚实空态留在折叠卡外，不被藏匿。 */
+        <CollapsibleCard
+          title="逐笔交易明细"
+          summary={`${trades.length} 笔 · 累计收益 ${fmtPct(meta.total_return_pct)}`}
+          defaultOpen={false}
+        >
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-sf-ink">
               <thead>
@@ -261,8 +273,8 @@ function BacktestBody({ data }: { data: BacktestData }) {
               </tbody>
             </table>
           </div>
-        )}
-      </Card>
+        </CollapsibleCard>
+      )}
 
       {data.note && (
         <div className="text-xs text-sf-ink-3">

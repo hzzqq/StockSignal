@@ -61,9 +61,15 @@ describe('SixDimView · 已有 E2E 未覆盖的边界', () => {
   it('⚠️ 雷达 option 缺维为 null，绝不补 0 分（图形层诚实）', async () => {
     mockSixDim(sixDimPartial)
     renderView()
-    fireEvent.change(screen.getByRole('textbox', { name: '股票代码' }), {
-      target: { value: '000001' },
-    })
+    // 统一搜索输入：输入合法码后点「直接按代码查询」（等价于旧手输提交）。
+    const input = screen.getByRole('combobox', { name: '搜索股票（代码 / 名称 / 首字母）' })
+    fireEvent.change(input, { target: { value: '000001' } })
+    const rawBtn = await screen.findByRole(
+      'button',
+      { name: /直接按代码 000001 查询/ },
+      FIND,
+    )
+    fireEvent.click(rawBtn)
     await screen.findByText('仅 4/6 维有效，缺失维未取到数据', {}, FIND)
 
     const option = captured.options.at(-1) as RadarOption
@@ -122,17 +128,20 @@ describe('SixDimView · 已有 E2E 未覆盖的边界', () => {
     expect(screen.queryByText('2026-11-07')).toBeNull()
   })
 
-  it('非法 code → 零新请求 + 诚实空态「未发起请求」', async () => {
+  it('非法 code → 零新请求（搜索框非 6 位输入无候选、无直接查询入口，Enter 不触发）', async () => {
     mockSixDim(sixDimFull)
     renderView()
     await screen.findByText('权威数据日：2026-11-07', {}, FIND)
     captured.calls.length = 0
 
-    fireEvent.change(screen.getByRole('textbox', { name: '股票代码' }), {
-      target: { value: 'abc' },
-    })
-    expect(screen.getByText('请输入 6 位数字股票代码')).toBeTruthy()
-    expect(screen.getByText('当前输入不合法，未发起请求')).toBeTruthy()
+    const input = screen.getByRole('combobox', { name: '搜索股票（代码 / 名称 / 首字母）' })
+    fireEvent.change(input, { target: { value: 'abc' } })
+    // 等搜索防抖落地：'abc' 无候选 → 下拉显「未找到匹配的股票」，也无「直接按代码查询」入口
+    await screen.findByText('未找到匹配的股票', {}, FIND)
+    expect(screen.queryByText(/直接按代码/)).toBeNull()
+    fireEvent.keyDown(input, { key: 'Enter' })
+    // 再等一拍：确认没有任何 six-dim 请求发出（非法码行为不变）
+    await new Promise((r) => setTimeout(r, 100))
     expect(captured.calls).toHaveLength(0)
   })
 })

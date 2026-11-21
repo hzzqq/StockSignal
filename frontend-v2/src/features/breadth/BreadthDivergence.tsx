@@ -51,7 +51,8 @@ export function BreadthDivergence() {
     ? {
         tooltip: { trigger: 'axis' },
         legend: { data: ['红盘率', '跌停家数'] },
-        grid: { left: 48, right: 48, top: 36, bottom: 28 },
+        grid: { left: 48, right: 48, top: 36, bottom: 52 },
+        dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 6, height: 18 }],
         xAxis: { type: 'category', data: query.data.trend.dates },
         yAxis: [
           { type: 'value', name: '红盘率 %' },

@@ -166,7 +166,7 @@ describe('W4-B · 个股研究页 ResearchView', () => {
     expect(screen.getByRole('radio', { name: /快速选取/ }).getAttribute('aria-checked')).toBe('true')
     expect(screen.getByRole('radio', { name: /深度分析/ }).getAttribute('aria-checked')).toBe('false')
     // 缺 code → 输入框默认 600519
-    expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('600519')
+    expect((screen.getByRole('combobox', { name: '搜索股票（代码 / 名称 / 首字母）' }) as HTMLInputElement).value).toBe('600519')
     // 技术面评分卡与 K 线卡各有一处权威数据日 → findAll
     expect((await screen.findAllByText('权威数据日：2026-11-06', {}, FIND)).length).toBeGreaterThanOrEqual(1)
     // OHLC 表已折叠：展开后再断言表内容
@@ -260,9 +260,11 @@ describe('W4-B · 个股研究页 ResearchView', () => {
     )
     await expandKlineTable()
     expect(await screen.findByText('open', {}, FIND)).toBeTruthy()
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'abc' } })
-    expect(await screen.findByText('请输入 6 位数字股票代码后再查询', {}, FIND)).toBeTruthy()
-    expect(screen.queryByText('open')).toBeNull()
+    fireEvent.change(screen.getByRole('combobox', { name: '搜索股票（代码 / 名称 / 首字母）' }), { target: { value: 'abc' } })
+    // 统一搜索框在组件内拦截非 6 位输入：显示"未找到匹配"下拉，不回传父层 code，
+    // 因此不发起新查询、也不渲染任何非法码结果（原旧手输框的"请输入6位"提示已被组件内拦截取代）。
+    expect(await screen.findByText('未找到匹配的股票', {}, FIND)).toBeTruthy()
+    expect(screen.queryByText('请输入 6 位数字股票代码后再查询')).toBeNull()
   })
 
   it('K 线取数失败进入错误态（四态之一）', async () => {

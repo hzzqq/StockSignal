@@ -6,7 +6,7 @@ backend/tasks/worker.py
 
 - 多任务并发（ThreadPoolExecutor）
 - 内存 + JSON 双缓存，任务可持久化 24h
-- 任务类型：analysis / compare / ai_consult
+- 任务类型：analysis / compare / ai_consult / quant_research / ai_research / pattern_scan
 """
 from __future__ import annotations
 
@@ -113,6 +113,7 @@ class TaskWorker:
         self.register_handler("ai_consult", _handle_ai_consult)
         self.register_handler("quant_research", _handle_quant_research)
         self.register_handler("ai_research", _handle_ai_research)
+        self.register_handler("pattern_scan", _handle_pattern_scan)
 
     def register_handler(self, task_type: str, handler: Callable[[Dict[str, Any]], Any]) -> None:  # noqa: UP006
         self._handlers[task_type] = handler
@@ -408,6 +409,77 @@ def _handle_ai_research(payload: Dict[str, Any]) -> Dict[str, Any]:  # noqa: UP0
 
     return ra.run_research(question, max_steps=max_steps, on_step=_on_step,
                            style=str(payload.get("style") or "report"), **extra)
+
+
+def _handle_pattern_scan(payload: Dict[str, Any]) -> Dict[str, Any]:  # noqa: UP006
+    """执行批量形态扫描（异步任务化，与 POST /api/v2/pattern-scan 同步端点语义一致）。
+
+    payload:
+      - codes: 6 位数字代码列表（1~50 项；提交端点已校验，此处二次防御）
+      - window_days: int 1..5000（缺省 250）
+      - __task_id__: 由工作器注入，用于 progress_bus 进度回传
+
+    流程：modules.fetch_parallel.fetch_many 并行取 K 线 → 逐股 scan_patterns；
+    每完成一只经 progress_bus 上报（stage="scan"，message="[i/n] code 扫描完成"）。
+    诚实红线：单股取数失败（fetch_many 返回 None）或扫描异常 → 该股
+    available=false + reason，不中断整批、不补零、不伪造形态。
+    返回与同步端点 data 同构：{results, n_scanned, available}。
+    """
+    from modules.fetch_parallel import fetch_many
+    from modules.pattern_scan import scan_patterns
+    from backend.tasks.progress_bus import report
+
+    raw_codes = payload.get("codes")
+    if not isinstance(raw_codes, list):
+        raise ValueError("codes 必须是数组")
+    codes = [str(c).strip() for c in raw_codes if str(c).strip()]
+    if not (1 <= len(codes) <= 50):
+        raise ValueError("codes 须为 1~50 项")
+    try:
+        window_days = int(payload.get("window_days") or 250)
+    except (TypeError, ValueError):
+        window_days = 250
+
+    task_id = payload.get("__task_id__")
+    n = len(codes)
+
+    def _load(code: str):
+        # 惰性导入避免 worker ←→ pattern_routes 模块级循环依赖
+        from backend.api.pattern_routes import _load_klines
+
+        return _load_klines(code, window_days)
+
+    # 并行取数：单股异常/超时 → 对应 key 值为 None（fetch_many 预填语义），不缺键
+    klines = fetch_many(
+        [(c, (lambda c=c: _load(c))) for c in codes],
+        max_workers=6,
+    )
+
+    results: List[Dict[str, Any]] = []  # noqa: UP006
+    for i, code in enumerate(codes, start=1):
+        try:
+            scan = scan_patterns(klines.get(code))
+        except Exception as e:  # noqa: BLE001 - 单股失败不中断整批
+            scan = {
+                "available": False,
+                "patterns": [],
+                "reason": f"K线获取失败: {type(e).__name__}",
+                "n_bars": 0,
+            }
+        item: Dict[str, Any] = {"code": code}  # noqa: UP006
+        item.update(scan)
+        results.append(item)
+        if task_id:
+            try:
+                report(task_id, "scan", f"[{i}/{n}] {code} 扫描完成")
+            except Exception:  # noqa: BLE001 - 进度上报失败不影响主流程
+                logger.debug("pattern_scan 进度上报失败(task=%s)", task_id, exc_info=True)
+
+    return {
+        "results": results,
+        "n_scanned": len(results),
+        "available": any(bool(r["available"]) for r in results),
+    }
 
 
 def _handle_quant_research(payload: Dict[str, Any]) -> Dict[str, Any]:  # noqa: UP006

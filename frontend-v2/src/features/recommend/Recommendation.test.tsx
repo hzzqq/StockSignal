@@ -19,7 +19,20 @@ function renderWithClient(ui: ReactElement) {
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
 }
 
-const simOk = { meta: { total: 100 } }
+const simOk = {
+  meta: {
+    n_users: 10000,
+    seed: '20261011',
+    universe_size: 300,
+    pool_valid: 286,
+    skipped_tickers: 14,
+    start: '2024-01-01',
+    end: '2026-09-30',
+    window: 180,
+    strategies: ['multi_factor', 'dual_trend'],
+    cost_model: 'realistic',
+  },
+}
 
 beforeEach(() => {
   mockedRec.mockReset()
@@ -63,12 +76,19 @@ describe('Recommendation 四态 + 诚实 unavailable', () => {
     expect(screen.getByText(/荐股数据缺失，不编造推荐/)).toBeTruthy()
   })
 
-  it('模拟统计 ok 渲染（蒙特卡洛，非实盘）', async () => {
+  it('模拟统计 ok 渲染为结构化参数（不贴原始 JSON 字符串），截断值不丢字段', async () => {
     mockedRec.mockResolvedValue({ status: 'ok' })
     renderWithClient(<Recommendation />)
-    // 等待模拟统计（数据态）提交后再断言
-    expect(await screen.findByText(/蒙特卡洛回测模拟（非实盘）/)).toBeTruthy()
-    expect(screen.getByText('每日荐股')).toBeTruthy()
-    expect(screen.getByText(/total/)).toBeTruthy()
+    expect(await screen.findByText(/蒙特卡洛回测模拟（非实盘/)).toBeTruthy()
+    // 中文标签 + 真实值逐项展示，不再是一段 JSON.stringify(...).slice(0,200)
+    expect(screen.getByText('虚拟用户数')).toBeTruthy()
+    expect(screen.getByText('10000')).toBeTruthy()
+    expect(screen.getByText('股票池规模')).toBeTruthy()
+    expect(screen.getByText('300')).toBeTruthy()
+    expect(screen.getByText('multi_factor、dual_trend')).toBeTruthy()
+    // 全字段在册（原 slice(0,200) 会截断末尾的 cost_model）
+    expect(screen.getByText('成本模型')).toBeTruthy()
+    expect(screen.getByText('realistic')).toBeTruthy()
+    expect(screen.queryByText(/\{"n_users"/)).toBeNull()
   })
 })

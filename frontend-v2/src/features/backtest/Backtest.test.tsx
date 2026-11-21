@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Backtest } from './Backtest'
@@ -58,6 +58,13 @@ beforeEach(() => {
   mocked.mockReset()
 })
 
+
+/** 折叠卡默认收起：按 region 名展开后再断言表格行（大表折叠后的正确测试范式）。 */
+async function expandCard(name: RegExp | string) {
+  const region = await screen.findByRole('region', { name })
+  fireEvent.click(within(region).getByRole('button', { name: /展开/ }))
+}
+
 describe('Backtest 三态 + 字段渲染', () => {
   it('loading 显示加载中占位', () => {
     mocked.mockImplementation(() => new Promise<never>(() => {}))
@@ -80,8 +87,10 @@ describe('Backtest 三态 + 字段渲染', () => {
     expect(screen.getByText('年化收益')).toBeTruthy()
     expect(screen.getByText('夏普比率')).toBeTruthy()
     expect(screen.getByText('资金曲线（累计收益 + 回撤）')).toBeTruthy()
-    expect(screen.getByText('逐笔交易明细（2 笔）')).toBeTruthy()
-    // 交易明细表含收益着色数值（含正负号）
+    // 大表折叠：title 与 summary 分两处；摘要含真实笔数+累计收益，明细展开后可见着色数值
+    expect(screen.getByText('逐笔交易明细')).toBeTruthy()
+    expect(screen.getByText(/2 笔 · 累计收益/)).toBeTruthy()
+    await expandCard('逐笔交易明细')
     expect(screen.getByText('+1.63%')).toBeTruthy()
     expect(screen.getByText('-1.98%')).toBeTruthy()
   })

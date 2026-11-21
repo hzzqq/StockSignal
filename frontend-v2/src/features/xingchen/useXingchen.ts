@@ -33,7 +33,21 @@ export interface ChatSession {
 }
 
 const POLL_INTERVAL = 1500
-const POLL_TIMEOUT = 30000
+/**
+ * 前端轮询等待上限按任务类型分级（B 修复：此前统一 30s，对分钟级 ai_research/
+ * quant_research 会「假超时」——后端仍在跑，前端却报错）。
+ *  - ai_consult：短任务，30s；
+ *  - ai_research / quant_research 及其他未知类型（保守放宽）：600s。
+ * 超时 ≠ 后端失败：停止轮询并如实提示「任务仍在后台运行」，保留重新提问入口。
+ */
+const POLL_TIMEOUT_CONSULT = 30000
+const POLL_TIMEOUT_RESEARCH = 600000
+
+function pollTimeoutFor(taskType: string | undefined, mode: 'quick' | 'research'): number {
+  if (mode === 'research') return POLL_TIMEOUT_RESEARCH
+  if (taskType && taskType !== 'ai_consult') return POLL_TIMEOUT_RESEARCH
+  return POLL_TIMEOUT_CONSULT
+}
 const SAVE_DEBOUNCE = 800
 /** 会话标题上限，与后端 chat_routes._TITLE_MAX 保持一致。 */
 const TITLE_MAX = 40
@@ -506,6 +520,8 @@ export const useXingchenStore = create<XingchenState>((set, get) => ({
 
     set({ runningTaskId: taskId, runningMsgId: aId })
     const started = Date.now()
+    // 轮询 ai_consult 任务态（对齐 v1 run_every=1.5s）；等待上限按任务类型分级
+    let timeoutMs = pollTimeoutFor(undefined, get().mode)
     // 轮询 ai_consult 任务态（对齐 v1 run_every=1.5s）
     while (true) {
       await delay(POLL_INTERVAL)
@@ -519,6 +535,8 @@ export const useXingchenStore = create<XingchenState>((set, get) => ({
         })
         break
       }
+      // 后端 task_type 是权威：首次拿到后即时校正等待上限（quick 提交也可能被后端升格 research）
+      timeoutMs = pollTimeoutFor(task.task_type, get().mode)
       get().updateMessage(sid, aId, { toolCall: task })
 
       if (task.status === 'success') {
@@ -548,10 +566,16 @@ export const useXingchenStore = create<XingchenState>((set, get) => ({
         })
         break
       }
-      if (Date.now() - started > POLL_TIMEOUT) {
+      if (Date.now() - started > timeoutMs) {
+        // 等待上限到达 ≠ 后端失败：任务仍在后台运行。诚实提示 + 原问题作为
+        // 「重新查询」入口（点击即重发同一问题），不报错、不伪造完成态。
         get().updateMessage(sid, aId, {
-          status: 'error',
-          errors: ['后台响应超时，请稍后重试'],
+          status: 'done',
+          content:
+            '⏳ 前端等待超时：该任务耗时较长，仍在后台运行（未失败），结果不会自动推送。' +
+            '可点击下方「重新查询」再次发起同一问题。',
+          chips: [question],
+          fresh: true,
         })
         break
       }

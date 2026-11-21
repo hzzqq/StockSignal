@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PaperTrades } from './PaperTrades'
@@ -30,6 +30,13 @@ beforeEach(() => {
   mocked.mockReset()
 })
 
+
+/** 折叠卡默认收起：按 region 名展开后再断言表格行（大表折叠后的正确测试范式）。 */
+async function expandCard(name: RegExp | string) {
+  const region = await screen.findByRole('region', { name })
+  fireEvent.click(within(region).getByRole('button', { name: /展开/ }))
+}
+
 describe('PaperTrades 四态', () => {
   it('loading 显示加载占位', () => {
     mocked.mockImplementation(() => new Promise<never>(() => {}))
@@ -56,7 +63,9 @@ describe('PaperTrades 四态', () => {
     expect(screen.getByText('1')).toBeTruthy()
     // 浦发银行同时出现在持仓表与成交表两处 → 用 getAllByText
     expect(screen.getAllByText('浦发银行').length).toBeGreaterThan(0)
-    expect(screen.getByText('成交记录（1）')).toBeTruthy()
+    // 成交表折叠：region 名为 title「成交记录」，摘要含真实笔数；展开后断言买/卖单元格
+    await expandCard('成交记录')
+    expect(screen.getByText('买')).toBeTruthy()
     expect(screen.getByText('买')).toBeTruthy()
   })
 

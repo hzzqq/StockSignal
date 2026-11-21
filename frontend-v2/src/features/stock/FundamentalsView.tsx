@@ -29,7 +29,8 @@ const DEFAULT_CODE = '600519'
  * revenue_yoy / profit_yoy 旧页语义为「与上一报告期比」的相邻期口径，字段名沿用旧页，
  * 标签不得写成「同比 / 去年同期」（避免误导）。
  */
-const PERF_LABELS: Record<keyof FundamentalsPerf, string> = {
+export const PERF_LABELS: Record<keyof FundamentalsPerf, string> = {
+  // 导出供 EarningsFinancialModal 复用（同一份 9 项标签，避免两处口径漂移）。
   revenue_yi: '营收(亿元)',
   revenue_yoy: '营收(较上一报告期 %)',
   net_profit_yi: '净利润(亿元)',
@@ -260,7 +261,8 @@ function FundamentalsBody({
 }
 
 /** 中文动态列名（含 _同比/_环比）：判空后再取首行 keys 渲染，不做重排。 */
-function FinancialTable({ rows }: { rows: Financials['rows'] }) {
+/** 导出供 EarningsFinancialModal（财报日历行点击弹窗）复用，列名渲染口径单一来源。 */
+export function FinancialTable({ rows }: { rows: Financials['rows'] }) {
   const cols = rows.length > 0 ? Object.keys(rows[0]) : []
   return (
     <div className="overflow-x-auto">

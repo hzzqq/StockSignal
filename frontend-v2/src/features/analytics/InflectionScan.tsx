@@ -33,7 +33,8 @@ export function InflectionScan() {
   const zOption: EChartsOption = {
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis' },
-    grid: { left: 48, right: 16, top: 24, bottom: 28 },
+    grid: { left: 48, right: 16, top: 24, bottom: 52 },
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 6, height: 18 }],
     xAxis: {
       type: 'category',
       data: zq.data?.dates ?? [],

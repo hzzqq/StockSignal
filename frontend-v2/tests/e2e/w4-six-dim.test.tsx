@@ -38,8 +38,13 @@ afterEach(() => {
 afterAll(() => server.close())
 
 /** 把默认代码 600519 切到 000001（MSW 返回 partial：capital/growth 缺失、date 为 null）。 */
-function switchToPartial() {
-  fireEvent.change(screen.getByRole('textbox'), { target: { value: '000001' } })
+async function switchToPartial() {
+  const input = screen.getByRole('combobox', { name: '搜索股票（代码 / 名称 / 首字母）' })
+  fireEvent.change(input, { target: { value: '000001' } })
+  // 等防抖(200ms)+搜索请求后，"直接按代码查询"按钮出现；点击即 onSelect(code,null)。
+  // 若候选先返回，直接点候选项（同为 000001），语义一致。
+  const raw = await screen.findByRole('button', { name: /直接按代码 000001 查询/ }, { timeout: 5000 })
+  fireEvent.click(raw)
 }
 
 describe('W4-A · 个股六维评分', () => {
@@ -50,7 +55,7 @@ describe('W4-A · 个股六维评分', () => {
       </Providers>,
     )
     expect(await screen.findByText('个股六维评分')).toBeTruthy()
-    switchToPartial()
+    await switchToPartial()
     // 等 partial 的降权提示出现，确保新 code 查询已完成
     expect(
       await screen.findByText('仅 4/6 维有效，缺失维未取到数据', {}, { timeout: 5000 }),
@@ -72,7 +77,7 @@ describe('W4-A · 个股六维评分', () => {
         <SixDimView />
       </Providers>,
     )
-    switchToPartial()
+    await switchToPartial()
     expect(await screen.findByText('暂无权威数据日', {}, { timeout: 5000 })).toBeTruthy()
     // 不得出现「权威数据日：<某日期>」（含 full 的 2026-11-07 或今天日期）
     expect(screen.queryByText(/权威数据日：/)).toBeNull()

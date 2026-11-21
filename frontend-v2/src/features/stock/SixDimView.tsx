@@ -52,19 +52,10 @@ export function SixDimView() {
         </a>
       </div>
 
+      {/* 代码输入：统一 StockSearchInput（代码/名称/拼音召回），无手输双轨。
+          合法性由选择路径保证（下拉选中或 6 位直接查询均回写合法码）；
+          {!valid} 校验提示保留为防御分支（防御性：非法码不发起任何请求）。 */}
       <div className="flex flex-wrap items-center gap-2">
-        <label htmlFor="six-dim-code" className="text-label text-sf-ink-3">股票代码</label>
-        <input
-          id="six-dim-code"
-          aria-label="股票代码"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          inputMode="numeric"
-          maxLength={6}
-          placeholder="600519"
-          className="rounded-tile border border-sf-line bg-sf-surface px-3 py-1.5 text-body text-sf-ink tabular-nums"
-        />
-        {!valid && <span className="text-label text-sf-warn">请输入 6 位数字代码</span>}
         <div className="w-72">
           <StockSearchInput
             value={input}
@@ -72,6 +63,7 @@ export function SixDimView() {
             onSelect={(code) => setInput(code)}
           />
         </div>
+        {!valid && <span className="text-label text-sf-warn">请输入 6 位数字代码</span>}
       </div>
 
       {!valid ? (

@@ -331,7 +331,7 @@ function BreadthBody({ snapshot }: { snapshot: DailySnapshot }) {
 }
 
 function BreadthTrend({ series }: { series: BreadthPoint[] }) {
-  // 取最近 60 个交易日，保证可读；老数据仍可下拉/翻页（后续波）。
+  // 取最近 60 个交易日，保证可读；dataZoom 滚轮/滑块仍只作用于这 60 日窗口。
   const recent = series.slice(-60)
   const dates = recent.map((p) => p.date)
   const up = recent.map((p) => num(p.up_count))
@@ -345,7 +345,8 @@ function BreadthTrend({ series }: { series: BreadthPoint[] }) {
       textStyle: { color: CHART.ink2 },
       top: 0,
     },
-    grid: { left: 48, right: 16, top: 28, bottom: 28 },
+    grid: { left: 48, right: 16, top: 28, bottom: 52 },
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 6, height: 18 }],
     xAxis: {
       type: 'category',
       data: dates,
@@ -381,7 +382,7 @@ function BreadthTrend({ series }: { series: BreadthPoint[] }) {
 
   return (
     <div>
-      <EChart option={option} height={260} ariaLabel="近期广度时序折线图：逐日上涨家数与下跌家数" />
+      <EChart option={option} height={280} ariaLabel="近期广度时序折线图：逐日上涨家数与下跌家数" />
       <div className="text-xs text-sf-ink-3 mt-1">
         数据来自 data/snapshots/*.json 聚合（共 {series.length} 个交易日，近期展示 60 个）
       </div>
@@ -451,13 +452,49 @@ function LadderDetailView({ history }: { history: LadderDay[] }) {
   )
 }
 
+/**
+ * 长周期广度历史的日期区间过滤（纯函数，供单测直接断言）。
+ * ISO 日期字符串（YYYY-MM-DD）字典序即时间序，直接字符串比较，不经 new Date 兜底。
+ * 合法区间 = 起止都非空 且 起 ≤ 止；非法区间由调用方禁用按钮，函数不裁剪数据。
+ */
+export function histRangeValid(start: string, end: string): boolean {
+  return start !== '' && end !== '' && start <= end
+}
+
+/** 按 [start, end] 闭区间过滤（含两端）；仅按真实日期裁剪，缺失数据不补 0。 */
+export function filterBreadthHistoryByRange(
+  series: BreadthHistoryPoint[],
+  start: string,
+  end: string,
+): BreadthHistoryPoint[] {
+  return series.filter((p) => p.date >= start && p.date <= end)
+}
+
+/** 图下口径说明按视图模式如实书写：区间筛选 / 全历史 / 默认近 250 日。 */
+export function histCaption(view: 'recent' | 'full' | 'range', total: number, shown: number, start: string, end: string): string {
+  if (view === 'range') return `区间筛选 ${start} ~ ${end}（命中 ${shown} 个交易日）`
+  if (view === 'full') return `全历史（共 ${total} 个交易日）`
+  return `展示最近 250 个（共 ${total} 个交易日）`
+}
+
 function BreadthHistoryTrend({ series }: { series: BreadthHistoryPoint[] }) {
-  // 真实文件跨 2007→2026（数千交易日），展示最近 250 个交易日保证可读。
-  const recent = series.slice(-250)
-  const dates = recent.map((p) => p.date)
-  const up = recent.map((p) => num(p.up_count))
-  const down = recent.map((p) => num(p.down_count))
-  const red = recent.map((p) => num(p.red_ratio))
+  // 真实文件跨 2007→2026（数千交易日）。默认展示最近 250 个保证可读；
+  // 日期区间选择后按真实日期过滤（缺失数据不补 0），「全历史」按钮放开全部。
+  const [rangeStart, setRangeStart] = useState('')
+  const [rangeEnd, setRangeEnd] = useState('')
+  const [view, setView] = useState<'recent' | 'full' | 'range'>('recent')
+  const rangeOk = histRangeValid(rangeStart, rangeEnd)
+
+  const shown =
+    view === 'range' && rangeOk
+      ? filterBreadthHistoryByRange(series, rangeStart, rangeEnd)
+      : view === 'full'
+        ? series
+        : series.slice(-250)
+  const dates = shown.map((p) => p.date)
+  const up = shown.map((p) => num(p.up_count))
+  const down = shown.map((p) => num(p.down_count))
+  const red = shown.map((p) => num(p.red_ratio))
 
   const option: EChartsOption = {
     backgroundColor: 'transparent',
@@ -467,7 +504,8 @@ function BreadthHistoryTrend({ series }: { series: BreadthHistoryPoint[] }) {
       textStyle: { color: CHART.ink2 },
       top: 0,
     },
-    grid: { left: 48, right: 48, top: 28, bottom: 28 },
+    grid: { left: 48, right: 48, top: 28, bottom: 52 },
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 6, height: 18 }],
     xAxis: {
       type: 'category',
       data: dates,
@@ -524,9 +562,53 @@ function BreadthHistoryTrend({ series }: { series: BreadthHistoryPoint[] }) {
 
   return (
     <div>
+      <div className="flex flex-wrap items-end gap-3 mb-2 text-label text-sf-ink-3">
+        <label>
+          起
+          <input
+            type="date"
+            aria-label="历史区间起始日期"
+            value={rangeStart}
+            onChange={(e) => setRangeStart(e.target.value)}
+            className="ml-1 rounded-tile border border-sf-line bg-sf-surface px-2 py-1 text-sm text-sf-ink"
+          />
+        </label>
+        <label>
+          止
+          <input
+            type="date"
+            aria-label="历史区间结束日期"
+            value={rangeEnd}
+            onChange={(e) => setRangeEnd(e.target.value)}
+            className="ml-1 rounded-tile border border-sf-line bg-sf-surface px-2 py-1 text-sm text-sf-ink"
+          />
+        </label>
+        <button
+          type="button"
+          disabled={!rangeOk}
+          onClick={() => setView('range')}
+          className="rounded-tile border border-sf-line bg-sf-surface px-3 py-1 text-sm text-sf-ink disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          查区间
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('full')}
+          className="rounded-tile border border-sf-line bg-sf-surface px-3 py-1 text-sm text-sf-ink"
+        >
+          全历史
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('recent')}
+          className="rounded-tile border border-sf-line bg-sf-surface px-3 py-1 text-sm text-sf-ink"
+        >
+          近 250 日
+        </button>
+      </div>
       <EChart option={option} height={280} ariaLabel="长周期广度历史折线图：逐日涨跌家数与红盘比" />
       <div className="text-xs text-sf-ink-3 mt-1">
-        数据来自 data/shepherd_history.json（逐日广度，共 {series.length} 个交易日，展示最近 250 个）
+        数据来自 data/shepherd_history.json（逐日广度，{histCaption(view, series.length, shown.length, rangeStart, rangeEnd)}）
       </div>
     </div>
   )

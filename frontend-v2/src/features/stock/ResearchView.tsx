@@ -51,6 +51,8 @@ export function ResearchView({ search }: ResearchViewProps) {
   const initialCode =
     search?.code && CODE_RE.test(search.code) ? search.code : DEFAULT_CODE
   const [input, setInput] = useState(initialCode)
+  // 选中项名称（来自搜索结果 item），仅用于回显；未匹配到名称（直接按代码查询）时如实只显代码。
+  const [codeName, setCodeName] = useState<string | null>(null)
 
   const valid = CODE_RE.test(input)
   const kline = useStockKline(input)
@@ -104,28 +106,23 @@ export function ResearchView({ search }: ResearchViewProps) {
         </button>
       </div>
 
-      {/* 代码输入：非 6 位仅给校验提示，不发请求（useStockKline enabled=false）。 */}
-      <label className="flex flex-wrap items-center gap-3 text-body">
-        <span className="text-label text-sf-ink-3">股票代码</span>
-        <input
-          type="text"
-          inputMode="numeric"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          aria-invalid={!valid}
-          aria-label="股票代码"
-          className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-2 text-body text-sf-ink tabular-nums"
-        />
-        <span className="text-label text-sf-ink-3">{`当前代码：${linkCode}`}</span>
-      </label>
-
+      {/* 代码输入：统一 StockSearchInput（代码/名称/拼音召回）。选中后回写并回显
+          name(code)；未匹配到名称时如实只显代码。非法码不发请求（useStockKline enabled=false）。 */}
+      <div className="flex flex-wrap items-center gap-3">
         <div className="w-72">
           <StockSearchInput
             value={input}
             label="搜索股票（代码 / 名称 / 首字母）"
-            onSelect={(code) => setInput(code)}
+            onSelect={(code, item) => {
+              setInput(code)
+              setCodeName(item?.name ?? null)
+            }}
           />
         </div>
+        <span className="text-label text-sf-ink-3">
+          {`当前标的：${codeName ? `${codeName}（${linkCode}）` : linkCode}`}
+        </span>
+      </div>
 
       {view === 'quick' ? (
         <QuickView kline={kline} valid={valid} code={input} />

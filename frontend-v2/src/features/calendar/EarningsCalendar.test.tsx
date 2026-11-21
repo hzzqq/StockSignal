@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { EarningsCalendar as EarningsCalendarData } from '@/api/schemas/read'
@@ -46,11 +46,17 @@ describe('EarningsCalendar 四态 + 诚实降级', () => {
     await expect(screen.findByText('披露日历加载失败')).resolves.toBeTruthy()
   })
 
-  it('ok 渲染披露日历表（候选列缺失由 pick 函数显「—」）', async () => {
+  it('ok 默认折叠（不渲染表）+ summary 精确；展开后渲染披露日历表（候选列缺失由 pick 函数显「—」）', async () => {
     mocked.mockResolvedValue(okData)
     renderWithClient(<EarningsCalendar />)
-    // 标题常驻；改用数据态 Card 标题（含条数）作为加载完成信号
-    expect(await screen.findByText(/沪深京 · 2025年报（1 条）/)).toBeTruthy()
+    // 标题常驻（CollapsibleCard 标题）；改用数据态标题作为加载完成信号
+    expect(await screen.findByText(/沪深京 · 2025年报/)).toBeTruthy()
+    // 折叠态：表格不渲染；summary 精确（单行无披露时间列 → 最近披露日如实「—」）
+    expect(screen.queryByRole('table')).toBeNull()
+    expect(screen.getByText('1 条 · 最近披露日 —')).toBeTruthy()
+    // 展开后才渲染表格，行内容断言保持真实性
+    fireEvent.click(screen.getByRole('button', { name: '展开 ▾' }))
+    expect(await screen.findByRole('table')).toBeTruthy()
     expect(screen.getByText('浦发银行')).toBeTruthy()
     expect(screen.getByText('600000')).toBeTruthy()
   })

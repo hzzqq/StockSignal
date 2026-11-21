@@ -194,7 +194,8 @@ function FactorBody({ data }: { data: FactorAnalysisData }) {
   const icOption: EChartsOption = {
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis' },
-    grid: { left: 44, right: 16, top: 16, bottom: 28 },
+    grid: { left: 44, right: 16, top: 16, bottom: 52 },
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 6, height: 18 }],
     xAxis: {
       type: 'category',
       data: dates,
@@ -221,7 +222,8 @@ function FactorBody({ data }: { data: FactorAnalysisData }) {
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis' },
     legend: { data: layerSeries.map((s) => s.name), textStyle: { color: CHART.ink2 }, top: 0 },
-    grid: { left: 44, right: 16, top: 28, bottom: 28 },
+    grid: { left: 44, right: 16, top: 28, bottom: 52 },
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 6, height: 18 }],
     xAxis: {
       type: 'category',
       data: layerDates,
@@ -239,7 +241,8 @@ function FactorBody({ data }: { data: FactorAnalysisData }) {
   const lsOption: EChartsOption = {
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis' },
-    grid: { left: 44, right: 16, top: 16, bottom: 28 },
+    grid: { left: 44, right: 16, top: 16, bottom: 52 },
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 6, height: 18 }],
     xAxis: {
       type: 'category',
       data: lsDates,
@@ -297,7 +300,7 @@ function FactorBody({ data }: { data: FactorAnalysisData }) {
       )}
 
       <Card title="逐期 IC 序列">
-        <EChart option={icOption} height={240} ariaLabel="因子逐期信息系数 IC 柱状图，红色为正 IC、绿色为负 IC" />
+        <EChart option={icOption} height={260} ariaLabel="因子逐期信息系数 IC 柱状图，红色为正 IC、绿色为负 IC" />
       </Card>
 
       <Card title="分层累计收益（因子由大到小分层的净值曲线）">
@@ -305,7 +308,7 @@ function FactorBody({ data }: { data: FactorAnalysisData }) {
       </Card>
 
       <Card title="多空组合累计净值">
-        <EChart option={lsOption} height={240} ariaLabel="因子多空组合累计净值折线图" />
+        <EChart option={lsOption} height={260} ariaLabel="因子多空组合累计净值折线图" />
       </Card>
 
       {data.note && (

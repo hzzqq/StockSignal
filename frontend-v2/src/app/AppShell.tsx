@@ -12,9 +12,13 @@ import { DecisionLoopAlarm } from './DecisionLoopAlarm'
 import { PageErrorBoundary } from './PageErrorBoundary'
 import { GlobalKLineOverlay } from '@/features/stock/charts/GlobalKLineOverlay'
 import { useXingchenRunning } from '@/features/xingchen/useXingchen'
+import { usePatternScanRunning } from '@/features/pattern/usePatternScan'
 
 /** 星辰 AI 入口：从 NAV 单一真理源派生，避免在此硬编码路由。 */
 const XINGCHEN_PATH = NAV.flatMap((g) => g.items).find((it) => it.label === '星辰 AI 助手')?.to
+
+/** 形态扫描页入口：同样从 NAV 派生。 */
+const PATTERN_SCAN_PATH = NAV.flatMap((g) => g.items).find((it) => it.label === '技术形态扫描')?.to
 
 /** 顶栏股票搜索：命中后跳个股研究页并预选 code（深链 ?code=），不再开全局 K 线浮层。 */
 export function GlobalStockSearch({
@@ -113,6 +117,24 @@ function XingchenRunningBadge() {
     >
       <span className="md:hidden" aria-hidden="true">🌟</span>
       <span className="hidden md:inline">星辰 AI 正在运行</span>
+    </button>
+  )
+}
+
+/** 形态扫描运行中徽标：与星辰徽标同范式，只读订阅、点击回到扫描页；未运行不占位。 */
+function PatternScanRunningBadge() {
+  const running = usePatternScanRunning()
+  const navigate = useNavigate()
+  if (!running || !PATTERN_SCAN_PATH) return null
+  return (
+    <button
+      type="button"
+      onClick={() => navigate({ to: PATTERN_SCAN_PATH })}
+      aria-label="形态扫描正在运行，点击查看"
+      className="shrink-0 rounded-tile border border-sf-accent px-2 py-1 text-label text-sf-accent hover:bg-sf-surface-2"
+    >
+      <span className="md:hidden" aria-hidden="true">⌗</span>
+      <span className="hidden md:inline">形态扫描正在运行</span>
     </button>
   )
 }
@@ -247,6 +269,7 @@ export function AppShell() {
             <SearchCluster />
             <MobileSearch />
             <XingchenRunningBadge />
+            <PatternScanRunningBadge />
             <ThemeToggle />
             <button
               onClick={onLogout}
