@@ -19,6 +19,7 @@ import logging
 import re
 import urllib.parse
 import urllib.request
+from datetime import datetime
 from html.parser import HTMLParser
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,10 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 from modules import policy_store as _store  # noqa: E402
 
 _DATE_RE = re.compile(r"(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})")
+# 详情页发布时间片段：必须带时分（如 2026-11-10 22:09），不认正文里的裸日期/施行日期
+_DETAIL_PUB_RE = re.compile(
+    r"(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})\s+\d{1,2}:\d{2}(?::\d{2})?"
+)
 _DOC_NO_RE = re.compile(
     r"\d{4}\s*年\s*第\s*\d+\s*号"
     r"|[\u4e00-\u9fa5A-Za-z]{2,12}〔\d{4}〕\d+号"
@@ -68,6 +73,33 @@ def _norm_date(text: str) -> str | None:
         return None
     y, mo, d = m.groups()
     return f"{int(y):04d}-{int(mo):02d}-{int(d):02d}"
+
+
+def _detail_publish_date(parts: list[str]) -> str | None:
+    """详情页日期：仅在前 30 段里认带时分的发布时间片段，命中返回 YYYY-MM-DD。
+
+    不拿正文里任意裸日期（如「自2027年1月1日起施行」）当发布日期。
+    """
+    for part in parts[:30]:
+        m = _DETAIL_PUB_RE.search(part)
+        if m:
+            y, mo, d = m.groups()
+            return f"{int(y):04d}-{int(mo):02d}-{int(d):02d}"
+    return None
+
+
+def _guard_publish_date(date_str: str | None) -> str | None:
+    """未来日期守卫：晚于本地今天 → None，绝不写未来日期；无法解析 → None。"""
+    if not date_str:
+        return None
+    try:
+        d = datetime.strptime(str(date_str)[:10], "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        # ui_audit_exempt: 日期解析失败视为无效，宁可置 None 也不写坏数据
+        return None
+    if d > datetime.now().date():
+        return None
+    return date_str
 
 
 # ── 列表解析 ─────────────────────────────────────────────────────────────────
@@ -177,14 +209,30 @@ def _parse_anchors_regex(html: str, base: str, source: str, limit: int) -> list[
     return out
 
 
+def _is_gov_policy_url(url: str) -> bool:
+    """仅保留 gov.cn 真实政策/解读页：host=www.gov.cn|gov.cn、path 含 /zhengce/、以 .htm/.html 结尾。
+
+    过滤非政策页（如 /fuwu/jiucuopage.html「网站纠错」），避免脏数据入库。
+    """
+    p = urllib.parse.urlparse(url or "")
+    host = (p.hostname or "").lower()
+    path = p.path.lower()
+    return (
+        host in ("www.gov.cn", "gov.cn")
+        and "/zhengce/" in path
+        and (path.endswith(".htm") or path.endswith(".html"))
+    )
+
+
 def _parse_gov_cn(html: str, limit: int = 40) -> list[dict]:
-    return _parse_blocks(html, GOV_CN_URL, "gov.cn", limit) or \
-        _parse_anchors_regex(html, GOV_CN_URL, limit, "gov.cn")
+    items = _parse_blocks(html, GOV_CN_URL, "gov.cn", limit) or \
+        _parse_anchors_regex(html, GOV_CN_URL, "gov.cn", limit)
+    return [it for it in items if _is_gov_policy_url(it["source_url"])]
 
 
 def _parse_ndrc(html: str, limit: int = 20) -> list[dict]:
     items = _parse_blocks(html, NDRC_URL, "ndrc", limit) or \
-        _parse_anchors_regex(html, NDRC_URL, limit, "ndrc")
+        _parse_anchors_regex(html, NDRC_URL, "ndrc", limit)
     for it in items:
         m = _DOC_NO_RE.search(it["title"])
         it["doc_number"] = m.group(0).strip() if m else None
@@ -236,24 +284,25 @@ class _BodyParser(HTMLParser):
 
 
 def fetch_policy_detail(source_url: str) -> dict:
-    """抓详情页正文。附件（PDF/OFD）场景不假装抓到全文。"""
+    """抓详情页正文。附件（PDF/OFD）场景不假装抓到全文；日期只认带时分的发布时间片段。"""
     try:
         html = _http_get(source_url)
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[policy_fetch] 详情页抓取失败 url={source_url}: {e}")
-        return {"body_text": None, "body_source": "none"}
-    if _ATTACH_RE.search(html):
-        return {"body_text": None, "body_source": "attachment"}
+        return {"body_text": None, "body_source": "none", "publish_date": None}
     parser = _BodyParser()
     try:
         parser.feed(html)
     except Exception as e:  # noqa: BLE001
         logger.warning(f"[policy_fetch] 详情页解析失败 url={source_url}: {e}")
-        return {"body_text": None, "body_source": "none"}
+        return {"body_text": None, "body_source": "none", "publish_date": None}
+    pub = _detail_publish_date(parser.parts)
+    if _ATTACH_RE.search(html):
+        return {"body_text": None, "body_source": "attachment", "publish_date": pub}
     text = re.sub(r"\n{3,}", "\n\n", "\n".join(parser.parts)).strip()
     if text:
-        return {"body_text": text, "body_source": "html"}
-    return {"body_text": None, "body_source": "none"}
+        return {"body_text": text, "body_source": "html", "publish_date": pub}
+    return {"body_text": None, "body_source": "none", "publish_date": pub}
 
 
 # ── 编排 ─────────────────────────────────────────────────────────────────────
@@ -287,6 +336,11 @@ def refresh_policies(include_detail: bool = False, limit: int = 40) -> dict:
                 detail = fetch_policy_detail(doc["source_url"])
                 doc["body_text"] = detail["body_text"]
                 doc["body_source"] = detail["body_source"]
+                detail_date = detail.get("publish_date")
+                if detail_date is not None:
+                    doc["publish_date"] = detail_date  # 详情页日期为准，仅非 None 时覆盖
+            # 未来日期守卫：任何条目晚于本地今天的日期一律置 None，绝不写未来日期
+            doc["publish_date"] = _guard_publish_date(doc.get("publish_date"))
             if _store.upsert_policy(doc):
                 result["written"] += 1
             else:

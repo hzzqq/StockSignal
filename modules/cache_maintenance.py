@@ -121,8 +121,8 @@ def prune_sqlite_cache(
         if conn is not None:
             try:
                 conn.close()
-            except Exception:  # ui_audit_exempt: except-pass finally 内关闭连接兜底，关闭失败不应掩盖 VACUUM 主流程异常
-                pass
+            except Exception as exc:  # noqa: BLE001 - 关闭失败不得掩盖主流程异常，但必须留痕
+                logger.debug("[cache_maintenance] prune_sqlite_cache 关闭连接失败: %s", exc)
     if is_pg:
         res["freed_bytes"] = 0  # 无意义测本地文件体积
         res["vacuum"] = "skipped_pg_autovacuum"

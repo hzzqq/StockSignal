@@ -4020,6 +4020,10 @@ def policy_transmission():
             }), message="policy-transmission")
 
         title = str(doc.get("title") or "").strip()
+        # 正文补充命中：仅取正文前 3000 字，避免超长全文拖慢匹配；
+        # 缺失或非字符串时不构造正文，诚实跳过（无正文就无法补充）。
+        body_text = doc.get("body_text")
+        body = body_text[:3000] if isinstance(body_text, str) else ""
         sectors_out = []
         members_unavailable = []
         idx = {}
@@ -4029,15 +4033,25 @@ def policy_transmission():
             name = str(s.get("board_name") or "").strip()
             if not name:
                 continue
+            keywords = [k.strip() for k in str(s.get("keywords") or "").split(",")]
             matched_by = None
-            if name and name in title:
+            # 标题优先：标题命中即定案，不再用正文重复添加同一行业。
+            if name in title:
                 matched_by = "name"
             else:
-                for kw in str(s.get("keywords") or "").split(","):
-                    kw = kw.strip()
+                for kw in keywords:
                     if len(kw) >= 2 and kw in title:
                         matched_by = "keyword"
                         break
+            # 标题零命中 → 正文补充（本地关键词共现，非 LLM 判定）。
+            if not matched_by and body:
+                if name in body:
+                    matched_by = "body_name"
+                else:
+                    for kw in keywords:
+                        if len(kw) >= 2 and kw in body:
+                            matched_by = "body_keyword"
+                            break
             if not matched_by:
                 continue
             resolved = sector_map.resolve_sector(name)
@@ -4103,8 +4117,10 @@ def policy_transmission():
             "basis": res.get("basis"),
             "disclaimer": res.get("disclaimer"),
             "derived_note": "行业由政策标题与 list_sectors 的 name/keywords 本地关键词命中派生；"
+                            "标题零命中时用政策正文前 3000 字补充匹配（matched_by 标注为 body_name/body_keyword）；"
+                            "命中来源包含「标题」与「政策正文前 3000 字」，均为本地关键词共现、非 LLM 判定、非收益预测；"
                             "成分股来自 resolve_sector 的 stock_codes，展示 name 以代码占位（非原文证券简称，derived）；"
-                            "关联度 = 文本共现，非收益预测。build_index_for_titles 会触网，本端点不调用。",
+                            "关联度 = 文本共现。build_index_for_titles 会触网，本端点不调用。",
             "unavailable": [],
         }
         return ok(data=_sanitize(data), message="policy-transmission")
