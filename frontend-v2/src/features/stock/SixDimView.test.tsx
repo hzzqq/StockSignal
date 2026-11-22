@@ -152,6 +152,25 @@ describe('SixDimView · 已有 E2E 未覆盖的边界', () => {
     expect(screen.queryByText('2026-11-07')).toBeNull()
   })
 
+  it('名称展示：响应 name 优先 → 显示「代码 · 名称」+ Stat「股票」', async () => {
+    mockSixDim({ ...sixDimFull, name: '贵州茅台' })
+    renderView()
+    await screen.findByText('权威数据日：2026-11-07', {}, FIND)
+    expect(screen.getByText('600519 · 贵州茅台')).toBeTruthy()
+    const stat = screen.getByText('股票').parentElement
+    expect(stat?.querySelector('.text-kpi')?.textContent).toBe('贵州茅台')
+  })
+
+  it('名称缺失且非搜索选中 → 只显代码，绝不臆造股票名', async () => {
+    mockSixDim({ ...sixDimFull, name: null })
+    renderView()
+    await screen.findByText('权威数据日：2026-11-07', {}, FIND)
+    expect(screen.getByText('代码 600519')).toBeTruthy()
+    expect(screen.queryByText('600519 · 贵州茅台')).toBeNull()
+    const stat = screen.getByText('股票').parentElement
+    expect(stat?.querySelector('.text-kpi')?.textContent).toBe('600519')
+  })
+
   it('非法 code → 零新请求（搜索框非 6 位输入无候选、无直接查询入口，Enter 不触发）', async () => {
     mockSixDim(sixDimFull)
     renderView()

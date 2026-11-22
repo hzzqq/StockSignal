@@ -139,7 +139,13 @@ def _num_from_row(row, cols):
 
 
 def parse_fin(fin):
-    """从东财财务摘要解析 (ROE, 归母净利润同比)。解析失败返回 (None, None)。"""
+    """从东财财务摘要解析 (ROE, 归母净利润同比)。解析失败返回 (None, None)。
+
+    2026-11-22 真机取证修复：akshare stock_financial_abstract 的行名已从
+    「归母净利润同比增长率」漂移为「归属母公司净利润增长率」（无「同比」二字），
+    旧条件「净利润 in nm and 同比 in nm」导致 growth 维永远缺失（600519 实测
+    fin 80 行、ROE 有值而 profit_yoy=None）。现同时接受「同比」/「增长率」两种
+    行名；ROE 行名「净资产收益率(ROE)」兼容。"""
     if fin is None or len(fin) == 0:
         return None, None
     cols = list(fin.columns)
@@ -150,7 +156,7 @@ def parse_fin(fin):
         nm = str(r.get(name_col, ""))
         if roe is None and "净资产收益率" in nm and "摊薄" not in nm:
             roe = _num_from_row(r, val_cols)
-        if yoy is None and "净利润" in nm and "同比" in nm:
+        if yoy is None and "净利润" in nm and ("同比" in nm or "增长率" in nm):
             yoy = _num_from_row(r, val_cols)
     return roe, yoy
 

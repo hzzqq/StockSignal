@@ -868,6 +868,8 @@ export const quoteBoard = {
 // ⚠️ 缺失与空数据日如实保留，禁止补 0 / 禁止用当前日期兜底。
 export const sixDimFull = {
   code: '600519',
+  // 名称：后端 six-dim 2026-11-22 起从腾讯 f[1]/spot_em 名称列带出；取不到为 null。
+  name: '贵州茅台',
   dims: {
     technical: 72.5,
     capital: 68.0,
@@ -889,6 +891,7 @@ export const sixDimFull = {
 
 export const sixDimPartial = {
   code: '000001',
+  name: '平安银行',
   dims: {
     technical: 50.2,
     capital: null,

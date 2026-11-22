@@ -1565,17 +1565,60 @@ def _six_dim_hist(code: str):
     return df
 
 
-def _six_dim_spot(code: str):
-    """实时快照行（供资金/价值维取数）：ak.stock_zh_a_spot_em() 按「代码」筛行。
+_QQ_SPOT_TTL = 60.0
+_qq_spot_cache: dict = {"key": None, "data": None, "ts": 0.0}
 
-    取证留痕（2026-11-07 已核实）：get_fetcher().get_realtime_quote(code) 返回字段为
-    ticker/name/open/prev_close/current/high/low/volume/amount/bid/ask/datetime，
-    **不含**「换手率/量比/市盈率-动态/市净率」——故此处**不调用**该实时接口：
-    既删掉永不命中的死分支，也省掉每次请求白跑一次新浪实时接口（内部 10s 超时
-    + 缓存兜底）的无谓网络往返。直接走 akshare 快照（与 pages/72 口径一致），按
-    「代码」筛行后整行 .to_dict() 透出，字段名写死、禁止臆造。
-    任一异常 / 字段取不到 -> {}（capital/value 维如实为 None，绝不补 0）。
+
+def _qq_spot_single(code: str) -> dict:
+    """腾讯行情单票快照（2026-11-22 修复资金/价值维缺失的换源实现）。
+
+    真机取证：ak.stock_zh_a_spot_em()（东财 push2 clist 全市场列表）在本环境
+    被代理拦截 ProxyError（与 fund-flow market 块同源），capital/value 维恒缺。
+    腾讯 qt.gtimg.cn 单票轻量可靠（spot_rank T-178 应急层同源先例），字段索引
+    已实测对齐贵州茅台：f[1]名称 f[38]换手率 f[52]市盈率-动态 f[46]市净率 f[49]量比。
+    返回中文键 dict（与 compute_dims 期望列名一致）；60s 进程级缓存防频打。
+    失败 -> {}（上层回退 spot_em / 维度诚实缺失）。
     """
+    now = time.time()
+    if _qq_spot_cache["key"] == code and now - _qq_spot_cache["ts"] < _QQ_SPOT_TTL:
+        return _qq_spot_cache["data"] or {}
+    try:
+        import requests
+        from modules.spot_rank import _qq_headers, _qq_prefix
+        url = "https://qt.gtimg.cn/q=" + _qq_prefix(code)
+        resp = requests.get(url, headers=_qq_headers(), timeout=6)
+        resp.raise_for_status()
+        text = resp.content.decode("gbk", errors="replace")
+        body = text.split('="', 1)[1].rstrip('";').rstrip('"')
+        f = body.split("~")
+        if len(f) < 55 or not f[2]:
+            return {}
+        data = {
+            "名称": f[1] or None,
+            "换手率": _six_dim_num(f[38]),
+            "量比": _six_dim_num(f[49]),
+            "市盈率-动态": _six_dim_num(f[52]),
+            "市净率": _six_dim_num(f[46]),
+        }
+        _qq_spot_cache.update({"key": code, "data": data, "ts": now})
+        return data
+    except Exception:  # noqa: BLE001 - 腾讯源失败回退 spot_em，维度诚实缺失不 500
+        # ui_audit_exempt: 已知静默降级 — 腾讯快照失败返回空 dict，上层按缺失处理，不伪造结果
+        return {}
+
+
+def _six_dim_spot(code: str):
+    """实时快照行（供资金/价值/名称）：腾讯单票主源 + ak.stock_zh_a_spot_em() 回退。
+
+    2026-11-22 换源取证（原版只走 spot_em）：东财 push2 clist 全市场列表在本环境
+    被代理拦截 -> capital/value 维恒缺、名称也拿不到。现主源腾讯 qt.gtimg.cn 单票
+    （换手率/量比/动态市盈率/市净率/名称，字段已实测对齐），失败回退 spot_em
+    （按「代码」筛行整行透出，与 pages/72 口径一致）。任一源全失败 -> {}，
+    capital/value 维如实 None，绝不补 0。
+    """
+    qq = _qq_spot_single(code)
+    if qq.get("换手率") is not None or qq.get("市盈率-动态") is not None:
+        return qq
     try:
         import akshare as ak
         df = ak.stock_zh_a_spot_em()
@@ -1584,6 +1627,7 @@ def _six_dim_spot(code: str):
         row = df[df["代码"].astype(str) == str(code)]
         return row.iloc[0].to_dict() if len(row) else {}
     except Exception:  # noqa: BLE001 - akshare 挂掉仅让资金/价值维缺失，不 500
+        # ui_audit_exempt: 已知静默降级 — 回退源也失败返回空 dict，上层按缺失处理，不伪造结果
         return {}
 
 
@@ -1669,8 +1713,16 @@ def six_dim():
 
     dims = result["dims"]
     missing = [k for k in _DIM_ORDER if dims.get(k) is None]
+    # 名称（2026-11-22 老板需求：个股页补股票名称展示）：数据源自带（腾讯 f[1] /
+    # spot_em「名称」列），取不到为 None——绝不按代码编造。
+    name = None
+    if isinstance(spot, dict):
+        raw_name = spot.get("名称") or spot.get("name")
+        if isinstance(raw_name, str) and raw_name.strip():
+            name = raw_name.strip()
     data = {
         "code": code,
+        "name": name,
         "dims": dims,
         "overall": result["overall"],
         "coverage": 6 - len(missing),

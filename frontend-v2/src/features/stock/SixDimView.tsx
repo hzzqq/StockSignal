@@ -35,6 +35,8 @@ const CODE_RE = /^\d{6}$/
  */
 export function SixDimView() {
   const [input, setInput] = useState('600519')
+  // 搜索选中带回的名称（手输代码时为 null，由响应 name 字段兜底——2026-11-22 补名称展示）
+  const [searchName, setSearchName] = useState<string | null>(null)
   const valid = CODE_RE.test(input)
   // enabled 由 hook 内 /^\d{6}$/ 校验，非法输入不发起任何请求。
   const query = useSixDim(input)
@@ -60,7 +62,10 @@ export function SixDimView() {
           <StockSearchInput
             value={input}
             label="搜索股票（代码 / 名称 / 首字母）"
-            onSelect={(code) => setInput(code)}
+            onSelect={(code, item) => {
+              setInput(code)
+              setSearchName(item?.name ?? null)
+            }}
           />
         </div>
         {!valid && <span className="text-label text-sf-warn">请输入 6 位数字代码</span>}
@@ -77,14 +82,17 @@ export function SixDimView() {
           emptyLabel="该股六维数据均缺失"
           emptyHint="未取到任何有效维度，未做补零填充"
         >
-          {query.data ? <SixDimBody data={query.data} /> : null}
+          {query.data ? <SixDimBody data={query.data} searchName={searchName} /> : null}
         </QueryState>
       )}
     </div>
   )
 }
 
-function SixDimBody({ data }: { data: SixDim }) {
+function SixDimBody({ data, searchName }: { data: SixDim; searchName: string | null }) {
+  // 名称展示（2026-11-22 老板需求）：响应 name（数据源自带）优先，搜索选中名兜底；
+  // 都没有时只显代码，绝不按代码编造名称。
+  const displayName = data.name ?? searchName
   // 雷达数据：缺失维以 null 放入 value 数组，ECharts 不绘制该点（不补 0）。
   const radarValues: (number | null)[] = DIM_KEYS.map((k) =>
     typeof data.dims[k] === 'number' ? data.dims[k] : null,
@@ -129,7 +137,9 @@ function SixDimBody({ data }: { data: SixDim }) {
         ) : (
           <span className="text-sf-ink tabular-nums">{`权威数据日：${data.date}`}</span>
         )}
-        <span className="text-label text-sf-ink-3">{`代码 ${data.code}`}</span>
+        <span className="text-label text-sf-ink-3">
+          {displayName ? `${data.code} · ${displayName}` : `代码 ${data.code}`}
+        </span>
       </div>
 
       {/* 降权态：有效维度不足 6 时明确告知缺失，不掩饰。 */}
@@ -151,7 +161,7 @@ function SixDimBody({ data }: { data: SixDim }) {
         />
         <Stat label="有效维度" value={`${data.coverage}/6`} sub={`缺失 ${data.missing.length} 维`} />
         <Stat label="最新数据日" value={data.date === null ? '—' : data.date} />
-        <Stat label="股票代码" value={data.code} />
+        <Stat label="股票" value={displayName ?? data.code} />
       </div>
 
       <Card title="六维评分雷达图">

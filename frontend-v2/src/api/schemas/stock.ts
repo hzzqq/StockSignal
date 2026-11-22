@@ -41,6 +41,8 @@ export const SixDimRawSchema = z.object({
 
 export const SixDimSchema = z.object({
   code: z.string(),
+  // 名称（2026-11-22 老板需求）：数据源自带（腾讯 f[1]/spot_em 名称列），取不到 null
+  name: z.string().nullable().optional(),
   dims: z.object({
     technical: NullableNumber,
     capital: NullableNumber,
