@@ -10,14 +10,16 @@ const read = (rel: string) =>
 const APP_PATHS: string[] = [...read('./nav.ts').matchAll(/\| '(\/[^']*)'/g)].map((m) => m[1])
 
 /**
- * 2026-11-16 侧栏重排守卫。
+ * 2026-11-16 侧栏重排守卫；2026-11-22 减臃肿：7 组 → 6 组。
  * 历史缺陷：NAV 只有 4 组 36 项，另外 20 个入口在 AppShell 里手抄平铺，
- * 左侧 40+ 链接无分类、真源分裂。重排后所有功能入口必须归 NAV 七个语义分组，
+ * 左侧 40+ 链接无分类、真源分裂。重排后所有功能入口必须归 NAV 语义分组，
  * 且 AppShell 不得再出现任何硬编码 `to="/..."`。
+ * 2026-11-22：P1 组合构建诊断 / 市场驱动力并入 tab 视图（删 2 项），
+ * 「智能助手与社区」并入决策组（删 1 组）——旧路径 redirect 保留深链兼容。
  */
 describe('NAV · 侧栏分类单一真理源', () => {
-  it('7 个语义分组、组名唯一、每组 2~12 项', () => {
-    expect(NAV.length).toBe(7)
+  it('6 个语义分组、组名唯一、每组 2~12 项', () => {
+    expect(NAV.length).toBe(6)
     expect(new Set(NAV.map((g) => g.group)).size).toBe(NAV.length)
     for (const g of NAV) {
       expect(g.items.length, `${g.group} 条目数`).toBeGreaterThanOrEqual(2)
@@ -25,14 +27,13 @@ describe('NAV · 侧栏分类单一真理源', () => {
     }
   })
 
-  it('按股民日常动线排序：看盘 → 判环境 → 研个股 → 定策略 → 决策 → 助手社区 → 系统', () => {
+  it('按股民日常动线排序：看盘 → 判环境 → 研个股 → 定策略 → 决策与助手 → 系统', () => {
     expect(NAV.map((g) => g.group)).toEqual([
       '行情与市场',
       '广度·温度与情绪',
       '个股研究',
       '策略与持仓',
-      '决策与晨报',
-      '智能助手与社区',
+      '决策·晨报与助手',
       '数据·运维·系统',
     ])
     // 组内首项必须是该场景的第一入口，避免后续回填把常用功能挤到末尾。
@@ -41,8 +42,7 @@ describe('NAV · 侧栏分类单一真理源', () => {
     expect(NAV[2].items[0].to).toBe('/stock/research')
     expect(NAV[3].items[0].to).toBe('/recommend')
     expect(NAV[4].items[1].to).toBe('/decision')
-    expect(NAV[5].items[0].to).toBe('/xingchen')
-    expect(NAV[6].items[0].to).toBe('/guide')
+    expect(NAV[5].items[0].to).toBe('/guide')
   })
 
   it('图标、路径、标签全部全局唯一', () => {

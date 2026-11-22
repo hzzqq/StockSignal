@@ -189,15 +189,15 @@ describe('v2Mapping · v1→v2 双向失真防复发守卫', () => {
     expect(r.note).toMatch(/stock-report/)
   })
 
-  it('2026-11-19 迁移：15 市场驱动力为 native /market-drivers，不再 pinned，note 标明派生', () => {
+  it('2026-11-22 减臃肿：15 市场驱动力 native 目标并入 /market-sentiment（tab），不再 pinned，note 标明派生', () => {
     const d = mappingOf(mustPage('15_市场驱动力.py'))
     expect(d.status, '15 应为 native').toBe('native')
-    expect(d.to).toBe('/market-drivers')
+    expect(d.to).toBe('/market-sentiment')
     expect(d.note).toMatch(/已迁移/)
-    expect(d.note).toMatch(/market-sentiment/)
+    expect(d.note).toMatch(/market-drivers/)
     expect(d.note).toMatch(/派生/)
     expect(PINNED_BLOCK).not.toContain('15_市场驱动力.py')
-    // native 目标必须是真实 AppPath（/market-drivers 由本批在 nav.ts 注册）
-    expect(APP_PATHS).toContain('/market-drivers')
+    // native 目标必须是真实 AppPath（/market-drivers 已从 AppPath 移除，redirect 兼容旧深链）
+    expect(APP_PATHS).not.toContain('/market-drivers')
   })
 })

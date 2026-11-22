@@ -212,7 +212,7 @@ describe('W4-E · 设置页（真实生效）', () => {
     setV1Base('http://127.0.0.1:8501')
   })
 
-  it('侧栏由 NAV 单一真理源派生，设置 / 功能全景已归入语义分组，7 组 / 图标唯一', () => {
+  it('侧栏由 NAV 单一真理源派生，设置 / 功能全景已归入语义分组，6 组 / 图标唯一', () => {
     const src = readFileSync(resolve(ROOT, 'frontend-v2/src/app/AppShell.tsx'), 'utf8')
     const items = NAV.flatMap((g) => g.items)
     expect(items.map((i) => i.to)).toContain('/settings')
@@ -220,7 +220,7 @@ describe('W4-E · 设置页（真实生效）', () => {
     expect(src).toContain('NAV.map')
     expect(src).not.toMatch(/to="\//)
     expect(src).toContain('applyPreferences()')
-    expect(NAV.length).toBe(7)
+    expect(NAV.length).toBe(6)
     expect(new Set(items.map((i) => i.icon)).size).toBe(items.length)
   })
 

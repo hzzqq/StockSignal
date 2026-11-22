@@ -26,7 +26,7 @@ import { V1_PAGES, type V1Page } from './v1Pages.generated'
  *  - 59 市场温度计 / 64 投研圆桌此前「标 native 无 note」属台账失真：59 仅部分迁移（8 指标分解/
  *    极端区信号/历史类比/基准窗口未迁），64 的 /predictions 是 prediction_log 而非静态报告，
  *    两者均补 note 明示能力边界；
- *  - 15 市场驱动力由 v1-pinned 升 native → /market-drivers，复用 /api/v2/read/market-sentiment，
+ *  - 15 市场驱动力由 v1-pinned 升 native → /market-sentiment「市场驱动力」tab（2026-11-22 并入，原 /market-drivers redirect），复用 /api/v2/read/market-sentiment，
  *    归一化/相关/CSV 为派生并如实标注（无上证参考线）。
  */
 
@@ -95,12 +95,13 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
     to: '/breadth',
     note: '已迁移：/breadth 承接 v1 的牧羊人 8 指标热度贡献分解、极端区信号（sentiment_edge）、历史情境类比与基准窗口切换（近一季/近一年/全历史 2007 起），实时取数走后端聚合端点 /market-temperature，缺失指标诚实显「—」不补 0；/market-sentiment 是 50 的等价页，不是 59',
   },
-  // 2026-11-19：15 市场驱动力由 v1-pinned 跨档为 native（新页 /market-drivers）。
+  // 2026-11-19：15 市场驱动力由 v1-pinned 跨档为 native；2026-11-22 侧栏减臃肿并入
+  // /market-sentiment 的 tab 视图（MarketSentimentTabbed），旧 /market-drivers 路由 redirect。
   // 复用 /api/v2/read/market-sentiment 的 21 指标五维 dims；归一化子图/相关热力/CSV 均由端点 spark 派生，
   // 端点未提供上证参考线与全 180 天原始面板，页面如实标注「派生、口径不同」。
   '15_市场驱动力.py': {
-    to: '/market-drivers',
-    note: '已迁移：/market-drivers 复用 /api/v2/read/market-sentiment 的 21 指标五维数据，五维归一化叠加、相关性热力与 CSV 导出均由端点近 40 点 spark 派生并显式标注；v1 的上证参考线与全 180 天原始归一化面板端点未提供，未编造',
+    to: '/market-sentiment',
+    note: '已迁移：/market-sentiment「市场驱动力」tab（原 /market-drivers 已并入）复用同端点 21 指标五维数据，五维归一化叠加、相关性热力与 CSV 导出均由端点近 40 点 spark 派生并显式标注；v1 的上证参考线与全 180 天原始归一化面板端点未提供，未编造',
   },
   // parity B：/breadth-divergence 已承接分化维度算法（日历热力 + 分化检测 + 双轴趋势）。
   '61_广度分化.py': { to: '/breadth-divergence', note: 'v2 由 /breadth-divergence 承接 modules/breadth_divergence.py 的日历热力、分化检测与趋势（真实离线广度序列）' },
@@ -196,7 +197,7 @@ const DATA: Record<string, { path: string; label: string }> = {}
  *  不提供任何交易能力，符合「实盘交易最好不要放在 v2」的红线。 */
 const PINNED: Record<string, { note: string }> = {
   '13_市场强弱.py': { note: '与广度·温度簇高度重叠且依赖 v1 实时行情单例，留 v1' },
-  // 15 市场驱动力已于 2026-11-19 迁移至 native /market-drivers（见 NATIVE 段），不再 pinned。
+  // 15 市场驱动力已于 2026-11-19 迁移至 native（2026-11-22 并入 /market-sentiment tab，见 NATIVE 段），不再 pinned。
   '17_市场魔方.py': { note: '展示性视图，v2 不做等价实现' },
   '25_QuantAgent投研.py': { note: '实验性 Agent 流程，留 v1 观察' },
   '33_ETF筛选.py': { note: '小众筛选器，v2 不做等价实现；已在 /stock/screener 如实登记并给出 v1 直达' },

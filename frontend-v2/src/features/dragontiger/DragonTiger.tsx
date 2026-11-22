@@ -155,7 +155,7 @@ export function DragonTiger() {
         error={q.error}
         isEmpty={isEmpty}
         emptyLabel="龙虎榜暂不可用"
-        emptyHint="取数失败（离线 / 接口受限 / 非交易日）；后端已诚实降级，未编造明细"
+        emptyHint="取数失败（离线 / 接口受限）；后端已按最近交易日探测仍无明细，诚实降级，未编造明细"
       >
         {d ? (
           <div className="space-y-6">

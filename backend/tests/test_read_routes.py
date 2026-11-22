@@ -107,6 +107,20 @@ SPEC_PATHS = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def _clear_cached_ttl_store():
+    """隔离 modules.cache_utils 进程级缓存（fund-flow 等端点走 cached_ttl 600s/1800s）。
+
+    否则同测试内的多阶段 monkeypatch（充分取数 -> 空数据降级）会命中
+    上一阶段缓存的成功结果，守卫失真。
+    """
+    from modules import cache_utils
+
+    cache_utils._CACHE.clear()
+    yield
+    cache_utils._CACHE.clear()
+
+
 @pytest.fixture(scope="module")
 def app(tmp_path_factory):
     class _C(Config):
@@ -1373,9 +1387,11 @@ def test_fund_flow_endpoint(client, token, monkeypatch):
         "cumulative": 1.8e12, "cumulative_date": "2024-08-15",
     }
     ind = pd.DataFrame([
-        {"行业": "半导体", "涨跌幅": 2.5, "流入资金": 5.0e10, "流出资金": 4.0e10, "净额": 1.0e10,
+        # 2026-11-22 单位修正：get_industry_fund_flow（同花顺）列单位已是亿，
+        # 端点直通不做 /1e8（旧夹具按元单位断言 100.0 亿，固化了缩小 1e8 倍的 bug）
+        {"行业": "半导体", "涨跌幅": 2.5, "流入资金": 125.0, "流出资金": 112.5, "净额": 12.5,
          "领涨股": "中芯国际", "领涨股涨跌幅": 5.1},
-        {"行业": "银行", "涨跌幅": -1.1, "流入资金": 2.0e10, "流出资金": 2.5e10, "净额": -5.0e9,
+        {"行业": "银行", "涨跌幅": -1.1, "流入资金": 20.0, "流出资金": 25.0, "净额": -5.0,
          "领涨股": "招商银行", "领涨股涨跌幅": -0.8},
     ])
     mk = pd.DataFrame([
@@ -1413,7 +1429,7 @@ def test_fund_flow_endpoint(client, token, monkeypatch):
     assert d["northbound"]["last_net_buy"] == 99.0  # 9.9e9 -> 99.0 亿
     assert d["industry"]["available"] is True
     assert len(d["industry"]["rows"]) == 2
-    assert d["industry"]["rows"][0]["net"] == 100.0  # 1.0e10 -> 100.0 亿
+    assert d["industry"]["rows"][0]["net"] == 12.5  # 同花顺列单位已是亿，直通
     assert d["market"]["available"] is True
     assert len(d["market"]["rows"]) == 2
     assert d["market"]["rows"][0]["main_net"] == 120.0  # 1.2e10 -> 120.0 亿
@@ -1423,6 +1439,9 @@ def test_fund_flow_endpoint(client, token, monkeypatch):
     assert d["unavailable"] == []
 
     # 2) 取数为空 -> 各块 available=False（诚实降级，不 500、不补 0）
+    #    先清 _ff_cached 的 600s 成功缓存（阶段1 已写入），否则本阶段命中缓存直接 available=True
+    from modules.cache_utils import _CACHE as _ct_cache
+    _ct_cache.clear()
     monkeypatch.setattr(ff_mod, "get_northbound_fund_flow", lambda: {})
     monkeypatch.setattr(ff_mod, "get_industry_fund_flow", lambda: pd.DataFrame())
     monkeypatch.setattr(ff_mod, "get_market_fund_flow", lambda days=30: pd.DataFrame())

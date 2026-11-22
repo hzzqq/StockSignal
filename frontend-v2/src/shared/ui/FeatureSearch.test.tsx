@@ -27,8 +27,11 @@ describe('FeatureSearch · NAV 派生的顶栏功能搜索', () => {
   it('按分组名也能命中功能', () => {
     render(<FeatureSearch />)
     const input = screen.getByRole('combobox', { name: '功能搜索' })
-    fireEvent.change(input, { target: { value: '决策与晨报' } })
-    expect(screen.getAllByRole('option').length).toBe(Math.min(NAV[0].items.length, 8))
+    // 2026-11-22 组名「决策与晨报」→「决策·晨报与助手」；按子串匹配用「晨报」更稳
+    fireEvent.change(input, { target: { value: '晨报' } })
+    const hits = screen.getAllByRole('option')
+    expect(hits.length).toBeGreaterThan(0)
+    expect(hits.every((o) => o.textContent?.includes('决策·晨报与助手'))).toBe(true)
   })
 
   it('空结果给中文提示，不编造功能', () => {

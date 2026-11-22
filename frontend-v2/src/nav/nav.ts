@@ -5,7 +5,6 @@ export type AppPath =
   | '/replay'
   | '/morning'
   | '/p1'
-  | '/p1-construction'
   | '/recommend'
   | '/paper'
   | '/alerts'
@@ -61,8 +60,6 @@ export type AppPath =
   | '/momentum-resonance'
   | '/limit-up-review'
   | '/market-sentiment'
-  // 15 市场驱动力（2026-11-19 由 v1-pinned 升 native）：复用 /market-sentiment 数据的五维派生页
-  | '/market-drivers'
   | '/xingchen'
   // 股吧社区（52 页 V2 化）：后端 /api/forum 完整 CRUD，非 v1「社区抓取」遗留
   | '/forum'
@@ -92,7 +89,6 @@ export const NAV: NavGroup[] = [
       { to: '/fund-flow', label: '资金流向', icon: '🌊' },
       { to: '/dragon-tiger', label: '龙虎榜', icon: '🐯' },
       { to: '/watch', label: '智能盯盘', icon: '👁️' },
-      { to: '/market-drivers', label: '市场驱动力', icon: '🧮' },
       { to: '/macro-data', label: '宏观数据', icon: '🌐' },
     ],
   },
@@ -139,22 +135,18 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
-    group: '决策与晨报',
+    // 2026-11-22 侧栏减臃肿：原「智能助手与社区」3 项并入本组（合并后恰达 12 项上限），
+    // 侧栏 7 组 → 6 组。P1 组合构建诊断 / 市场驱动力分别并入 /p1、/market-sentiment 的 tab 视图。
+    group: '决策·晨报与助手',
     items: [
       { to: '/', label: '概览', icon: '◎' },
       { to: '/decision', label: '今日决策面板', icon: '◆' },
       { to: '/morning', label: '每日晨报', icon: '☀' },
       { to: '/replay', label: '决策回放', icon: '↺' },
       { to: '/p1', label: 'P1 量化信号', icon: '∑' },
-      { to: '/p1-construction', label: 'P1 组合构建诊断', icon: '📐' },
       { to: '/event-backtest', label: '事件因子回测', icon: '⌖' },
       { to: '/policy-transmission', label: '政策传导', icon: '📜' },
       { to: '/predictions', label: '预测校准日志', icon: '◴' },
-    ],
-  },
-  {
-    group: '智能助手与社区',
-    items: [
       { to: '/xingchen', label: '星辰 AI 助手', icon: '🌟' },
       { to: '/review-notes', label: '决策问答', icon: '❓' },
       { to: '/forum', label: '股吧社区', icon: '💬' },

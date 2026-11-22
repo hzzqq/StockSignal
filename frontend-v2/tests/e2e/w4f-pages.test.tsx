@@ -205,8 +205,8 @@ describe('W4-F · 接线守卫（源码真扫）', () => {
     expect(V1_PAGES.filter((p) => mappingOf(p).status === 'v1-only').map((p) => p.file)).toEqual([])
   })
 
-  it('新页已并入语义分组：NAV 7 组 / 每组 ≤12 项 / 图标与路径唯一', () => {
-    expect(NAV.length).toBe(7)
+  it('新页已并入语义分组：NAV 6 组 / 每组 ≤12 项 / 图标与路径唯一', () => {
+    expect(NAV.length).toBe(6)
     expect(NAV.every((g) => g.items.length <= 12)).toBe(true)
     const items = NAV.flatMap((g) => g.items)
     expect(new Set(items.map((i) => i.icon)).size).toBe(items.length)

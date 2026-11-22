@@ -8,7 +8,7 @@ import { ConstructionDiagSchema } from './constructionDiag'
 import raw from './data/constructionDiag.json'
 
 /**
- * /p1-construction（P1 组合构建诊断）三态 + 诚实红线。
+ * P1 组合构建诊断（/p1 页「组合构建诊断」tab，2026-11-22 由独立页 /p1-construction 并入）三态 + 诚实红线。
  * 数据来源：本地随包 JSON（constructionDiag.json），经 Zod 严格校验，零网络、零写入；
  * 故 ok 态直接喂解析后的真实快照，loading/error/empty 用可控 state 驱动。
  * ECharts 在 jsdom 无 canvas，按全站约定用轻量替身。

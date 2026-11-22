@@ -3604,15 +3604,29 @@ def fund_flow():
         )
         from modules.margin_trading import get_margin_trading_data, get_latest_margin_summary
         from modules.fetch_parallel import fetch_many
+        from modules.cache_utils import cached_ttl
+
+        def _ff_cached(key, fn):
+            """每块成功结果 TTL 10min 缓存（2026-11-22 修复：akshare 重试叠加 +
+            5 任务并发竞争下，timeout=14s 内四块全超时 → 页面永远「暂不可用」。
+            现成功结果缓存——深夜/弱网首次取到后 10 分钟内秒开；
+            失败不缓存（skip_empty=True），下次请求重试。"""
+            return cached_ttl(600, f"fundflow_{key}", fn, skip_empty=True)
 
         tasks = [
-            ("northbound", get_northbound_fund_flow),
-            ("industry", get_industry_fund_flow),
-            ("market", lambda: get_market_fund_flow(days=30)),
-            ("margin", lambda: get_margin_trading_data(days=180)),
-            ("margin_summary", get_latest_margin_summary),
+            ("northbound", lambda: _ff_cached("northbound", get_northbound_fund_flow)),
+            ("industry", lambda: _ff_cached("industry", get_industry_fund_flow)),
+            ("market", lambda: _ff_cached("market", lambda: get_market_fund_flow(days=30))),
+            ("margin", lambda: _ff_cached("margin", lambda: get_margin_trading_data(days=180))),
+            ("margin_summary", lambda: _ff_cached("margin_summary", get_latest_margin_summary)),
         ]
-        res = fetch_many(tasks, max_workers=5, timeout=14)
+        # 2026-11-22 真机取证：max_workers=5 并发下 stock_fund_flow_industry（同花顺）
+        # 底层 py_mini_racer(V8) 多线程同时首次初始化 →
+        # FATAL partition_address_space.cc IsConfigurablePoolInitialized → 整进程 abort。
+        # 改 max_workers=1 串行消除 V8 并发初始化竞争（与 shepherd_reconstruct/market_cache
+        # 的 V8 结论一致：同进程多线程并发必崩）；整批边界相应放宽到 45s，
+        # 超块被硬切为 None → 该块诚实降级，缓存后下次秒开。
+        res = fetch_many(tasks, max_workers=1, timeout=45)
     except Exception:  # noqa: BLE001 - 取数框架级异常：整页诚实降级
         res = {}
         unavailable.append("fetch_many")
@@ -3667,13 +3681,16 @@ def fund_flow():
         try:
             rows = []
             if ind is not None and not getattr(ind, "empty", True):
+                # 2026-11-22 真机取证：get_industry_fund_flow -> ak.stock_fund_flow_industry()
+                # （同花顺）「流入资金/流出资金/净额」列单位**已是亿**，直通不做 /1e8
+                # （旧代码当元再除 1e8 → 保险 12.5 亿显示成 1.25e-07）。
                 for _, r in ind.iterrows():
                     rows.append({
                         "industry": r.get("行业"),
                         "chg_pct": _flt(r.get("涨跌幅")),
-                        "inflow": _ff_yi(r.get("流入资金")),
-                        "outflow": _ff_yi(r.get("流出资金")),
-                        "net": _ff_yi(r.get("净额")),
+                        "inflow": _flt(r.get("流入资金")),
+                        "outflow": _flt(r.get("流出资金")),
+                        "net": _flt(r.get("净额")),
                         "leader": r.get("领涨股"),
                         "leader_chg_pct": _flt(r.get("领涨股涨跌幅")),
                     })
@@ -4206,7 +4223,11 @@ def dragon_tiger():
       绝不用 now()/today() 冒充数据日。请求日（date 入参）只是"向数据源要哪一天"
       的技术参数，与数据日是两回事（见 modules.lhb docstring）。
 
-    GET /api/v2/read/dragon-tiger?date=YYYYMMDD  （date 缺省用今天）
+    date 参数：YYYYMMDD；**缺省时自动回退最近一个交易日**（2026-11-22 老板需求：
+    此前缺省用今天，周末/节假日/盘前必空数据，页面永远「暂不可用」——现在
+    周末打开默认显示上一交易日的龙虎榜）。用户显式传 date 则按用户值查（查不到
+    照旧诚实降级，绝不悄悄换日期冒充）。
+    GET /api/v2/read/dragon-tiger?date=YYYYMMDD
     返回 date/data_date_available/count/net_col/net_sum_yi/buy_top/sell_top(各 [code,name,net_yi])/detail/unavailable。
     """
     date = (request.args.get("date") or "").strip() or None
@@ -4214,7 +4235,25 @@ def dragon_tiger():
     data_date = None
     try:
         from modules import lhb
-        df = lhb.fetch_lhb(date)
+        if date is None:
+            # 缺省自动回退：按 [今天(若为交易日), 上一交易日] 顺序探测，
+            # 取第一个有明细的日期（周末/节假日/盘中未披露不再永远空页）。
+            from modules.trading_calendar import is_trading_day, prev_trading_day
+            from datetime import date as _date
+            today = _date.today()
+            candidates = []
+            if is_trading_day(today):
+                candidates.append(today.strftime("%Y%m%d"))
+            candidates.append(prev_trading_day(today).strftime("%Y%m%d"))
+            for cand in candidates:
+                df = lhb.fetch_lhb(cand)
+                if df is not None and len(df) > 0:
+                    date = cand
+                    break
+            if df is None or len(df) == 0:
+                date = date or candidates[-1]
+        else:
+            df = lhb.fetch_lhb(date)
         if df is not None:
             # 数据日：从明细自带的日期列解析（真实数据日），解析不出 → None（不冒充）
             data_date = lhb.data_date(df)

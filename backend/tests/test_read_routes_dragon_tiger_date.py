@@ -188,3 +188,74 @@ def test_endpoint_net_col_missing_keeps_real_data_date(client, token, monkeypatc
     assert d["date"] == "20260915"
     assert d["data_date_available"] is True
     assert d["detail"] is not None, "明细仍要诚实保留"
+
+
+# ─────────────── 缺省日期自动回退最近交易日（2026-11-22 老板需求）───────────────
+def _stub_summarize(monkeypatch):
+    monkeypatch.setattr(lhb_mod, "summarize", lambda df: {
+        "count": 2, "net_col": "龙虎榜净买额", "net_sum": -3e7,
+        "buy_top": pd.DataFrame({"代码": ["600519"], "龙虎榜净买额": [5e7]}),
+        "sell_top": pd.DataFrame({"代码": ["000001"], "龙虎榜净买额": [-8e7]}),
+    })
+
+
+def test_endpoint_default_falls_back_to_prev_trading_day(client, token, monkeypatch):
+    """周末（今天非交易日）：今天不进候选，直接取上一交易日明细，页面不再永远空。"""
+    import modules.trading_calendar as tc
+    from datetime import date as _d
+
+    monkeypatch.setattr(tc, "is_trading_day", lambda d: False)
+    monkeypatch.setattr(tc, "prev_trading_day", lambda d: _d(2026, 11, 20))
+    calls = []
+
+    def fake_fetch(date=None):
+        calls.append(date)
+        return _df_with_date("2026-11-20") if date == "20261120" else None
+
+    monkeypatch.setattr(lhb_mod, "fetch_lhb", fake_fetch)
+    _stub_summarize(monkeypatch)
+
+    resp = client.get("/api/v2/read/dragon-tiger", headers=_auth(token))
+    assert resp.status_code == 200
+    d = resp.get_json()["data"]
+    assert calls == ["20261120"], f"非交易日应只探上一交易日，实际 {calls}"
+    assert d["date"] == "20261120"
+    assert d["data_date_available"] is True
+    assert d["count"] == 2
+
+
+def test_endpoint_default_probes_today_then_falls_back(client, token, monkeypatch):
+    """交易日盘中当天未披露：先探今天（空）→ 回退上一交易日。"""
+    import modules.trading_calendar as tc
+    from datetime import date as _d
+
+    monkeypatch.setattr(tc, "is_trading_day", lambda d: True)
+    monkeypatch.setattr(tc, "prev_trading_day", lambda d: _d(2026, 11, 20))
+    today_str = _d.today().strftime("%Y%m%d")
+    calls = []
+
+    def fake_fetch(date=None):
+        calls.append(date)
+        return _df_with_date("2026-11-20") if date == "20261120" else None
+
+    monkeypatch.setattr(lhb_mod, "fetch_lhb", fake_fetch)
+    _stub_summarize(monkeypatch)
+
+    resp = client.get("/api/v2/read/dragon-tiger", headers=_auth(token))
+    assert resp.status_code == 200
+    d = resp.get_json()["data"]
+    assert calls == [today_str, "20261120"], f"应先探今天再回退，实际 {calls}"
+    assert d["date"] == "20261120"
+
+
+def test_endpoint_explicit_date_never_silently_replaced(client, token, monkeypatch):
+    """用户显式传 date（查不到）：诚实降级，绝不悄悄换日期冒充。"""
+    calls = []
+    monkeypatch.setattr(lhb_mod, "fetch_lhb",
+                        lambda date=None: calls.append(date) or None)
+    resp = client.get("/api/v2/read/dragon-tiger?date=20260101", headers=_auth(token))
+    assert resp.status_code == 200
+    d = resp.get_json()["data"]
+    assert calls == ["20260101"], "显式日期只查用户给的这一天"
+    assert d["unavailable"] == ["lhb_fetch_failed"]
+    assert d["date"] is None

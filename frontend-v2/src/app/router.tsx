@@ -22,8 +22,7 @@ const LazyDashboard = lazyRouteComponent(() => import('@/features/dashboard/Dash
 const LazyDecisionPanel = lazyRouteComponent(() => import('@/features/decision/DecisionPanel'), 'DecisionPanel')
 const LazyDecisionReplay = lazyRouteComponent(() => import('@/features/decision/DecisionReplay'), 'DecisionReplay')
 const LazyMorningReport = lazyRouteComponent(() => import('@/features/morning/MorningReport'), 'MorningReport')
-const LazyP1Signals = lazyRouteComponent(() => import('@/features/p1/P1Signals'), 'P1Signals')
-const LazyP1Construction = lazyRouteComponent(() => import('@/features/p1/ConstructionDiagnostics'), 'ConstructionDiagnostics')
+const LazyP1Signals = lazyRouteComponent(() => import('@/features/p1/P1Tabbed'), 'P1Tabbed')
 const LazyRecommendation = lazyRouteComponent(() => import('@/features/recommend/Recommendation'), 'Recommendation')
 const LazyPaperTrades = lazyRouteComponent(() => import('@/features/paper/PaperTrades'), 'PaperTrades')
 const LazyAlerts = lazyRouteComponent(() => import('@/features/alerts/Alerts'), 'Alerts')
@@ -69,9 +68,7 @@ const LazyInflectionScan = lazyRouteComponent(() => import('@/features/analytics
 const LazyRegimeDuration = lazyRouteComponent(() => import('@/features/analytics/RegimeDuration'), 'RegimeDuration')
 const LazyMomentumResonance = lazyRouteComponent(() => import('@/features/breadth/MomentumResonance'), 'MomentumResonance')
 const LazyLimitUpReview = lazyRouteComponent(() => import('@/features/breadth/LimitUpReview'), 'LimitUpReview')
-const LazyMarketSentiment = lazyRouteComponent(() => import('@/features/market/MarketSentiment'), 'MarketSentiment')
-// 15 市场驱动力（2026-11-19）：五维归一化 / 相关热力 / CSV 派生页，复用 /market-sentiment 数据
-const LazyMarketDrivers = lazyRouteComponent(() => import('@/features/market/MarketDrivers'), 'MarketDrivers')
+const LazyMarketSentiment = lazyRouteComponent(() => import('@/features/market/MarketSentimentTabbed'), 'MarketSentimentTabbed')
 const LazyXingchen = lazyRouteComponent(() => import('@/features/xingchen/XingchenPage'), 'XingchenPage')
 const LazyEventBacktest = lazyRouteComponent(() => import('@/features/eventbacktest/EventFactorBacktest'), 'EventFactorBacktest')
 const LazyPolicyTransmission = lazyRouteComponent(() => import('@/features/policy/PolicyTransmission'), 'PolicyTransmission')
@@ -165,7 +162,10 @@ const p1Route = createRoute({
 const p1ConstructionRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/p1-construction',
-  component: LazyP1Construction,
+  // 2026-11-22 侧栏减臃肿：组合构建诊断并入 /p1 tab（P1Tabbed），旧路径永久重定向。
+  beforeLoad: () => {
+    throw redirect({ to: '/p1' })
+  },
 })
 
 const recommendRoute = createRoute({
@@ -475,12 +475,14 @@ const marketSentimentRoute = createRoute({
   component: LazyMarketSentiment,
 })
 
-// 15 市场驱动力（v2 native /market-drivers）：复用同一端点的 21 指标五维数据，
-// 五维归一化叠加 / 相关热力 / CSV 导出均为派生视图（端点无上证参考线与全量面板，页面如实标注）。
+// 15 市场驱动力（2026-11-22 侧栏减臃肿）：并入 /market-sentiment tab
+// （MarketSentimentTabbed，两视图本就复用同一端点 21 指标数据），旧路径永久重定向。
 const marketDriversRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/market-drivers',
-  component: LazyMarketDrivers,
+  beforeLoad: () => {
+    throw redirect({ to: '/market-sentiment' })
+  },
 })
 
 // 53 星辰 AI 助手（v2 native /xingchen）：多会话 + 后端持久化 + 404 回退旧单记录。

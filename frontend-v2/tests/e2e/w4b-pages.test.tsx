@@ -283,8 +283,8 @@ describe('W4-B · 个股研究页 ResearchView', () => {
 })
 
 describe('W4-B · 导航注册', () => {
-  it('7 组语义分类、个股页同归「个股研究」组共 8 项、图标全局唯一', () => {
-    expect(NAV.length).toBe(7)
+  it('6 组语义分类、个股页同归「个股研究」组共 8 项、图标全局唯一', () => {
+    expect(NAV.length).toBe(6)
     const g3 = NAV.find((g) => g.items.some((it) => it.to === '/stock/research'))
     expect(g3?.group).toBe('个股研究')
     expect(g3?.items.some((it) => it.to === '/stock/fundamentals')).toBe(true)
