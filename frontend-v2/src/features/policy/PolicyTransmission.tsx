@@ -72,8 +72,8 @@ export function PolicyTransmission() {
     <div className="flow">
       <h2 className="text-lg font-semibold">政策事件传导</h2>
       <p className="text-body text-sf-ink-3">
-        从政策原文出发，用本地行业映射做「标题 × 行业 → 标的」的共现传导链。关联度仅代表文本共现，
-        不是受益程度，更不是收益预测；口径与免责声明原样展示在下方法说明卡。
+        从政策原文出发，用本地行业映射做「标题 × 行业 → 标的」的共现传导链。<strong className="font-bold" style={{ color: 'var(--color-brand-1)' }}>关联度仅代表文本共现，
+        不是受益程度，更不是收益预测</strong>；口径与免责声明原样展示在下方法说明卡。
       </p>
 
       <QueryState

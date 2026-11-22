@@ -146,6 +146,13 @@ beforeEach(() => {
 })
 
 describe('PolicyTransmission · 三态与诚实红线', () => {
+  it('页首说明：关联度免责句用品牌色加粗强调（文案原样，仅视觉分层）', () => {
+    renderWithClient(<PolicyTransmission />)
+    const strong = screen.getByText(/关联度仅代表文本共现，\s*不是受益程度，更不是收益预测/)
+    expect(strong.tagName).toBe('STRONG')
+    expect(strong.getAttribute('style') ?? '').toContain('var(--color-brand-1)')
+  })
+
   it('loading 显示加载中占位', () => {
     renderWithClient(<PolicyTransmission />)
     expect(screen.getByText('加载中…')).toBeTruthy()

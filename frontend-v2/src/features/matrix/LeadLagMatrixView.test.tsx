@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import type { ReactElement } from 'react'
@@ -38,5 +40,24 @@ describe('LeadLagMatrixView 三态 + 诚实空态', () => {
     mocked.mockResolvedValue([])
     renderWithClient(<LeadLagMatrixView />)
     await expect(screen.findByText('有效样本不足，未计算矩阵')).resolves.toBeTruthy()
+  })
+
+  it('口径与结论重点词用品牌色加粗强调（文案原样，仅视觉分层）', () => {
+    const src = readFileSync(
+      resolve(process.cwd(), 'src/features/matrix/LeadLagMatrixView.tsx'),
+      'utf8',
+    )
+    for (const phrase of [
+      '有序对',
+      '互相关只描述协同/错位，非因果、非预测',
+      '不代表能预测次日涨跌',
+    ]) {
+      const close = `>${phrase}</strong>`
+      const idx = src.indexOf(close)
+      expect(idx, `未找到重点词：${phrase}`).toBeGreaterThan(-1)
+      const open = src.lastIndexOf('<strong', idx)
+      const tag = src.slice(open, idx + 1)
+      expect(tag, `${phrase} 应使用品牌色强调`).toContain('var(--color-brand-1)')
+    }
   })
 })

@@ -72,7 +72,7 @@ describe('65 投机情绪周期时钟（/sentiment-clock）', () => {
     // 首帧未取到数据时数据日如实显「—」，等端点回来才是权威数据日 2026-08-21。
     await waitFor(() => expect(screen.getByText(/数据截至 2026-08-21/)).toBeTruthy(), { timeout: 5000 })
     await waitFor(() => expect(screen.getAllByText('中性').length).toBeGreaterThan(0), { timeout: 5000 })
-    expect(screen.getByText(/全部为历史统计描述，不预测收益/)).toBeTruthy()
+    expect(screen.getByText(/数据截至/).textContent).toContain('全部为历史统计描述，不预测收益')
     expect(screen.getAllByTestId('echart').length).toBeGreaterThan(0)
     expect(seen).toContain('250')
 

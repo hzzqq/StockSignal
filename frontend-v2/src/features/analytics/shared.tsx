@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import type { BreadthAnalytics } from '@/api/schemas/read'
 import { Card } from '@/shared/ui/Card'
 import { EmptyState } from '@/shared/ui/States'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 65/67/68/69 四页共享骨架（v2 native）。
@@ -48,10 +49,12 @@ export function AnalyticsHeader({
 }) {
   return (
     <div>
-      <h2 className="text-lg font-semibold">{title}</h2>
+      <SectionTitle as="h2">{title}</SectionTitle>
       <p className="text-xs text-sf-ink-3 mt-1">{caption}</p>
       <p className="text-xs text-sf-ink-3 mt-1">
-        {`数据截至 ${data?.data_as_of ?? '—'}（离线健康镜像快照，非实时行情）。全部为历史统计描述，不预测收益、不构成买卖建议。`}
+        {`数据截至 ${data?.data_as_of ?? '—'}（离线健康镜像快照，非实时行情）。全部为历史统计描述，`}
+        <LeadText>不预测收益、不构成买卖建议</LeadText>
+        {`。`}
       </p>
     </div>
   )
@@ -100,7 +103,8 @@ export function DataBoundary({
       </p>
       <details className="mt-2 text-xs text-sf-ink-2">
         <summary className="cursor-pointer text-sf-ink-3">
-          以下 {missing.length} 个维度离线缺真值，一律剔除、不编造
+          以下 {missing.length} 个维度离线缺真值，
+          <LeadText>一律剔除、不编造</LeadText>
         </summary>
         <ul className="mt-2 space-y-1">
           {missing.map(([k, v]) => (
@@ -112,7 +116,7 @@ export function DataBoundary({
         <p className="mt-2 text-sf-ink-3">{MISSING_NOTE}</p>
       </details>
       {extra && <p className="mt-2 text-xs text-sf-ink-2">{extra}</p>}
-      <p className="mt-2 text-xs text-sf-ink-3">📐 方法学：{method}</p>
+      <SectionTitle as="p" className="mt-2">📐 方法学：{method}</SectionTitle>
       <p className="mt-1 text-xs text-sf-ink-3">{data.note}</p>
     </Card>
   )

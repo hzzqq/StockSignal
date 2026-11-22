@@ -262,11 +262,11 @@ function MarketDriversBody({
           v1《市场驱动力》用 21 指标按资金/情绪/估值/宏观/技术五维分组，叠加上证参考线，
           全部归一化到起点=100（约 180 天）。本页复用现成端点{' '}
           <code>/api/v2/read/market-sentiment</code>：仅拿到每个指标近 40 点原始 spark，
-          因此下方五维叠加图、相关热力与 CSV 均为<strong>派生</strong>视图（起点=100 / Pearson / 本地 Blob），
+          因此下方五维叠加图、相关热力与 CSV 均为<strong style={{ color: 'var(--color-brand-1)' }}>派生</strong>视图（起点=100 / Pearson / 本地 Blob），
           口径与 v1 不同。
         </p>
         <p className="text-label text-sf-ink-3 mt-2">
-          端点未提供上证参考线，也未提供全 180 天原始归一化面板；本页不编造这两项。
+          端点未提供上证参考线，也未提供全 180 天原始归一化面板；<strong style={{ color: 'var(--color-brand-1)' }}>本页不编造这两项</strong>。
           缺值显「—」或留空，不补零。
         </p>
       </Card>

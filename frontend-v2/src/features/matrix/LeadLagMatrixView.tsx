@@ -35,10 +35,10 @@ export function LeadLagMatrixView() {
       <Card title="统计口径与数据边界">
         <div className="flow text-body text-sf-ink-2">
           <p className="m-0">
-            每条结果是一个<strong className="text-sf-ink">有序对</strong>：lag=k 表示「前者取 t 日、后者取 t+k 日」，
+            每条结果是一个<strong className="font-bold" style={{ color: 'var(--color-brand-1)' }}>有序对</strong>：lag=k 表示「前者取 t 日、后者取 t+k 日」，
             即前者领先 k 个交易日；取 |corr| 最大的错位。表中 lag 带符号：
             正相关记 +k（同向领先），负相关记 −k（反向领先），与 v1 矩阵单元格口径一致。
-            <strong className="text-sf-ink">互相关只描述协同/错位，非因果、非预测</strong>。
+            <strong className="font-bold" style={{ color: 'var(--color-brand-1)' }}>互相关只描述协同/错位，非因果、非预测</strong>。
           </p>
           <p className="m-0">
             参与计算的离线可靠维度：{DIMENSIONS.map((d) => d.label).join(' / ')}。
@@ -115,7 +115,7 @@ export function LeadLagMatrixView() {
             </table>
           </div>
           <p className="text-label text-sf-ink-3 mt-3">
-            相关系数绝对值大只说明两条序列形状相似，不代表能预测次日涨跌；
+            相关系数绝对值大只说明两条序列形状相似，<strong className="font-bold" style={{ color: 'var(--color-brand-1)' }}>不代表能预测次日涨跌</strong>；
             派生维度之间的高相关还可能是机械相关（见上方警示）。
           </p>
         </Card>

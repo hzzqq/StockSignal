@@ -118,6 +118,20 @@ describe('MarketDrivers · 三态 + 五维派生 + 诚实降级', () => {
     for (const c of charts) expect((c.getAttribute('aria-label') ?? '').length).toBeGreaterThan(8)
   })
 
+  it('口径说明重点词用品牌色加粗强调（文案原样，仅视觉分层）', () => {
+    mocked.mockReturnValue(setState({ data: okData }))
+    const { container } = render(<MarketDrivers />)
+    const targets = Array.from(container.querySelectorAll('strong')).filter((s) =>
+      ['派生', '本页不编造这两项'].includes((s.textContent ?? '').trim()),
+    )
+    expect(targets.length, '派生 / 本页不编造这两项 两处强调都应存在').toBe(2)
+    for (const s of targets) {
+      expect(s.getAttribute('style') ?? '', `${s.textContent} 应带品牌色强调`).toContain(
+        'var(--color-brand-1)',
+      )
+    }
+  })
+
   it('缺失显「—」：数据日/温度不可得不补 0，空维度显式标注', () => {
     mocked.mockReturnValue(setState({ data: missingData }))
     render(<MarketDrivers />)
