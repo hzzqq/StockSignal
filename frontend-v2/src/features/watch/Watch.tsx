@@ -4,6 +4,7 @@ import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { CHART } from '@/shared/charts/palette'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 // v1 自选股 / 垃圾股 / 自定义打写的写能力（后端早有 REST 端点，v2 此前只有只读盯盘壳）。
 import { WatchWritePanels } from './WatchWritePanels'
 
@@ -82,7 +83,7 @@ export function Watch() {
 
   return (
     <div className="watch">
-      <h2 className="text-lg font-semibold">智能盯盘</h2>
+      <SectionTitle as="h2">智能盯盘</SectionTitle>
       <div className="text-xs text-sf-ink-3">
         红涨绿跌；聚合自选股主力资金流、板块资金异动与资金流阈值预警。实时现价 / 涨跌幅未在此只读端点聚合
         （实时行情取数依赖 Streamlit 单例，Flask 上下文不可用），看实时价请用个股分时 / 行情端点或 v1 盯盘页。
@@ -237,8 +238,9 @@ export function Watch() {
 
       <div className="mt-8">
         <div className="text-xs text-sf-ink-3">
-          ⚠️ 说明：本页为自选股与板块资金流异动的快照监控，非预测模型，不构成投资建议；
-          资金流为页面加载时点数据，盘中读数可能有延迟。实时现价需在个股分时 / 行情端点查看。
+          {`⚠️ 说明：本页为自选股与板块资金流异动的快照监控，`}
+          <LeadText>非预测模型，不构成投资建议</LeadText>
+          {`； 资金流为页面加载时点数据，盘中读数可能有延迟。实时现价需在个股分时 / 行情端点查看。`}
         </div>
       </div>
 

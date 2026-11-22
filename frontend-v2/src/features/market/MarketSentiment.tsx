@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMarketSentiment } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Loading, EmptyState, ErrorState } from '@/shared/ui/States'
+import { SectionTitle } from '@/shared/ui/EmphasisText'
 
 /** 迷你走势：把近 40 日序列画成折线；含 null 时按有效点缩放，全 null 显「—」。 */
 function Spark({ values }: { values: Array<number | null> }) {
@@ -38,7 +39,7 @@ export function MarketSentiment() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">市场情绪 · 温度计</h2>
+      <SectionTitle as="h2">市场情绪 · 温度计</SectionTitle>
       <p className="text-xs text-sf-ink-3">
         综合市场温度由可用指标近期分位多空加权得出（高=热：ADR/涨停/PE/北向/融资净买；高=冷：VIX/PCR/股息率）。
         温度计为风险/健康语义，与价格涨跌红绿无关。

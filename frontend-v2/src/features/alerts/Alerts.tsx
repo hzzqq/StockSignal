@@ -1,6 +1,7 @@
 import { useAlertRules, useAlertLog } from '@/lib/queries'
 import { QueryState } from '@/shared/ui/States'
 import { Card } from '@/shared/ui/Card'
+import { SectionTitle } from '@/shared/ui/EmphasisText'
 // v1 47 价格预警 / 94 市场异动提醒的写能力（后端早有 REST 端点，v2 此前整批悬空）。
 import { AlertWritePanels } from './AlertWritePanels'
 
@@ -11,7 +12,7 @@ export function Alerts() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">告警引擎</h2>
+      <SectionTitle as="h2">告警引擎</SectionTitle>
 
       <Card title="告警规则（alert_rules.json）">
         <QueryState

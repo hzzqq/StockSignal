@@ -3,6 +3,7 @@ import { useLimitUpReview } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { Loading, EmptyState, ErrorState } from '@/shared/ui/States'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 const DATE_RE = /^\d{8}$/
 
@@ -39,9 +40,11 @@ export function LimitUpReview() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">涨停复盘 × 龙头识别</h2>
+      <SectionTitle as="h2">涨停复盘 × 龙头识别</SectionTitle>
       <p className="text-xs text-sf-ink-3">
-        数据源：东方财富涨停池（10 分钟缓存，非实时行情）。龙头评分为启发式加权，不构成投资建议。
+        {`数据源：东方财富涨停池（10 分钟缓存，非实时行情）。龙头评分为启发式加权，`}
+        <LeadText>不构成投资建议</LeadText>
+        {`。`}
       </p>
 
       <Card>

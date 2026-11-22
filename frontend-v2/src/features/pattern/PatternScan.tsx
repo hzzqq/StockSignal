@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { usePatternScan } from './usePatternScan'
 import { Card } from '@/shared/ui/Card'
 import { StockSearchInput } from '@/shared/ui/StockSearchInput'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 import type { PatternItem } from '@/api/schemas/patternScan'
 
 /**
@@ -55,11 +56,11 @@ export function PatternScan() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">技术形态扫描</h2>
+      <SectionTitle as="h2">技术形态扫描</SectionTitle>
       <p className="text-xs text-sf-ink-3">
-        在给定股票池上识别 MACD / 均线 / KDJ 金叉死叉与顶底背离（来自 v1 31 页的离线纯函数算法）。
-        形态是历史技术描述，不是收益预测，也不构成投资建议。
-        扫描以后台任务运行，切页不打断；结果为本次会话内存态，页面刷新后清空。
+        {`在给定股票池上识别 MACD / 均线 / KDJ 金叉死叉与顶底背离（来自 v1 31 页的离线纯函数算法）。 形态是历史技术描述，`}
+        <LeadText>不是收益预测，也不构成投资建议</LeadText>
+        {`。 扫描以后台任务运行，切页不打断；结果为本次会话内存态，页面刷新后清空。`}
       </p>
 
       <Card title="扫描池">

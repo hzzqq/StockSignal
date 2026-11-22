@@ -7,6 +7,7 @@ import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { fmtNum } from '@/lib/format'
+import { SectionTitle } from '@/shared/ui/EmphasisText'
 
 /**
  * W3 后续簇 · 事件因子池页（/events）。
@@ -21,7 +22,7 @@ export function EventPoolView() {
   return (
     <div className="flow">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-semibold">事件因子池</h2>
+        <SectionTitle as="h2">事件因子池</SectionTitle>
         <span className="text-label text-sf-ink-3">数据源 event_pool_brief</span>
         <a
           href="/breadth"

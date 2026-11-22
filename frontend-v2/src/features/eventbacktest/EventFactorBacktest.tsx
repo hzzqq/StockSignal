@@ -8,6 +8,7 @@ import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
+import { SectionTitle } from '@/shared/ui/EmphasisText'
 
 /**
  * 事件因子回测页（全新页，对应 IA-MIGRATION W4 后续簇 / 量化硬证据）。
@@ -71,7 +72,7 @@ export function EventFactorBacktest() {
 
   return (
     <div className="flow">
-      <h2 className="text-lg font-semibold">事件因子回测</h2>
+      <SectionTitle as="h2">事件因子回测</SectionTitle>
       <p className="text-body text-sf-ink-3">
         选一个市场广度事件，看它在前向 N 日里对「市场红盘日占比」的统计边缘。离线 walk-forward，无未来函数。
       </p>

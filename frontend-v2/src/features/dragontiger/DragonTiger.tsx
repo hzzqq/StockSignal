@@ -8,6 +8,7 @@ import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 85 页「龙虎榜」V2 化（对应 V2-STATUS-PLAN Tier2）。
@@ -109,7 +110,7 @@ export function DragonTiger() {
 
   return (
     <div className="dragon-tiger">
-      <h2 className="text-lg font-semibold">龙虎榜</h2>
+      <SectionTitle as="h2">龙虎榜</SectionTitle>
       <div className="text-xs text-sf-ink-3">
         席位级资金博弈（东方财富龙虎榜）：谁在上榜、净买还是净卖。数据源 akshare，按交易日更新，非实时行情；
         取不到就显示「取不到」，绝不用示例数据填充；净买列识别不到时不猜列编资金方向。
@@ -211,8 +212,9 @@ export function DragonTiger() {
             )}
 
             <div className="text-xs text-sf-ink-3">
-              口径与来源：龙虎榜明细=东财接口（modules.lhb.fetch_lhb，30 分钟缓存，按交易日更新，非实时行情）；
-              净买额口径以数据源列为准（列名识别不到时排名整体降级为 None，不用错列编资金方向）。席位行为为历史事实披露，不构成投资建议。
+              {`口径与来源：龙虎榜明细=东财接口（modules.lhb.fetch_lhb，30 分钟缓存，按交易日更新，非实时行情）； 净买额口径以数据源列为准（列名识别不到时排名整体降级为 None，不用错列编资金方向）。席位行为为历史事实披露，`}
+              <LeadText>不构成投资建议</LeadText>
+              {`。`}
             </div>
           </div>
         ) : null}

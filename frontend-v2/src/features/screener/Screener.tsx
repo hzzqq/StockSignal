@@ -9,6 +9,7 @@ import { v1PageUrl } from '@/lib/preferences'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 import { NlExecutePanel } from './NlExecutePanel'
 
 /**
@@ -130,7 +131,7 @@ export function Screener() {
 
   return (
     <div className="flow space-y-4">
-      <h2 className="text-lg font-semibold">选股框架</h2>
+      <SectionTitle as="h2">选股框架</SectionTitle>
 
       <div className="rounded-tile bg-sf-surface-2 px-3 py-2 text-xs text-sf-ink-3">
         ⚠️ <span className="font-medium text-sf-ink">列出 ≠ 已实现</span>：本页把 v1 三类选股意图
@@ -234,9 +235,9 @@ export function Screener() {
       </Card>
 
       <div className="text-xs text-sf-ink-3">
-        口径与来源：入口清单对齐 router.tsx 真实路由；状态与说明读 v2Mapping.ts（单一真理源）；
-        语义解析复用 modules.nl_screen.parse_query（纯函数、确定性、不触网）。
-        全部内容为学习用途，不构成投资建议。
+        {`口径与来源：入口清单对齐 router.tsx 真实路由；状态与说明读 v2Mapping.ts（单一真理源）； 语义解析复用 modules.nl_screen.parse_query（纯函数、确定性、不触网）。 全部内容为学习用途，`}
+        <LeadText>不构成投资建议</LeadText>
+        {`。`}
       </div>
     </div>
   )

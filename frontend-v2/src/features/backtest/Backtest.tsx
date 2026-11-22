@@ -10,6 +10,7 @@ import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 30 页「策略回测」V2 化落地（对应 IA-MIGRATION.md W4 后续簇）。
@@ -52,7 +53,7 @@ export function Backtest() {
 
   return (
     <div className="flow">
-      <h2 className="text-lg font-semibold">策略回测</h2>
+      <SectionTitle as="h2">策略回测</SectionTitle>
 
       {/* 控制区 */}
       <Card title="回测参数">
@@ -278,7 +279,9 @@ function BacktestBody({ data }: { data: BacktestData }) {
 
       {data.note && (
         <div className="text-xs text-sf-ink-3">
-          {data.note} 回测为历史模拟，不代表未来收益。
+          {data.note}{' '}
+          <LeadText>回测为历史模拟，不代表未来收益</LeadText>
+          {`。`}
         </div>
       )}
     </div>

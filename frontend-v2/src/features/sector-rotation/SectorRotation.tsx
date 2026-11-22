@@ -7,6 +7,7 @@ import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 12 页「板块轮动热力图」V2 化（对应 V2-STATUS-PLAN Tier2）。
@@ -159,7 +160,7 @@ export function SectorRotation() {
 
   return (
     <div className="sector-rotation">
-      <h2 className="text-lg font-semibold">板块轮动热力图</h2>
+      <SectionTitle as="h2">板块轮动热力图</SectionTitle>
       <div className="text-xs text-sf-ink-3">
         红涨绿跌；热力图块大小代表资金净流入（亿元），颜色代表涨跌幅。各视图独立取数。
         行业资金流接口可能受网络限制，稍后重试即可。
@@ -334,8 +335,9 @@ export function SectorRotation() {
 
       <div className="mt-8">
         <div className="text-xs text-sf-ink-3">
-          ⚠️ 说明：本页为行业板块强弱与资金流向的快照展示，非预测模型，不构成投资建议；
-          行业资金流为页面加载时点数据，盘中读数可能有延迟。
+          {`⚠️ 说明：本页为行业板块强弱与资金流向的快照展示，`}
+          <LeadText>非预测模型，不构成投资建议</LeadText>
+          {`； 行业资金流为页面加载时点数据，盘中读数可能有延迟。`}
         </div>
       </div>
     </div>
