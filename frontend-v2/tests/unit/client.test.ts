@@ -41,6 +41,25 @@ describe('apiFetch · 非 JSON / 非信封错误必须保留 HTTP 状态', () =>
     })
   })
 
+  it('502 空响应 → 保留状态码/片段，并提示拉起 5050 后端（2026-11-22 真机故障）', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(new Response('', { status: 502, statusText: 'Bad Gateway' }))))
+    const err = await apiFetch('/v2/read/six-dim?code=600519').catch((e: unknown) => e)
+    expect((err as ApiError).code).toBe('http_error')
+    expect((err as ApiError).message).toContain('HTTP 502')
+    expect((err as ApiError).message).toContain('空响应')
+    expect((err as ApiError).message).toContain('start_frontend_v2.bat')
+    expect((err as ApiError).message).toContain('5050')
+  })
+
+  it('502 非空 HTML 网关页 → 不追加「未启动」猜测（有响应体说明不是空响应场景）', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(
+      new Response('<html>gateway</html>', { status: 502, statusText: 'Bad Gateway' }),
+    )))
+    const err = await apiFetch('/x').catch((e: unknown) => e)
+    expect((err as ApiError).message).toContain('<html>')
+    expect((err as ApiError).message).not.toContain('start_frontend_v2.bat')
+  })
+
   it('200 但不是统一信封 → 带 HTTP 200 和原始片段，不静默当成功', async () => {
     vi.stubGlobal('fetch', vi.fn().mockImplementation(() => Promise.resolve(jsonResponse(200, { foo: 1 }))))
     const err = await apiFetch('/whatever').catch((e: unknown) => e)

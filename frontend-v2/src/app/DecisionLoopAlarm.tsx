@@ -39,9 +39,14 @@ export function DecisionLoopAlarm() {
     // 真实部署曾显示「资源不存在」：旧后端进程没有 /decision-loop-health 端点。
     // 这是版本 / 部署问题，不是调度停摆；必须区分，否则运维会误判决策闭环已死。
     const endpointMissing = code === 'not_found' || /\b404\b/.test(raw)
+    // 502/503/504 = 网关拿不到后端（Flask 未启动/已退出），与「端点不存在」是两回事：
+    // 前者拉起服务即可恢复，后者是版本问题。误判会让老板去查错方向。
+    const gatewayDown = /\b(502|503|504)\b/.test(raw)
     const why = endpointMissing
       ? '后端未提供该端点（服务可能未重启 / 版本过旧）；请在「数据源与接口检测」确认'
-      : raw
+      : gatewayDown
+        ? '后端服务未启动或已退出（网关 5xx）；请用 start_frontend_v2.bat 拉起 5050 后点「重新检测」'
+        : raw
     return (
       <div role="alert" className={`mb-3 flex flex-wrap items-center gap-2 rounded-tile border px-3 py-2 text-body ${tone(true)}`}>
         <strong className="font-semibold">决策闭环健康状态不可得</strong>

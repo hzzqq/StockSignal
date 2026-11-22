@@ -31,9 +31,18 @@ async function readEnvelope(res: Response): Promise<Envelope> {
     json = JSON.parse(raw)
   } catch {
     const snippet = raw.trim().slice(0, 120) || '空响应'
+    // 502/503/504 且空响应 = Vite proxy 后端的 Flask 未启动/已退出（ECONNREFUSED
+    // 会被代理转成 502），保留原始状态码与片段，仅在末尾给可操作提示。
+    // 真机故障（2026-11-22）：老板看到「HTTP 502…空响应」但不知该做什么——
+    // 真因只是 5050 后端停了（logs/active_ports_v2.json 还假绿写着 ok=true）。
+    const gatewayDown = (res.status === 502 || res.status === 503 || res.status === 504)
+      && !raw.trim()
+    const hint = gatewayDown
+      ? '；后端服务可能未启动，请用 start_frontend_v2.bat 拉起 5050 后重试'
+      : ''
     throw new ApiError(
       'http_error',
-      `HTTP ${res.status} ${res.statusText}：响应不是 JSON（${snippet}）`,
+      `HTTP ${res.status} ${res.statusText}：响应不是 JSON（${snippet}）${hint}`,
     )
   }
   const parsed = EnvelopeResponse.safeParse(json)

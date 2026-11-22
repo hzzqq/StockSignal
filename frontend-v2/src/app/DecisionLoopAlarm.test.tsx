@@ -100,6 +100,16 @@ describe('DecisionLoopAlarm · 决策闭环停摆告警（AC4–AC7）', () => {
     expect(screen.getByRole('link', { name: /去检测/ })).toBeTruthy()
   })
 
+  it('502 网关错误 → 提示后端未启动/已退出，不与 404 端点缺失混淆', () => {
+    query({ isError: true, error: new ApiError('http_error', 'HTTP 502 Bad Gateway：响应不是 JSON（空响应）') })
+    render(<DecisionLoopAlarm />)
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent).toContain('后端服务未启动或已退出')
+    expect(alert.textContent).toContain('start_frontend_v2.bat')
+    expect(alert.textContent).not.toContain('后端未提供该端点')
+    expect(screen.queryByRole('link', { name: /去检测/ })).toBeNull()
+  })
+
   it('自动轮询间隔为 60s（AC7）', () => {
     expect(HEALTH_REFETCH_INTERVAL_MS).toBe(60_000)
   })

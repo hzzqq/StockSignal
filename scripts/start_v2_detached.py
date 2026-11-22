@@ -265,6 +265,10 @@ def _run(backend_port: int, frontend_port: int) -> int:
             "pids": effective_pids,
             "backend_ok": backend_ok,
             "frontend_ok": frontend_ok,
+            # 真实故障（2026-11-22）：老板看到 backend_ok=true 却处处 502——
+            # 状态文件是上次启动时的快照，后端随后退出不会自动改写。
+            # 带 UTC 检查时间，超 5 分钟即视为陈旧、必须现场复测而非照读。
+            "checked_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
         }, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )

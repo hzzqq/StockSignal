@@ -156,6 +156,10 @@ def test_launcher_honesty_and_idempotency_contract(tmp_path):
     assert "port_in_use(backend_port)" in src
     assert "same_ports" in src and "effective_pids" in src, "重复启动不得抹掉已有真实 PID"
     assert "backend_ok" in src and "frontend_ok" in src, "状态文件必须记录真实健康结果"
+    assert "checked_at" in src, (
+        "状态文件必须带检查时间：2026-11-22 真机故障中 backend_ok=true 但服务早已退出，"
+        "无时间戳无法识别陈旧快照"
+    )
     assert "SS_OPEN_BROWSER" in src, "浏览器只允许打开一次"
     assert "webbrowser.open" in src
     # 日志轮转：无限追加会拖垮磁盘，spawn 必须真正调用且行为正确
