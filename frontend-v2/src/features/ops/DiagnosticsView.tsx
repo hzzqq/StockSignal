@@ -8,6 +8,7 @@ import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { fmtNum } from '@/lib/format'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * W4-D · 数据源与接口检测页（/diagnostics）——两块检测放同一页。
@@ -84,7 +85,7 @@ export function DiagnosticsView() {
   return (
     <div className="flow">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-semibold">数据源与接口检测</h2>
+        <SectionTitle as="h2">数据源与接口检测</SectionTitle>
         <span className="text-label text-sf-ink-3">主动检测 · 默认不触网</span>
       </div>
 
@@ -239,7 +240,9 @@ export function DiagnosticsView() {
                 <p className="text-label text-sf-ink-3">
                   端点清单由后端从 Flask 路由表动态枚举（共 {endpoints.length} 个，其中 {skippedCount} 个需参数（路径或 query）、跳过自动探测）。
                   检测对每个可探测端点发起真实 GET，记录 HTTP 状态、信封 status/code 与往返耗时；并发上限 4、单请求硬超时 8 秒。
-                  「业务降级」指后端如实返回无数据/样本不足/计算不可用（HTTP 200 + status=error），不是接口故障，但仍不计入成功数。
+                  {` 「业务降级」指后端如实返回无数据/样本不足/计算不可用（HTTP 200 + status=error），`}
+                  <LeadText>不是接口故障，但仍不计入成功数</LeadText>
+                  {`。`}
                 </p>
                 {probeError ? <p className="text-body text-sf-warn mt-2">检测异常：{probeError}</p> : null}
                 {endpointResults && endpointResults.length > 0 ? (

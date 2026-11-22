@@ -4,6 +4,7 @@ import { useTemperatureBacktest } from '@/lib/queriesBatchB'
 import { Card } from '@/shared/ui/Card'
 import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 63 全温度档历史回测（v2 native /temperature-backtest）。
@@ -63,10 +64,11 @@ export function TemperatureBacktest() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">温度档历史回测</h2>
+      <SectionTitle as="h2">温度档历史回测</SectionTitle>
       <p className="text-xs text-sf-ink-3">
-        把每个历史交易日按红盘率归入五档，分别统计其后 1 日 / 5 日的红盘率变化。
-        这是历史统计，不是收益预测；样本不足 50 的档位标注低置信。
+        {`把每个历史交易日按红盘率归入五档，分别统计其后 1 日 / 5 日的红盘率变化。 `}
+        <LeadText>这是历史统计，不是收益预测</LeadText>
+        {`；样本不足 50 的档位标注低置信。`}
       </p>
 
       <Card title="回测窗口">

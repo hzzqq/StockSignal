@@ -5,6 +5,7 @@ import { mappingOf, statusCounts, type V2Status } from './v2Mapping'
 import { v1PageUrl } from '@/lib/preferences'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * v1 功能全景（/catalog）：把 v1 的**全部**功能页纳入 v2 的可发现入口。
@@ -84,14 +85,16 @@ export function CatalogView() {
   return (
     <div className="flow">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">v1 功能全景</h2>
+        <SectionTitle as="h2">v1 功能全景</SectionTitle>
         <Link to="/settings" className="text-body text-sf-accent hover:underline">设置 v1 地址 →</Link>
       </div>
 
       <p className="text-label text-sf-ink-3">
         本页列出 v1 全部 {V1_PAGES_TOTAL} 个功能页，清单由 <code className="font-mono">scripts/gen_v1_pages.py</code> 扫描
         <code className="font-mono"> pages/*.py </code>生成（非手写），并有漂移守卫逐项核对。
-        <strong>列出 ≠ 已实现</strong>：「关联数据」只是查看真实只读端点，不等同于该功能；「待迁移」表示 v2 尚未迁移；「v1 保留」表示 v2 明确不做等价实现（如实盘交易等真实下单能力）。
+        <strong>列出 ≠ 已实现</strong>{`：关联数据」只是查看真实只读端点，不等同于该功能；`}
+        <LeadText>「待迁移」表示 v2 尚未迁移</LeadText>
+        {`；「v1 保留」表示 v2 明确不做等价实现（如实盘交易等真实下单能力）。`}
       </p>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">

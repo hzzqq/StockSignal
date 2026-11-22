@@ -17,6 +17,7 @@ import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { inkForCell } from '@/lib/domainColor'
 import { fmtNum } from '@/lib/format'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 import { KLineChart } from './charts/KLineChart'
 import { IntradayChart } from './charts/IntradayChart'
 import { submitAnalysisTask, useCompositeTask } from './scoreTask'
@@ -62,7 +63,7 @@ export function ResearchView({ search }: ResearchViewProps) {
   return (
     <div className="flow">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-semibold">个股研究</h2>
+        <SectionTitle as="h2">个股研究</SectionTitle>
         <span className="text-label text-sf-ink-3">数据源 stock-kline</span>
         <Link
           to="/stock/fundamentals"
@@ -593,7 +594,9 @@ function CompositeSection({ code }: { code: string }) {
       <section className="rounded-tile border border-sf-line bg-sf-surface-2 p-3">
         <h4 className="text-body font-semibold text-sf-ink mb-2">五维综合评分</h4>
         <div role="status" className="text-body text-sf-ink-2">
-          任务完成但后端未返回综合评分（composite 缺失），如实展示，不伪造分数。
+          {`任务完成但后端未返回综合评分（composite 缺失），`}
+          <LeadText>如实展示，不伪造分数</LeadText>
+          {`。`}
         </div>
       </section>
     )

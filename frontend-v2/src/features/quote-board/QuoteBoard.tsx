@@ -7,6 +7,7 @@ import { CollapsibleRankTable, type RankColumn } from '@/shared/ui/CollapsibleRa
 import { RetestButton } from '@/shared/ui/RetestButton'
 import { CHART } from '@/shared/charts/palette'
 import { openKLine } from '@/features/stock/charts/klineOverlayStore'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 10 页「行情看板」V2 化（对应 V2-STATUS-PLAN Tier2 最后一页）。
@@ -146,7 +147,7 @@ export function QuoteBoard() {
   return (
     <div className="quote-board">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h2 className="text-lg font-semibold">行情看板</h2>
+        <SectionTitle as="h2">行情看板</SectionTitle>
         {ms?.text ? (
           <span
             className="inline-block rounded px-2 py-1 text-[11px] border"
@@ -291,7 +292,13 @@ export function QuoteBoard() {
       </QueryState>
 
       <div className="mt-8 text-xs text-sf-ink-3">
-        ⚠️ {d?.note ?? '说明：本页为只读行情快照，非预测模型，不构成投资建议；指数为日线级数据，盘中读数可能有延迟。'}
+        ⚠️ {d?.note ?? (
+          <>
+            {`说明：本页为只读行情快照，`}
+            <LeadText>非预测模型，不构成投资建议</LeadText>
+            {`；指数为日线级数据，盘中读数可能有延迟。`}
+          </>
+        )}
       </div>
     </div>
   )

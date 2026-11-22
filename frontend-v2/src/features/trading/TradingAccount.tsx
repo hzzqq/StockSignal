@@ -3,6 +3,7 @@ import { useTradingAccount } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 import { CHART } from '@/shared/charts/palette'
 
 /**
@@ -49,10 +50,12 @@ export function TradingAccount() {
 
   return (
     <div className="trade">
-      <h2 className="text-lg font-semibold">交易账户（只读概览）</h2>
+      <SectionTitle as="h2">交易账户（只读概览）</SectionTitle>
       <div className="text-xs text-sf-ink-3">
         V2 此处仅只读聚合本地模拟账本（账户 / 持仓 / 订单流水），<span className="text-sf-ink">不提供实时下单</span>；
-        真实券商（QMT / 同花顺）下单能力在 v1 实盘交易页。数据仅供参考，非投资建议。
+        {` 真实券商（QMT / 同花顺）下单能力在 v1 实盘交易页。`}
+        <LeadText>数据仅供参考，非投资建议</LeadText>
+        {`。`}
       </div>
 
       <QueryState

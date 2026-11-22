@@ -6,6 +6,7 @@ import type { Financials } from '@/api/schemas/stock'
 import { Card } from '@/shared/ui/Card'
 import { QueryState } from '@/shared/ui/States'
 import { fmtNum } from '@/lib/format'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 import { EarningsHunterPanel } from './EarningsHunterPanel'
 
 /**
@@ -45,7 +46,7 @@ export function FinancialHunter({ search }: FinancialHunterProps) {
   return (
     <div className="flow">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-semibold">财报猎手</h2>
+        <SectionTitle as="h2">财报猎手</SectionTitle>
         <span className="text-label text-sf-ink-3">数据源 financials（三表合并，逐报表切换）</span>
       </div>
 
@@ -122,7 +123,11 @@ function HunterBody({ data, code }: { data: Financials; code: string }) {
             本页上半部分为「逐股票深挖」视图：输入 6 位代码后按所选报表展示多期财务数据；
             跨股筛选由下方「业绩预告信号扫描」面板承接（parity D，东财业绩预告 best-effort）。
           </li>
-          <li>数据日来自后端原始响应，可能来自过期缓存（旧交易日），不标注「今日」。</li>
+          <li>
+            {`数据日来自后端原始响应，`}
+            <LeadText>可能来自过期缓存（旧交易日），不标注「今日」</LeadText>
+            {`。`}
+          </li>
         </ul>
       </Card>
 

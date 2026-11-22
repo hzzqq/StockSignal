@@ -6,6 +6,7 @@ import { probeKind, BUSINESS_DEGRADED_CODES } from '@/api/schemas/diagnostics'
 import type { ProbeKind } from '@/api/schemas/diagnostics'
 import { Card } from '@/shared/ui/Card'
 import { QueryState } from '@/shared/ui/States'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 只读端点数据浏览器（/data）。
@@ -216,13 +217,15 @@ export function DataSourceView({ initialPath = '' }: { initialPath?: string }) {
   return (
     <div className="flow">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">只读端点数据浏览器</h2>
+        <SectionTitle as="h2">只读端点数据浏览器</SectionTitle>
         <Link to="/catalog" className="text-body text-sf-accent hover:underline">返回功能全景 →</Link>
       </div>
 
       {mocked ? (
         <p role="status" className="text-label text-sf-warn">
-          当前为开发 Mock 环境：下方响应可能来自 MSW 夹具，不代表真实后端数据。
+          {`当前为开发 Mock 环境：下方响应可能来自 MSW 夹具，`}
+          <LeadText>不代表真实后端数据</LeadText>
+          {`。`}
         </p>
       ) : null}
 

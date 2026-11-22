@@ -8,6 +8,7 @@ import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 56 页「市场状态机」V2 化落地。
@@ -43,7 +44,7 @@ export function MarketRegime() {
 
   return (
     <div className="flow">
-      <h2 className="text-lg font-semibold">市场状态机</h2>
+      <SectionTitle as="h2">市场状态机</SectionTitle>
 
       <Card title="类比参数">
         <div className="flex items-center gap-3">
@@ -216,7 +217,11 @@ function RegimeBody({ data }: { data: MarketPanoramaData }) {
             </table>
           </div>
         )}
-        <div className="mt-2 text-xs text-sf-ink-3">⚠️ 历史相似 ≠ 预测，下表为相似日之后真实市场表现统计，仅供情境参照。</div>
+        <div className="mt-2 text-xs text-sf-ink-3">
+          {`⚠️ `}
+          <LeadText>历史相似 ≠ 预测</LeadText>
+          {`，下表为相似日之后真实市场表现统计，仅供情境参照。`}
+        </div>
       </Card>
 
       {data.note && <div className="text-xs text-sf-ink-3">{data.note}</div>}

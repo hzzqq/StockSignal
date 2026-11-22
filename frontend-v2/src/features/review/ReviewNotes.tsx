@@ -4,6 +4,7 @@ import { useSaveReviewNotes, useUploadReviewImage } from '@/lib/queriesBatchB'
 import { reviewImagePrecheckError } from '@/api/batchB'
 import { Card } from '@/shared/ui/Card'
 import { EmptyState } from '@/shared/ui/States'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 const INPUT_CLS =
   'mt-1 w-full bg-sf-bg border border-sf-line text-sf-ink rounded px-2 py-1.5 outline-none focus:border-sf-accent'
@@ -112,9 +113,11 @@ export function ReviewNotes() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">决策问答</h2>
+      <SectionTitle as="h2">决策问答</SectionTitle>
       <p className="text-xs text-sf-ink-3">
-        逐日复盘笔记（只读视图）。本地若无该日期复盘笔记，会如实显示「暂无」，不编造。
+        {`逐日复盘笔记（只读视图）。本地若无该日期复盘笔记，会如实显示「暂无」，`}
+        <LeadText>不编造</LeadText>
+        {`。`}
       </p>
 
       <Card>

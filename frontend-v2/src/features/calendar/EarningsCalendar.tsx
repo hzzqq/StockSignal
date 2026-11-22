@@ -4,6 +4,7 @@ import { Card } from '@/shared/ui/Card'
 import { Loading, EmptyState, ErrorState } from '@/shared/ui/States'
 import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { EarningsFinancialModal } from './EarningsFinancialModal'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 const MARKETS = ['沪深京', '沪市', '深市'] as const
 const PERIODS = ['2026年报', '2025年报', '2024年报', '2023年报'] as const
@@ -55,9 +56,11 @@ export function EarningsCalendar() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">财报日历</h2>
+      <SectionTitle as="h2">财报日历</SectionTitle>
       <p className="text-xs text-sf-ink-3">
-        财报预约披露日历（数据来源：东方财富，年报）。只读视图，无写能力。
+        {`财报预约披露日历（数据来源：东方财富，年报）。`}
+        <LeadText>只读视图，无写能力</LeadText>
+        {`。`}
       </p>
 
       <Card>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useReviewNotes } from '@/lib/queries'
 import { QueryState } from '@/shared/ui/States'
 import { Card } from '@/shared/ui/Card'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 const INPUT_CLS =
   'mt-1 bg-sf-bg border border-sf-line text-sf-ink rounded px-2 py-1.5 outline-none focus:border-sf-accent'
@@ -16,7 +17,7 @@ export function MorningReport() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">每日晨报 · 复盘笔记</h2>
+      <SectionTitle as="h2">每日晨报 · 复盘笔记</SectionTitle>
       <Card>
         <label className="text-xs text-sf-ink-2">日期（复盘笔记按日期归档，请手动选择）</label>
         <input
@@ -28,7 +29,9 @@ export function MorningReport() {
       </Card>
       {!date && (
         <p role="status" className="text-label text-sf-ink-3">
-          未选择日期，不发起查询。机器当前日期不作为默认数据日。
+          {`未选择日期，不发起查询。`}
+          <LeadText>机器当前日期不作为默认数据日</LeadText>
+          {`。`}
         </p>
       )}
       <QueryState isLoading={q.isLoading} isError={q.isError} error={q.error} isEmpty={!!date && !q.data}>

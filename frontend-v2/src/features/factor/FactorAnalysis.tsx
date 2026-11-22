@@ -9,6 +9,7 @@ import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 71 页「因子分析」V2 化落地（对应 IA-MIGRATION.md W4 后续簇）。
@@ -50,7 +51,7 @@ export function FactorAnalysis() {
 
   return (
     <div className="flow">
-      <h2 className="text-lg font-semibold">因子分析</h2>
+      <SectionTitle as="h2">因子分析</SectionTitle>
 
       {/* 控制区 */}
       <Card title="分析参数">
@@ -313,7 +314,9 @@ function FactorBody({ data }: { data: FactorAnalysisData }) {
 
       {data.note && (
         <div className="text-xs text-sf-ink-3">
-          {data.note} 因子分析是统计意义上的规律，非买卖指令。
+          {data.note}{' '}
+          <LeadText>因子分析是统计意义上的规律，非买卖指令</LeadText>
+          {`。`}
         </div>
       )}
     </div>

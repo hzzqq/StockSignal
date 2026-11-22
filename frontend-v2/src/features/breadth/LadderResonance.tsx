@@ -7,6 +7,7 @@ import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { fmtNum } from '@/lib/format'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * W3 连板梯队共振页（对应 IA-MIGRATION.md §4 W3，页面号约 58）。
@@ -20,7 +21,7 @@ export function LadderResonance() {
   return (
     <div className="flow">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-semibold">连板梯队共振</h2>
+        <SectionTitle as="h2">连板梯队共振</SectionTitle>
         <span className="text-label text-sf-ink-3">数据源 shepherd_ladder_history</span>
         <a
           href="/breadth"
@@ -145,7 +146,8 @@ function LadderBody({ history }: { history: LadderDay[] }) {
       <Card title="最新板位分布">
         <EChart option={distOption} height={Math.max(160, boards.length * 26)} ariaLabel="最新交易日板位分布条形图，高板位红色、低板位绿色" />
         <div className="text-xs text-sf-ink-3 mt-1">
-          红色=高板位（≥最高板的 60%），绿色=低板位；数据来自 data/shepherd_ladder_history.json
+          {`红色=高板位（≥最高板的 60%），绿色=低板位；`}
+          <LeadText>数据来自 data/shepherd_ladder_history.json</LeadText>
         </div>
       </Card>
     </div>

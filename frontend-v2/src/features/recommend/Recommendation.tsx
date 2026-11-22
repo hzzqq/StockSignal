@@ -1,6 +1,7 @@
 import { useDailyRecommendation, useVirtualUsersSim } from '@/lib/queries'
 import { QueryState } from '@/shared/ui/States'
 import { Card } from '@/shared/ui/Card'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /** 后端 meta 键 → 中文说明；未知键原样显示（不吞字段，不臆造说明）。 */
 const META_LABELS: Record<string, string> = {
@@ -33,7 +34,7 @@ export function Recommendation() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">每日荐股</h2>
+      <SectionTitle as="h2">每日荐股</SectionTitle>
       <QueryState isLoading={q.isLoading} isError={q.isError} error={q.error} isEmpty={!rec}>
         {rec && (
           <Card title={`状态：${rec.status ?? '—'}`}>
@@ -69,7 +70,11 @@ export function Recommendation() {
                   ))}
                 </dl>
               ) : (
-                <p className="text-xs text-sf-ink-3">报告存在但未提供生成参数（如实留空，不编造）。</p>
+                <p className="text-xs text-sf-ink-3">
+                  {`报告存在但未提供生成参数（`}
+                  <LeadText>如实留空，不编造</LeadText>
+                  {`）。`}
+                </p>
               )}
             </div>
           )}

@@ -10,6 +10,7 @@ import { ErrorState, QueryState } from '@/shared/ui/States'
 import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 45 页「持仓中心」V2 化落地（对应 IA-MIGRATION.md Tier1）。
@@ -46,7 +47,7 @@ export function Portfolio() {
   return (
     <div className="flow">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h2 className="text-lg font-semibold">持仓中心</h2>
+        <SectionTitle as="h2">持仓中心</SectionTitle>
         <div className="flex gap-1 rounded-tile bg-sf-surface-2 p-1 text-xs">
           <button
             type="button"
@@ -467,7 +468,9 @@ function AllocationBody({ data }: { data: PositionAllocation }) {
 
       {meta.degraded ? (
         <div className="rounded-tile bg-sf-surface-2 px-3 py-2 text-xs text-sf-ink-3">
-          ℹ️ 等权明示降级：未使用任何评分信号（标的池无逐票评分可用），权重仅为均分参考，不构成强弱排序。
+          {`ℹ️ 等权明示降级：未使用任何评分信号（标的池无逐票评分可用），权重仅为均分参考，`}
+          <LeadText>不构成强弱排序</LeadText>
+          {`。`}
         </div>
       ) : null}
 

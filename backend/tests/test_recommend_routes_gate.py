@@ -50,6 +50,9 @@ def app(tmp_path_factory):
         u = User(username="gateuser", role="user")
         u.set_password("Pass@123")
         db.session.add(u)
+        admin = User(username="gateadmin", role="admin")
+        admin.set_password("Pass@123")
+        db.session.add(admin)
         db.session.commit()
     return application
 
@@ -63,6 +66,13 @@ def client(app):
 def token(app):
     with app.app_context():
         u = User.query.filter_by(username="gateuser").first()
+        return issue_token(u)
+
+
+@pytest.fixture(scope="module")
+def admin_token(app):
+    with app.app_context():
+        u = User.query.filter_by(username="gateadmin").first()
         return issue_token(u)
 
 
@@ -157,3 +167,51 @@ def test_non_ok_by_date_passthrough_not_gated(client, token, monkeypatch):
     assert obj["status"] == "ok", obj
     assert obj["data"]["status"] == "unavailable", obj
     assert obj["message"] == "无当日归档", obj["message"]
+
+
+# ── 6) POST /generate 幂等分支：当日文件含高危 → 过闸 + 保留「幂等跳过」语义 ──
+def test_generate_idempotent_branch_gated(client, admin_token, monkeypatch):
+    rec = {"status": "ok", "date": "2026-11-21", "picks": [
+        _pick("600519", "low"),
+        _pick("600666", "high"),
+    ]}
+    monkeypatch.setattr(recommend_engine, "today_generated", lambda: True)
+    monkeypatch.setattr(recommend_engine, "load_latest_recommendation", lambda: rec)
+    resp = client.post("/api/recommendations/generate", headers=_auth(admin_token))
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    obj = resp.get_json()
+    assert obj["status"] == "ok" and obj["code"] == "ok", obj
+    assert obj["data"]["risk_gate_boundary_dropped"] == 1, obj["data"]
+    assert "今日推荐已存在（幂等跳过）" in obj["message"], obj["message"]
+    assert "剔除 1 只高危" in obj["message"], obj["message"]
+    assert [p["code"] for p in obj["data"]["picks"]] == ["600519"], obj["data"]
+
+
+# ── 7) POST /generate 新生成分支：高危 → 过闸 ──
+def test_generate_fresh_branch_gated(client, admin_token, monkeypatch):
+    rec = {"status": "ok", "date": "2026-11-21", "picks": [
+        _pick("600111", "high"),
+        _pick("600222", "low"),
+    ]}
+    monkeypatch.setattr(recommend_engine, "today_generated", lambda: False)
+    monkeypatch.setattr(recommend_engine, "generate_daily_recommendation", lambda: rec)
+    resp = client.post("/api/recommendations/generate", headers=_auth(admin_token))
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    obj = resp.get_json()
+    assert obj["status"] == "ok" and obj["code"] == "ok", obj
+    assert obj["data"]["risk_gate_boundary_dropped"] == 1, obj["data"]
+    assert "已生成" in obj["message"] and "剔除 1 只高危" in obj["message"], obj["message"]
+    assert [p["code"] for p in obj["data"]["picks"]] == ["600222"], obj["data"]
+
+
+# ── 8) POST /generate 生成失败：诚实降级路径保持原语义、不过闸 ──
+def test_generate_failure_passthrough_not_gated(client, admin_token, monkeypatch):
+    rec = {"status": "unavailable", "reason": "数据源不可用", "picks": [_pick("600666", "high")]}
+    monkeypatch.setattr(recommend_engine, "today_generated", lambda: False)
+    monkeypatch.setattr(recommend_engine, "generate_daily_recommendation", lambda: rec)
+    resp = client.post("/api/recommendations/generate", headers=_auth(admin_token))
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    obj = resp.get_json()
+    assert obj["data"]["status"] == "unavailable", obj
+    assert obj["message"] == "数据源不可用", obj["message"]
+    assert "risk_gate_boundary_dropped" not in obj["data"], obj["data"]

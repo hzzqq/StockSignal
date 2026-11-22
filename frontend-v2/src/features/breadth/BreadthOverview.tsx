@@ -22,6 +22,7 @@ import {
   type FreshnessLevel,
 } from '@/lib/freshness'
 import { fmtNum } from '@/lib/format'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * W3 广度·温度首簇落地页（对应 IA-MIGRATION.md §4 W3）。
@@ -145,7 +146,7 @@ export function BreadthOverview() {
 
       {/* ───── v1 59「市场温度计」四块迁移：基准窗口 + 三卡（牧羊人贡献 / 极端区信号 / 历史情境类比）───── */}
       <div className="flex flex-wrap items-center gap-3 mt-2">
-        <h2 className="text-lg font-semibold">市场温度计（v1 59 页四块）</h2>
+        <SectionTitle as="h2">市场温度计（v1 59 页四块）</SectionTitle>
         <label className="text-label text-sf-ink-3">
           基准窗口
           <select
@@ -236,7 +237,7 @@ function BreadthBody({ snapshot }: { snapshot: DailySnapshot }) {
   return (
     <>
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-semibold">市场广度·温度总览</h2>
+        <SectionTitle as="h2">市场广度·温度总览</SectionTitle>
         <FreshnessBadge level={level} />
         <span className="text-label text-sf-ink-3">权威数据日 {snapshot.date}</span>
         <a
@@ -273,8 +274,10 @@ function BreadthBody({ snapshot }: { snapshot: DailySnapshot }) {
         <p className="text-label text-sf-ink-3 mt-2">
           档位由快照温度按 v1 五档阈值派生（非 v1 八指标合成口径）。v1《市场温度计》的牧羊人 8 指标贡献分解、
           极端区信号（sentiment_edge）、历史情境类比与基准窗口切换<strong>已迁移至本页下方三卡</strong>
-          （实时取数走后端聚合端点 /market-temperature，缺失指标诚实显「—」不补 0）；
-          五档历史回测见 <a href="/temperature-backtest" className="text-sf-accent underline underline-offset-4">温度档回测</a>，
+          {`（实时取数走后端聚合端点 /market-temperature，`}
+          <LeadText>缺失指标诚实显「—」不补 0</LeadText>
+          {`）； 五档历史回测见 `}
+          <a href="/temperature-backtest" className="text-sf-accent underline underline-offset-4">温度档回测</a>，
           历史相似日延伸见 <a href="/similar-days" className="text-sf-accent underline underline-offset-4">历史相似日</a>，
           指标级情绪五维见 <a href="/market-sentiment" className="text-sf-accent underline underline-offset-4">市场情绪温度计</a>（对应 v1 50 页）。
         </p>

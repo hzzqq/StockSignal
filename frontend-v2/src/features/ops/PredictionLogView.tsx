@@ -15,6 +15,7 @@ import { Markdown } from '@/features/xingchen/Markdown'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { fmtNum } from '@/lib/format'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * W3 后续簇 · 预测校准日志页（/predictions）。
@@ -29,7 +30,7 @@ export function PredictionLogView() {
   return (
     <div className="flow">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-semibold">预测校准日志</h2>
+        <SectionTitle as="h2">预测校准日志</SectionTitle>
         <span className="text-label text-sf-ink-3">数据源 prediction_log</span>
         <a
           href="/breadth"
@@ -265,7 +266,9 @@ function PredictionBody({ rows }: { rows: PredictionLogRow[] }) {
           因此报告展示与双下载<strong>尚未迁移</strong>，此处不以校准日志冒充等价功能。
         </p>
         <p className="text-label text-sf-ink-3 mt-2">
-          如需查看 2026-09-11 收盘的投研圆桌原文，请从 v1 页面打开；本页仅作决策闭环的历史自评记录。
+          {`如需查看 2026-09-11 收盘的投研圆桌原文，请从 v1 页面打开；`}
+          <LeadText>本页仅作决策闭环的历史自评记录</LeadText>
+          {`。`}
         </p>
       </Card>
 

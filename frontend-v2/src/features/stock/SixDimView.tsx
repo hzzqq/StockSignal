@@ -9,6 +9,7 @@ import { QueryState, EmptyState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { fmtNum } from '@/lib/format'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /** 六维中文标签（顺序与 DIM_KEYS 一致）。 */
 const DIM_LABELS: Record<DimKey, string> = {
@@ -44,7 +45,7 @@ export function SixDimView() {
   return (
     <div className="flow">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-semibold">个股六维评分</h2>
+        <SectionTitle as="h2">个股六维评分</SectionTitle>
         <span className="text-label text-sf-ink-3">数据源 six-dim</span>
         <a
           href="/breadth"
@@ -171,7 +172,9 @@ function SixDimBody({ data, searchName }: { data: SixDim; searchName: string | n
           ariaLabel="个股六维评分雷达图：技术、资金、价值、成长、基本面、周期六个维度的评分，缺失维度不绘制数据点"
         />
         <p className="text-label text-sf-ink-3 mt-2">
-          缺失维以空值呈现且不参与绘制，覆盖不足时隐藏连线与填充（避免跨维连线产生假形状），也不补 0 分；下方明细给出各维准确分数。
+          {`缺失维以空值呈现且不参与绘制，覆盖不足时隐藏连线与填充（`}
+          <LeadText>避免跨维连线产生假形状</LeadText>
+          {`），也不补 0 分；下方明细给出各维准确分数。`}
         </p>
       </Card>
 

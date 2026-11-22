@@ -5,6 +5,7 @@ import { EmptyState, ErrorState, Loading } from '@/shared/ui/States'
 import { Card } from '@/shared/ui/Card'
 import { ApiError } from '@/api/client'
 import type { DailySnapshot } from '@/api/schemas/read'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 import { ExportBundlePanel, StockReportPanel } from './ExportBundlePanels'
 
 const SELECT_CLS =
@@ -52,9 +53,11 @@ export function DataExport() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">数据导出</h2>
+      <SectionTitle as="h2">数据导出</SectionTitle>
       <p className="text-xs text-sf-ink-3">
-        浏览归档快照（data/snapshots/*.json）并导出原始 JSON。v2 只读界面，不写入任何数据。
+        {`浏览归档快照（data/snapshots/*.json）并导出原始 JSON。`}
+        <LeadText>v2 只读界面，不写入任何数据</LeadText>
+        {`。`}
       </p>
 
       <Card>

@@ -12,6 +12,7 @@ import {
   useLikePost,
   useAddComment,
 } from '@/lib/queriesCommunity'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 
 function StockTag({
@@ -186,7 +187,7 @@ export function ForumView() {
   return (
     <div className="flow">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="text-lg font-semibold">股吧社区</h2>
+        <SectionTitle as="h2">股吧社区</SectionTitle>
         <span className="text-label text-sf-ink-3">
           发帖 / 评论 / 点赞 / 删除 · 社区数据（演示态为 MSW 模拟响应，非真实后端数据）。
         </span>
@@ -299,7 +300,11 @@ export function ForumView() {
                 <li>· 讨论请围绕个股基本面、公告与可验证数据，拒绝纯情绪刷屏。</li>
                 <li>· 观点请标注依据与数据日，未证实消息不要当作事实发布。</li>
                 <li>· 尊重不同判断，不攻击其他用户；违规内容可被删除。</li>
-                <li>· 社区文本仅代表发帖人观点，不构成投资建议。</li>
+                <li>
+                  {`· `}
+                  <LeadText>社区文本仅代表发帖人观点，不构成投资建议</LeadText>
+                  {`。`}
+                </li>
               </ul>
             </Card>
           </div>

@@ -8,6 +8,7 @@ import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 57 页「市场全景」V2 化落地。
@@ -50,7 +51,7 @@ export function MarketPanorama() {
 
   return (
     <div className="flow">
-      <h2 className="text-lg font-semibold">市场全景</h2>
+      <SectionTitle as="h2">市场全景</SectionTitle>
 
       <Card title="类比参数">
         <label className="text-xs text-sf-ink-3 flex items-center gap-2">
@@ -207,7 +208,11 @@ function PanoramaBody({ data }: { data: MarketPanoramaData }) {
             ))}
           </div>
         )}
-        <div className="mt-2 text-xs text-sf-ink-3">⚠️ 历史相似 ≠ 预测，仅供情境参照。</div>
+        <div className="mt-2 text-xs text-sf-ink-3">
+          {`⚠️ `}
+          <LeadText>历史相似 ≠ 预测</LeadText>
+          {`，仅供情境参照。`}
+        </div>
       </Card>
 
       {unavailable.length > 0 && (

@@ -5,6 +5,7 @@ import { Card } from '@/shared/ui/Card'
 import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 61 广度结构分化（v2 native /breadth-divergence）。
@@ -79,10 +80,11 @@ export function BreadthDivergence() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">广度结构分化</h2>
+      <SectionTitle as="h2">广度结构分化</SectionTitle>
       <p className="text-xs text-sf-ink-3">
-        判据：红盘率 ≥ 阈值 且 跌停占比 ≥ 历史分位 → 判为「涨多但杀跌」的结构分化。
-        仅用离线广度序列（shepherd_history），不含任何实时行情或预测收益。
+        {`判据：红盘率 ≥ 阈值 且 跌停占比 ≥ 历史分位 → 判为「涨多但杀跌」的结构分化。 仅用离线广度序列（shepherd_history），`}
+        <LeadText>不含任何实时行情或预测收益</LeadText>
+        {`。`}
       </p>
 
       <Card title="参数">

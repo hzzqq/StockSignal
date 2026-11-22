@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode, type ReactElement } from 'react'
 import { Card } from '@/shared/ui/Card'
 import { QueryState } from '@/shared/ui/States'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 import { fmtNum } from '@/lib/format'
 import {
   useDailySnapshot,
@@ -266,7 +267,9 @@ function BacktestBody({ data }: { data: BacktestRuns }) {
         <Metric label="交易次数">{fmtNum(s.trade_count)}</Metric>
       </div>
       <p className="text-label text-sf-ink-3 mt-2">
-        ⚠️ 回测收益可为负，如实展示（绿跌），不取绝对值、不包装成「策略领先」。
+        {`⚠️ 回测收益可为负，如实展示（绿跌），`}
+        <LeadText>不取绝对值、不包装成「策略领先」</LeadText>
+        {`。`}
       </p>
     </div>
   )
@@ -331,7 +334,7 @@ export function DashboardCustom({ search }: DashboardCustomProps) {
   return (
     <div className="flow">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-semibold">自定义看板</h2>
+        <SectionTitle as="h2">自定义看板</SectionTitle>
         <span className="text-label text-sf-ink-3">
           组件与顺序本地即时保存（localStorage），可另存到服务端；数据均来自只读端点，未做任何填充
         </span>

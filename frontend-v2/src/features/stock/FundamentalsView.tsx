@@ -8,6 +8,7 @@ import { Stat } from '@/shared/ui/Stat'
 import { QueryState, EmptyState } from '@/shared/ui/States'
 import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { fmtNum } from '@/lib/format'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 import { FinancialTrendChart, hasFinite } from './FinancialTrendChart'
 
 /**
@@ -66,7 +67,7 @@ export function FundamentalsView({ search }: FundamentalsViewProps) {
   return (
     <div className="flow">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-semibold">基本面分析</h2>
+        <SectionTitle as="h2">基本面分析</SectionTitle>
         <span className="text-label text-sf-ink-3">数据源 fundamentals / financials</span>
         <Link
           to="/stock/research"
@@ -147,7 +148,9 @@ function FundamentalsBody({
           className="flex items-start gap-2 rounded-tile border border-sf-line bg-sf-surface px-4 py-3 text-body text-sf-ink-2"
         >
           <span aria-hidden="true" className="mt-1.5 w-1.5 h-1.5 shrink-0 rounded-full bg-sf-warn" />
-          <span>部分基本面数据未取到，缺失项如实留空，未做补零或日期兜底</span>
+          <span>
+            <LeadText>部分基本面数据未取到，缺失项如实留空，未做补零或日期兜底</LeadText>
+          </span>
         </div>
       )}
 

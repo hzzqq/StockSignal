@@ -6,6 +6,7 @@ import { getDensity, getV1Base, setDensity, setV1Base, type Density } from '@/li
 import { V1_PAGES_TOTAL } from '@/features/catalog/v1Pages.generated'
 import { ThemeToggle } from '@/shared/ui/ThemeToggle'
 import { Card } from '@/shared/ui/Card'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 设置（/settings）：侧边栏底部固定入口，全部为**真实生效**的本地设置。
@@ -88,7 +89,7 @@ export function SettingsView() {
   return (
     <div className="flow">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">设置</h2>
+        <SectionTitle as="h2">设置</SectionTitle>
         <span className="text-label text-sf-ink-3">本机偏好 · 保存在此浏览器</span>
       </div>
 
@@ -132,9 +133,14 @@ export function SettingsView() {
               {mocked ? '开发模拟数据（MSW）' : '真实后端'}
             </span>
             <span className="text-label text-sf-ink-3">
-              {mocked
-                ? '页面上的行情与检测结果可能是模拟响应，不代表真实数据'
-                : '请求经 Vite 代理发往后端，数据来自真实本地数据源'}
+              {mocked ? (
+                <>
+                  {`页面上的行情与检测结果可能是模拟响应，`}
+                  <LeadText>不代表真实数据</LeadText>
+                </>
+              ) : (
+                '请求经 Vite 代理发往后端，数据来自真实本地数据源'
+              )}
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-3">

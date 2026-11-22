@@ -36,18 +36,19 @@ def _valid_date(date: str) -> bool:
         return False
 
 
-def _serve_gated(rec):
+def _serve_gated(rec, base_message: str = "success"):
     """T-245 收尾：推荐数据过输出边界二道闸。
 
     status==ok 的推荐 → gate_recommendation 过闸；dropped>0 时 message 追加剔除
-    数（沿用 T-245 文案，不静默）；dropped==0 行为与原透传完全一致。
+    数（沿用 T-245 文案，不静默）；dropped==0 时保留调用方 base_message（GET 默认
+    "success"，POST /generate 传自身语义，如「今日推荐已存在（幂等跳过）」）。
     status 非 ok 的诚实降级路径不过闸、原样透传（unavailable≠guilty）。
     """
     if isinstance(rec, dict) and rec.get("status") == "ok":
         data, dropped = gate_recommendation(rec)
         if dropped:
-            return ok(data=data, message=f"success（输出边界二道闸剔除 {dropped} 只高危标的）")
-        return ok(data=data, message="success")
+            return ok(data=data, message=f"{base_message}（输出边界二道闸剔除 {dropped} 只高危标的）")
+        return ok(data=data, message=base_message)
     return ok(data=rec, message=rec.get("reason", "unavailable") if isinstance(rec, dict) else "unavailable")
 
 
@@ -76,6 +77,9 @@ def generate():
     from modules.recommend_engine import generate_daily_recommendation, today_generated
     if today_generated():
         from modules.recommend_engine import load_latest_recommendation
-        return ok(data=load_latest_recommendation(), message="今日推荐已存在（幂等跳过）")
+        return _serve_gated(load_latest_recommendation(), base_message="今日推荐已存在（幂等跳过）")
     rec = generate_daily_recommendation()
-    return ok(data=rec, message="已生成" if rec.get("status") == "ok" else rec.get("reason", "生成失败"))
+    if isinstance(rec, dict) and rec.get("status") != "ok":
+        # 生成失败/诚实降级路径保持原语义，不过闸（unavailable≠guilty）
+        return ok(data=rec, message=rec.get("reason", "生成失败"))
+    return _serve_gated(rec, base_message="已生成")
