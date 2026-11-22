@@ -90,4 +90,38 @@ describe('Strong 三态 + 榜单 + 仅看上涨过滤', () => {
     expect(screen.getByText('平安银行')).toBeTruthy()
     expect(screen.getByText('比亚迪')).toBeTruthy()
   })
+
+  it('两处重点短语用 brand-1 强调，且整段 textContent 逐字未变', async () => {
+    mocked.mockResolvedValue(okData)
+    renderWithClient(<Strong />)
+    await screen.findByText('榜单标的')
+
+    // (a) 口径块：三层降级诚实短语
+    const KJ_FULL = '口径与来源：实时快照=东财直连 → akshare → 腾讯应急三层降级（modules/spot_rank，60 秒缓存， 取不到明示未就绪、不用陈旧数据冒充实时）；强势评分=涨幅 0.40 + 量比 0.30 + 换手 0.20 + 成交额 0.10 启发式加权；二道闸=scan_and_gate 六维红旗排雷（仅对评分 Top 200 候选，控制扫描成本）。 启发式排序非预测，非实时投资建议。'
+    const KJ_PHRASE = '取不到明示未就绪、不用陈旧数据冒充实时'
+    const kjLine = screen.getByText(/口径与来源/)
+    expect(kjLine.textContent).toBe(KJ_FULL)
+    const kjStrong = screen.getByText(KJ_PHRASE)
+    expect(kjStrong.tagName).toBe('STRONG')
+    expect(kjStrong.textContent).toBe(KJ_PHRASE)
+    expect(kjStrong.style.color).toContain('var(--color-brand-1)')
+
+    // (b) 底部说明：免责短语
+    const SM_FULL = '⚠️ 说明：本榜为启发式强势评分排序，非预测模型，不构成投资建议；高换手/高量比亦伴随高波动风险。 实时快照经 60 秒缓存，盘中读数可能有延迟。'
+    const SM_PHRASE = '非预测模型，不构成投资建议'
+    const smLine = screen.getByText(/⚠️ 说明/)
+    expect(smLine.textContent).toBe(SM_FULL)
+    const smStrong = screen.getByText(SM_PHRASE)
+    expect(smStrong.tagName).toBe('STRONG')
+    expect(smStrong.textContent).toBe(SM_PHRASE)
+    expect(smStrong.style.color).toContain('var(--color-brand-1)')
+  })
+
+  it('分节标题 SectionTitle：实时强势榜 h2 带 brand-2 左条', async () => {
+    mocked.mockImplementation(() => new Promise<never>(() => {}))
+    renderWithClient(<Strong />)
+    const h2 = screen.getByRole('heading', { name: '实时强势榜' })
+    expect(h2.style.borderColor).toContain('var(--color-brand-2)')
+    expect(h2.className).toContain('border-l-[3px]')
+  })
 })

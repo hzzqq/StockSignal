@@ -6,6 +6,7 @@ import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 75 页「题材热点」V2 化（对应 V2-STATUS-PLAN Tier2）。
@@ -134,7 +135,7 @@ export function Theme() {
 
   return (
     <div className="theme">
-      <h2 className="text-lg font-semibold">题材热点</h2>
+      <SectionTitle as="h2">题材热点</SectionTitle>
       <div className="text-xs text-sf-ink-3">
         概念板块 treemap 热力图（面积=总市值，颜色=涨跌幅，红涨绿跌）+ 生命周期（发酵/高潮/退潮/平淡）。
         数据源东财概念板块快照；生命周期为启发式分类，非预测。事件传导图谱按需生成（手动触发，取不到不顶替）。
@@ -218,17 +219,20 @@ export function Theme() {
             )}
 
             <div className="text-xs text-sf-ink-3">
-              口径与来源：概念板块涨跌幅/换手率/市值=东财概念板块实时快照（akshare stock_board_concept_name_em，120 秒缓存，非实时行情）；
-              生命周期=涨跌幅+换手分位启发式分类，描述当下状态，非预测；事件传导=近期新闻标题共现（手动触发，取不到不顶替）。不构成投资建议。
+              {`口径与来源：概念板块涨跌幅/换手率/市值=东财概念板块实时快照（akshare stock_board_concept_name_em，120 秒缓存，非实时行情）； 生命周期=涨跌幅+换手分位启发式分类，描述当下状态，非预测；事件传导=近期新闻标题共现（手动触发，取不到不顶替）。`}
+              <LeadText>不构成投资建议</LeadText>
+              {`。`}
             </div>
           </div>
         ) : null}
       </QueryState>
 
       <div className="mt-8">
-        <h3 className="text-base font-semibold mt-2">事件传导图谱</h3>
+        <SectionTitle as="h3" className="mt-2">事件传导图谱</SectionTitle>
         <div className="text-xs text-sf-ink-3">
-          从「一条消息」走到「谁可能受影响」——文本共现关联度，非收益预测。默认不自动抓取，避免每次进入页面空等网络。
+          {`从「一条消息」走到「谁可能受影响」——`}
+          <LeadText>文本共现关联度，非收益预测</LeadText>
+          {`。默认不自动抓取，避免每次进入页面空等网络。`}
         </div>
         <button
           type="button"

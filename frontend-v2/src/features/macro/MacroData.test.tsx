@@ -95,4 +95,37 @@ describe('MacroData 三态 + 分组渲染 + 诚实降级', () => {
     expect(await screen.findByText('国内指标（1）')).toBeTruthy()
     expect(screen.queryByText(/全球宏观风险偏好/)).toBeNull()
   })
+
+  it('重点排版：SectionTitle=brand-2 左条，页头/分组空态免责短语=brand-1 strong（原文逐字不变）', async () => {
+    // 国内有指标、全球无指标、regime=null → isEmpty=false，全球分组走空态
+    mocked.mockResolvedValue({
+      indicators: {
+        pmi: { key: 'pmi', name: '制造业 PMI', unit: '%', freq: '月', source: '国家统计局', region: '国内', desc: '荣枯线 50', value: 51.2, prev: 50.8, change: 0.4, date: '2026-11-01' },
+      },
+      regime: null,
+      unavailable: [],
+      note: '宏观数据来自公开源',
+    })
+    const { container } = renderWithClient(<MacroData />)
+    await screen.findByText('国内指标（1）')
+    const h2 = container.querySelector('h2')!
+    expect(h2.textContent).toBe('宏观数据')
+    expect(h2.style.borderColor).toContain('var(--color-brand-2)')
+    expect(h2.className).toContain('border-l-[3px]')
+    expect(h2.className).not.toContain('text-lg')
+    // 页头整句 textContent 逐字一致
+    expect(screen.getByText(/全球关键宏观指标/).textContent).toBe(
+      '国内 + 全球关键宏观指标（PMI / CPI / M2 / 美债 / 美元 / 美股等）与全球流动性风险评分； 数据来自国家统计局 / 央行 / 东方财富 / 新浪等公开源，离线或接口受限时逐指标诚实降级（取不到显示「—」），非实时、非投资建议。',
+    )
+    const headerLead = screen.getByText('逐指标诚实降级（取不到显示「—」），非实时、非投资建议')
+    expect(headerLead.tagName).toBe('STRONG')
+    expect(headerLead.className).toContain('font-bold')
+    expect((headerLead as HTMLElement).style.color).toContain('var(--color-brand-1)')
+    // 分组空态整句逐字一致
+    const emptyLine = screen.getByText(/本组指标本次取不到（离线或接口受限）/)
+    expect(emptyLine.textContent).toBe('本组指标本次取不到（离线或接口受限），已诚实降级。')
+    const emptyLead = screen.getByText('已诚实降级')
+    expect(emptyLead.tagName).toBe('STRONG')
+    expect((emptyLead as HTMLElement).style.color).toContain('var(--color-brand-1)')
+  })
 })

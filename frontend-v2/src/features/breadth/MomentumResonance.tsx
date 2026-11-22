@@ -1,6 +1,7 @@
 import { useMomentumBreadth } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Loading, EmptyState, ErrorState } from '@/shared/ui/States'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /** 62 动量×广度共振矩阵（v2 native /momentum-resonance）：离线广度统计真页面。
  *  纯离线：数据来自 modules.market_regime.load_breadth_history（red_ratio / zt_prev_ret）。
@@ -13,9 +14,11 @@ export function MomentumResonance() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">动量 × 广度共振</h2>
+      <SectionTitle as="h2">动量 × 广度共振</SectionTitle>
       <p className="text-xs text-sf-ink-3">
-        离线广度统计（红盘率 × 涨停前日收益代理的联合分布）。仅描述历史结构，非收益预测。只读视图，无写能力。
+        {`离线广度统计（红盘率 × 涨停前日收益代理的联合分布）。`}
+        <LeadText>仅描述历史结构，非收益预测</LeadText>
+        {`。只读视图，无写能力。`}
       </p>
 
       {q.isLoading && <Loading label="加载共振矩阵…" />}

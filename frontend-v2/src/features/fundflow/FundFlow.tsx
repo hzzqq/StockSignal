@@ -7,6 +7,7 @@ import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 35 页「资金流向」V2 化落地（对应 IA-MIGRATION.md Tier1）。
@@ -54,10 +55,11 @@ export function FundFlow() {
 
   return (
     <div className="flow">
-      <h2 className="text-lg font-semibold">资金流向</h2>
+      <SectionTitle as="h2">资金流向</SectionTitle>
       <div className="text-xs text-sf-ink-3">
-        北向资金 · 行业板块 · 大盘主力净流入 · 融资融券；红=净流入、绿=净流出（与红涨绿跌一致）。
-        数据来自东方财富/同花顺网络接口，离线或接口受限时逐块诚实降级，非实时、非投资建议。
+        {`北向资金 · 行业板块 · 大盘主力净流入 · 融资融券；红=净流入、绿=净流出（与红涨绿跌一致）。 数据来自东方财富/同花顺网络接口，离线或接口受限时`}
+        <LeadText>逐块诚实降级，非实时、非投资建议</LeadText>
+        {`。`}
       </div>
 
       <QueryState
@@ -86,7 +88,9 @@ function HonestUnavailable({ label }: { label: string }) {
   return (
     <Card title={label}>
       <div className="text-xs text-sf-ink-3">
-        数据暂不可用（离线或接口受限），后端已诚实降级，未编造数值。
+        {`数据暂不可用（离线或接口受限），`}
+        <LeadText>后端已诚实降级，未编造数值</LeadText>
+        {`。`}
       </div>
     </Card>
   )

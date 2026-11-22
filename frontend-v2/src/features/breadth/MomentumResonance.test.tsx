@@ -86,4 +86,23 @@ describe('MomentumResonance 三态 + 矩阵渲染', () => {
     renderWithClient(<MomentumResonance />)
     await expect(screen.findByText(/暂无可用的广度历史/)).resolves.toBeTruthy()
   })
+
+  it('重点排版：SectionTitle=brand-2 左条，说明短语=brand-1 strong（原文逐字不变）', async () => {
+    mocked.mockResolvedValue(okData)
+    const { container } = renderWithClient(<MomentumResonance />)
+    await screen.findByText('样本天数')
+    const h2 = container.querySelector('h2')!
+    expect(h2.textContent).toBe('动量 × 广度共振')
+    expect(h2.style.borderColor).toContain('var(--color-brand-2)')
+    expect(h2.className).toContain('border-l-[3px]')
+    expect(h2.className).not.toContain('text-lg')
+    const desc = screen.getByText(/离线广度统计/)
+    expect(desc.textContent).toBe(
+      '离线广度统计（红盘率 × 涨停前日收益代理的联合分布）。仅描述历史结构，非收益预测。只读视图，无写能力。',
+    )
+    const lead = screen.getByText('仅描述历史结构，非收益预测')
+    expect(lead.tagName).toBe('STRONG')
+    expect(lead.className).toContain('font-bold')
+    expect((lead as HTMLElement).style.color).toContain('var(--color-brand-1)')
+  })
 })

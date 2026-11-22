@@ -122,4 +122,36 @@ describe('FundFlow 三态 + 四块渲染', () => {
     expect(screen.getByText('北向净流入(最近真实披露)')).toBeTruthy()
     expect(screen.getByText('历史累计净买入')).toBeTruthy()
   })
+
+  it('重点排版：SectionTitle=brand-2 左条，页头/空态免责短语=brand-1 strong（原文逐字不变）', async () => {
+    // 仅北向不可用 → allUnavailable=false，HonestUnavailable 会渲染恰好一处
+    mocked.mockResolvedValue({
+      ...okData,
+      northbound: { ...okData.northbound, available: false },
+    })
+    const { container } = renderWithClient(<FundFlow />)
+    await screen.findByText('行业板块资金流向')
+    // 独立 h2 分节标题（不是 Card title）
+    const h2 = container.querySelector('h2')!
+    expect(h2.textContent).toBe('资金流向')
+    expect(h2.style.borderColor).toContain('var(--color-brand-2)')
+    expect(h2.className).toContain('border-l-[3px]')
+    expect(h2.className).not.toContain('text-lg')
+    // 页头整句 textContent 逐字一致
+    expect(screen.getByText(/北向资金 · 行业板块/).textContent).toBe(
+      '北向资金 · 行业板块 · 大盘主力净流入 · 融资融券；红=净流入、绿=净流出（与红涨绿跌一致）。 数据来自东方财富/同花顺网络接口，离线或接口受限时逐块诚实降级，非实时、非投资建议。',
+    )
+    const headerLead = screen.getByText('逐块诚实降级，非实时、非投资建议')
+    expect(headerLead.tagName).toBe('STRONG')
+    expect(headerLead.className).toContain('font-bold')
+    expect((headerLead as HTMLElement).style.color).toContain('var(--color-brand-1)')
+    // 空态说明整句逐字一致，免责短语同样带 brand-1
+    const emptyLine = screen.getByText(/数据暂不可用（离线或接口受限）/)
+    expect(emptyLine.textContent).toBe('数据暂不可用（离线或接口受限），后端已诚实降级，未编造数值。')
+    const emptyLead = screen.getByText('后端已诚实降级，未编造数值')
+    expect(emptyLead.tagName).toBe('STRONG')
+    expect((emptyLead as HTMLElement).style.color).toContain('var(--color-brand-1)')
+    // 资金流向语义「红=净流入、绿=净流出」不得被染色
+    expect(screen.queryByText('红=净流入、绿=净流出')).toBeNull()
+  })
 })

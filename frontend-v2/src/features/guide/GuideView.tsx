@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { NAV } from '@/nav/nav'
 import { Card } from '@/shared/ui/Card'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 新手教程（/guide）—— v1 `96_新手教程.py` 的 v2 等价页面。
@@ -92,7 +93,7 @@ export function GuideView() {
   return (
     <div className="flow">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">新手教程</h2>
+        <SectionTitle as="h2">新手教程</SectionTitle>
         <span className="text-label text-sf-ink-3">5 分钟上手 · 进度保存在此浏览器</span>
       </div>
 
@@ -209,8 +210,9 @@ export function GuideView() {
       </Card>
 
       <p className="text-label text-sf-ink-3">
-        与 v1 的差异：教学视频与 Streamlit 原生快捷键说明未移植（React 单页应用不适用），不做假入口；
-        上手进度只写此浏览器的 localStorage，不跨设备、不写账号。
+        {`与 v1 的差异：教学视频与 Streamlit 原生快捷键说明未移植（React 单页应用不适用），不做假入口； `}
+        <LeadText>上手进度只写此浏览器的 localStorage，不跨设备、不写账号</LeadText>
+        {`。`}
       </p>
     </div>
   )

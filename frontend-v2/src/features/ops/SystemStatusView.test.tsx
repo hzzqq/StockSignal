@@ -139,4 +139,35 @@ describe('SystemStatusView · 数据与运维状态 · 三源独立 + 负收益�
     expect(screen.getByText('无回测运行记录')).toBeTruthy()
     expect(screen.getByText('无刷新状态记录')).toBeTruthy()
   })
+
+  it('重点排版：主标题 h2=brand-2 左条；三处带 id 的分节 h3 保持原样；免责短语=brand-1 strong（文案逐字不变）', async () => {
+    const { container } = renderWithClient(<SystemStatusView />)
+    await screen.findByText('2026-03-01 08:00')
+    // 页面主标题（无 id，安全）：SectionTitle as=h2
+    const h2 = container.querySelector('h2')!
+    expect(h2.textContent).toBe('数据与运维状态')
+    expect(h2.style.borderColor).toContain('var(--color-brand-2)')
+    expect(h2.className).toContain('border-l-[3px]')
+    expect(h2.className).not.toContain('text-lg')
+    // 三处带 id 的次级 h3 按修正规格完全保持原样（id/className/aria 锚点不变，无品牌色）
+    const ids = ['ops-sync-title', 'ops-runs-title', 'ops-refresh-title']
+    const texts = ['P1 信号同步', '回测运行记录', '数据刷新状态']
+    ids.forEach((id, i) => {
+      const h = container.querySelector(`#${id}`)!
+      expect(h.tagName).toBe('H3')
+      expect(h.textContent).toBe(texts[i])
+      expect(h.className).toBe('text-title font-medium text-sf-ink-2')
+      expect((h as HTMLElement).style.borderColor).toBe('')
+      expect(h.parentElement!.getAttribute('aria-labelledby')).toBe(id)
+    })
+    // 底部 p 整句 textContent 逐字一致；原有 :94 真实性断言继续命中
+    const note = screen.getByText(/负收益与负 Sharpe/)
+    expect(note.textContent).toBe(
+      '负收益与负 Sharpe 如实保留、未取绝对值；红涨绿跌沿用交易屏价格域语义。 回测结果不代表未来收益。数据来自 data/backtest_runs.json。',
+    )
+    const lead = screen.getByText('回测结果不代表未来收益')
+    expect(lead.tagName).toBe('STRONG')
+    expect(lead.className).toContain('font-bold')
+    expect((lead as HTMLElement).style.color).toContain('var(--color-brand-1)')
+  })
 })

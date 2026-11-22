@@ -80,4 +80,19 @@ describe('GuideView · 新手教程 · 静态引导 + localStorage 进度 + FAQ 
     expect(screen.getByText('没有匹配的问题，请换个关键词。')).toBeTruthy()
     expect(screen.queryByText('设置会同步到我的账号吗？')).toBeNull()
   })
+
+  it('底部差异说明：整句逐字未变，localStorage 诚实短语用 brand-1 强调', () => {
+    const FULL =
+      '与 v1 的差异：教学视频与 Streamlit 原生快捷键说明未移植（React 单页应用不适用），不做假入口； 上手进度只写此浏览器的 localStorage，不跨设备、不写账号。'
+    const PHRASE = '上手进度只写此浏览器的 localStorage，不跨设备、不写账号'
+    renderView()
+    // 整句被 strong 拆开，getByText 整句匹配不到，用锚点定位后核对整段 textContent
+    const line = screen.getByText(/与 v1 的差异/)
+    expect(line.textContent).toBe(FULL)
+    const strong = screen.getByText(PHRASE)
+    expect(strong.tagName).toBe('STRONG')
+    expect(strong.textContent).toBe(PHRASE)
+    expect(strong.className).toContain('font-bold')
+    expect(strong.style.color).toContain('var(--color-brand-1)')
+  })
 })

@@ -103,8 +103,47 @@ describe('Theme 三态 + 热力图/生命周期/热度榜 + 传导图谱', () =>
     fireEvent.click(btn)
     expect(await screen.findByText('寒武纪')).toBeTruthy()
     expect(screen.getByText('算力需求超预期')).toBeTruthy()
-    // disclaimer 实际文案来自 mock（非收益预测）；getAllByText 兼容其在区块说明处再次出现
+    // disclaimer 文案来自 mock（非收益预测）；新增的 brand-1 强调节点也含该短语，故用 getAllByText（含强调节点）
     expect(screen.getAllByText(/非收益预测/).length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('两处重点短语用 brand-1 强调，且整段 textContent 逐字未变', async () => {
+    mocked.mockResolvedValue(okData)
+    mockedTx.mockResolvedValue({ status: 'unavailable', reason: 'x', entries: [], concepts_hit: [], members_unavailable: [], n_titles: 0, n_concepts: 0 })
+    renderWithClient(<Theme />)
+    await screen.findByText('概念板块数')
+
+    // (a) 事件传导说明
+    const TX_FULL = '从「一条消息」走到「谁可能受影响」——文本共现关联度，非收益预测。默认不自动抓取，避免每次进入页面空等网络。'
+    const TX_PHRASE = '文本共现关联度，非收益预测'
+    const txLine = screen.getByText(/从「一条消息」/)
+    expect(txLine.textContent).toBe(TX_FULL)
+    const txStrong = screen.getByText(TX_PHRASE)
+    expect(txStrong.tagName).toBe('STRONG')
+    expect(txStrong.textContent).toBe(TX_PHRASE)
+    expect(txStrong.style.color).toContain('var(--color-brand-1)')
+
+    // (b) 口径块末尾免责
+    const KJ_FULL = '口径与来源：概念板块涨跌幅/换手率/市值=东财概念板块实时快照（akshare stock_board_concept_name_em，120 秒缓存，非实时行情）； 生命周期=涨跌幅+换手分位启发式分类，描述当下状态，非预测；事件传导=近期新闻标题共现（手动触发，取不到不顶替）。不构成投资建议。'
+    const KJ_PHRASE = '不构成投资建议'
+    const kjLine = screen.getByText(/口径与来源/)
+    expect(kjLine.textContent).toBe(KJ_FULL)
+    const kjStrong = screen.getByText(KJ_PHRASE)
+    expect(kjStrong.tagName).toBe('STRONG')
+    expect(kjStrong.textContent).toBe(KJ_PHRASE)
+    expect(kjStrong.style.color).toContain('var(--color-brand-1)')
+  })
+
+  it('分节标题 SectionTitle：题材热点 h2 / 事件传导图谱 h3 带 brand-2 左条', () => {
+    mocked.mockImplementation(() => new Promise<never>(() => {}))
+    renderWithClient(<Theme />)
+    const h2 = screen.getByRole('heading', { name: '题材热点' })
+    expect(h2.style.borderColor).toContain('var(--color-brand-2)')
+    expect(h2.className).toContain('border-l-[3px]')
+    const h3 = screen.getByRole('heading', { name: '事件传导图谱' })
+    expect(h3.tagName).toBe('H3')
+    expect(h3.style.borderColor).toContain('var(--color-brand-2)')
+    expect(h3.className).toContain('mt-2')
   })
 
   it('传导取不到标题 → unavailable 提示，不编臆造表', async () => {
@@ -116,4 +155,5 @@ describe('Theme 三态 + 热力图/生命周期/热度榜 + 传导图谱', () =>
     expect(await screen.findByText(/传导不可用：未取到任何新闻标题/)).toBeTruthy()
     expect(screen.queryByText('算力需求超预期')).toBeNull()
   })
+
 })

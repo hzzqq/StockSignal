@@ -6,6 +6,7 @@ import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 84 页「宏观数据」V2 化（对应 V2-STATUS-PLAN Tier2）。
@@ -76,10 +77,11 @@ export function MacroData() {
 
   return (
     <div className="macro">
-      <h2 className="text-lg font-semibold">宏观数据</h2>
+      <SectionTitle as="h2">宏观数据</SectionTitle>
       <div className="text-xs text-sf-ink-3">
-        国内 + 全球关键宏观指标（PMI / CPI / M2 / 美债 / 美元 / 美股等）与全球流动性风险评分；
-        数据来自国家统计局 / 央行 / 东方财富 / 新浪等公开源，离线或接口受限时逐指标诚实降级（取不到显示「—」），非实时、非投资建议。
+        {`国内 + 全球关键宏观指标（PMI / CPI / M2 / 美债 / 美元 / 美股等）与全球流动性风险评分； 数据来自国家统计局 / 央行 / 东方财富 / 新浪等公开源，离线或接口受限时`}
+        <LeadText>逐指标诚实降级（取不到显示「—」），非实时、非投资建议</LeadText>
+        {`。`}
       </div>
 
       <QueryState
@@ -177,7 +179,11 @@ function RegionBlock({ title, rows }: { title: string; rows: [string, MacroIndic
   if (rows.length === 0) {
     return (
       <Card title={title}>
-        <div className="text-xs text-sf-ink-3">本组指标本次取不到（离线或接口受限），已诚实降级。</div>
+        <div className="text-xs text-sf-ink-3">
+          {`本组指标本次取不到（离线或接口受限），`}
+          <LeadText>已诚实降级</LeadText>
+          {`。`}
+        </div>
       </Card>
     )
   }

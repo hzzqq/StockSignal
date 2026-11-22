@@ -5,6 +5,7 @@ import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { CHART } from '@/shared/charts/palette'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * 76 页「实时强势榜」V2 化（对应 V2-STATUS-PLAN Tier2）。
@@ -107,7 +108,7 @@ export function Strong() {
 
   return (
     <div className="strong">
-      <h2 className="text-lg font-semibold">实时强势榜</h2>
+      <SectionTitle as="h2">实时强势榜</SectionTitle>
       <div className="text-xs text-sf-ink-3">
         全市场多因子强势 Top N：涨幅 0.40 + 量比 0.30 + 换手 0.20 + 成交额 0.10（启发式，非预测）。
         红涨绿跌；奖牌只给前 3，其余按评分降序。数据源东财实时快照（接口受限时自动切换应急源，页内如实标注）。
@@ -183,10 +184,9 @@ export function Strong() {
             )}
 
             <div className="text-xs text-sf-ink-3">
-              口径与来源：实时快照=东财直连 → akshare → 腾讯应急三层降级（modules/spot_rank，60 秒缓存，
-              取不到明示未就绪、不用陈旧数据冒充实时）；强势评分=涨幅 0.40 + 量比 0.30 + 换手 0.20 + 成交额 0.10
-              启发式加权；二道闸=scan_and_gate 六维红旗排雷（仅对评分 Top 200 候选，控制扫描成本）。
-              启发式排序非预测，非实时投资建议。
+              {`口径与来源：实时快照=东财直连 → akshare → 腾讯应急三层降级（modules/spot_rank，60 秒缓存， `}
+              <LeadText>取不到明示未就绪、不用陈旧数据冒充实时</LeadText>
+              {`）；强势评分=涨幅 0.40 + 量比 0.30 + 换手 0.20 + 成交额 0.10 启发式加权；二道闸=scan_and_gate 六维红旗排雷（仅对评分 Top 200 候选，控制扫描成本）。 启发式排序非预测，非实时投资建议。`}
             </div>
           </div>
         ) : null}
@@ -194,8 +194,9 @@ export function Strong() {
 
       <div className="mt-8">
         <div className="text-xs text-sf-ink-3">
-          ⚠️ 说明：本榜为启发式强势评分排序，非预测模型，不构成投资建议；高换手/高量比亦伴随高波动风险。
-          实时快照经 60 秒缓存，盘中读数可能有延迟。
+          {`⚠️ 说明：本榜为启发式强势评分排序，`}
+          <LeadText>非预测模型，不构成投资建议</LeadText>
+          {`；高换手/高量比亦伴随高波动风险。 实时快照经 60 秒缓存，盘中读数可能有延迟。`}
         </div>
       </div>
     </div>

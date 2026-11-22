@@ -6,6 +6,7 @@ import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { fmtNum } from '@/lib/format'
 import { RetestButton } from '@/shared/ui/RetestButton'
+import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
  * W3 后续簇 · 数据与运维状态页（/ops）。
@@ -25,7 +26,7 @@ export function SystemStatusView() {
   return (
     <div className="flow">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-semibold">数据与运维状态</h2>
+        <SectionTitle as="h2">数据与运维状态</SectionTitle>
         <span className="text-label text-sf-ink-3">3 个独立数据源</span>
         <a
           href="/breadth"
@@ -226,8 +227,9 @@ function RunsBody({ data }: { data: BacktestRuns }) {
         </table>
       </div>
       <p className="text-label text-sf-ink-3 mt-2">
-        负收益与负 Sharpe 如实保留、未取绝对值；红涨绿跌沿用交易屏价格域语义。
-        回测结果不代表未来收益。数据来自 data/backtest_runs.json。
+        {`负收益与负 Sharpe 如实保留、未取绝对值；红涨绿跌沿用交易屏价格域语义。 `}
+        <LeadText>回测结果不代表未来收益</LeadText>
+        {`。数据来自 data/backtest_runs.json。`}
       </p>
     </Card>
   )
