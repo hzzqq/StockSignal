@@ -185,6 +185,45 @@ def test_morning_report_inline_cap_wording_matches_fifth_section():
         "inline 块缺少「封顶未实际约束」的诚实表达"
 
 
+def test_morning_report_stale_interpretation_uses_dynamic_reason():
+    """早报「可执行解读」的事件失效原因须动态判定，不得硬编码「滞后≥8天」（T-319 续）。
+
+    反例（验收实测发现）：resonance=事件因子陈旧失效 分支硬编码「滞后≥8天被判定陈旧」，
+    但 lag=6 被 detect_stall 判停更时同样进本分支 → 文案与 as_of/lag 自相矛盾，
+    且与第一节「滞后 6 天(>4已降权)·判停更」、第四节口径不一致，属诚实红线。
+    """
+    import ast
+    import os as _os
+    import re
+    src_path = _os.path.join(
+        _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+        "scripts", "gen_morning_event_sentiment.py")
+    src = open(src_path, encoding="utf-8").read()
+    tree = ast.parse(src)
+    main_fn = next(n for n in ast.walk(tree)
+                   if isinstance(n, ast.FunctionDef) and n.name == "main")
+    main_src = ast.get_source_segment(src, main_fn) or ""
+
+    # ① 可执行解读的失效原因必须动态引用三态（真陈旧/已降权/停更）
+    assert "ev_stale" in main_src and "_ev_down" in main_src and "_p1_stalled" in main_src, \
+        "可执行解读未覆盖真陈旧/已降权/停更三态判定"
+    # ② 不得再硬编码「滞后≥8天被判定陈旧」
+    assert not re.search(r"滞后\s*[≥>=]*\s*8\s*天被判定陈旧", main_src), \
+        "仍硬编码「滞后≥8天被判定陈旧」（lag=6 停更场景会自相矛盾）"
+    # ③ 失效原因串须引用真实阈值常量，不写死 8/4
+    assert "_fail_why" in main_src and "FRESH_STALE_DAYS" in main_src, \
+        "失效原因串未走 _fail_why 动态构造 / 未引用 FRESH_STALE_DAYS 真值源"
+    # ④ 停更判定必须真实参与 fail_why 构造（防「变量还在但判定被删」的假绿）
+    #    取 _fail_why = [] 到 lines.append(可执行解读) 之间的源码段，检查 if _p1_stalled 分支
+    m = re.search(r"_fail_why\s*=\s*\[\].*?lines\.append\(\"\*\*可执行解读\*\*", main_src, re.S)
+    assert m, "未找到 _fail_why 构造段"
+    block = m.group(0)
+    assert "if _p1_stalled:" in block and "detect_stall 判停更" in block, \
+        "停更判定未参与可执行解读的失效原因构造（删 if 后变量名仍在=假绿）"
+    assert "if ev_stale:" in block and "elif _ev_down:" in block, \
+        "真陈旧/已降权动态分支未参与失效原因构造"
+
+
 def test_morning_report_freshness_status_bound_before_use():
     """freshness_status 必须经模块级 helper _overall_freshness_status 具名产出（T-322）。
 

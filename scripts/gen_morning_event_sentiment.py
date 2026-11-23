@@ -511,8 +511,19 @@ def main():
     elif resonance == "事件因子缺位":
         lines.append("**可执行解读**：事件因子缺位，仓位完全由牧羊人情绪驱动；未施加任何事件催化（不臆造）。")
     elif resonance.startswith("事件因子陈旧失效"):
-        lines.append("**可执行解读**：事件因子滞后≥8天被判定陈旧（as_of "
-                     f"{fmt(ev_as_of)}，lag {fmt(ev_lag)}），方向信号当日不可信，**不参与当日共振**，"
+        # 失效原因必须与第一节/第四节同口径：真陈旧(≥8) / 已降权(>4) / 判停更，
+        # 不得硬编码「≥8天」——lag=6 被 detect_stall 判停更时同样进本分支，硬编码会自相矛盾。
+        _fail_why = []
+        if ev_stale:
+            _fail_why.append(f"滞后 {fmt(ev_lag)} 天（≥{FRESH_STALE_DAYS}，陈旧）")
+        elif _ev_down:
+            _fail_why.append(f"滞后 {fmt(ev_lag)} 天（>{FRESH_WARN_DAYS}，已降权）")
+        if _p1_stalled:
+            _fail_why.append("被 detect_stall 判停更")
+        if not _fail_why:
+            _fail_why.append(f"lag={fmt(ev_lag)}（失效判定见第四节）")
+        lines.append("**可执行解读**：事件因子" + '、'.join(_fail_why) +
+                     f"（as_of {fmt(ev_as_of)}），方向信号当日不可信，**不参与当日共振**，"
                      "其名义 +2pt 催化已显式剔除（见第一节诚实口径）。")
         if _snap_lag is not None and _snap_lag > 4:
             lines.append(f"今日牧羊人决策读数取自**已停更的快照**（数据日 {fmt(snap_date)}，滞后 {fmt(_snap_lag)} 天）；"
