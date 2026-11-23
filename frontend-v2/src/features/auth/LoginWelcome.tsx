@@ -27,7 +27,7 @@ function GradText({ children }: { children: ReactNode }) {
 
 export function LoginWelcome({ onLogin }: { onLogin: () => void }) {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-sf-bg px-6 py-10 text-sf-ink">
+    <div className="min-h-screen overflow-y-auto flex flex-col items-center justify-center bg-sf-bg px-6 py-10 text-sf-ink">
       {/* Hero：渐变强调 + 数据副标题（v1 同款） */}
       <div className="text-center mb-6">
         <h1 className="text-[2.2rem] font-black leading-tight mb-1.5">

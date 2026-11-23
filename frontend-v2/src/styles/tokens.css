@@ -125,6 +125,13 @@ html[data-theme="light"] {
  * 缺任一环，页面里的 h-full + 绝对定位消息区会塌成 0 高，表现为整页空白
  * （2026-11-16 星辰 AI 空白页真因）。 */
 html, body, #root { height: 100%; }
+/* 2026-11-23 双滚轮修复（老板截图报修：25 个页面右侧两根滚动条、页面下方空白）。
+ * 根因：app-main 已是唯一内容滚动区（overflow-auto），但 ECharts canvas 等
+ * absolute 后代让 documentElement.scrollHeight 虚高，html/body 也变成可滚容器；
+ * 用户滚轮滚完内层后继续滚外层 → 整个应用上移、底部露出大块空白。
+ * 这里把文档层滚动彻底关掉，所有滚动只走 app-main；overscroll-behavior 阻止
+ * 滚动链外溢到宿主 WebView（WorkBuddy 内嵌窗口）。 */
+html, body { overflow: hidden; overscroll-behavior: contain; }
 body {
   margin: 0;
   background: var(--color-sf-bg);

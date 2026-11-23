@@ -98,7 +98,7 @@ export function LoginPage() {
   const isRegister = mode === 'register'
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-sf-bg px-6 py-10 text-sf-ink">
+    <div className="min-h-screen overflow-y-auto flex items-center justify-center bg-sf-bg px-6 py-10 text-sf-ink">
       <div className="w-full max-w-[980px] grid grid-cols-1 md:grid-cols-[0.46fr_0.54fr] gap-8">
         {/* ── 左栏：合并行情台（品牌 + 温度 + 市场 + 上证分时 + 今日推荐） ── */}
         <MarketBriefing />
