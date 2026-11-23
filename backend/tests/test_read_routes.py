@@ -1704,6 +1704,38 @@ def test_theme_endpoint(client, token, monkeypatch):
     assert d3["unavailable"] == ["theme_name_field_missing"]
 
 
+def test_theme_endpoint_ths_fallback_contract(client, token, monkeypatch):
+    """同花顺 fallback 必须在 API 层显式标源/口径/净额，不把代理量伪装成东财市值。"""
+    import pandas as pd
+    from modules import theme_heat as th_mod
+
+    df = pd.DataFrame({
+        "板块名称": ["AI", "光伏"],
+        "涨跌幅": [3.5, -2.0],
+        "净额": [12.5, -3.2],
+        "领涨股票": ["寒武纪", "通威股份"],
+        "_source": [th_mod.SOURCE_THS, th_mod.SOURCE_THS],
+        "_heat_basis": ["资金净额绝对值分位", "资金净额绝对值分位"],
+        "_net_yi": [12.5, -3.2],
+        "_chg": [3.5, -2.0],
+        "_turnover_p": [100.0, 50.0],
+        "_life": ["高潮", "平淡"],
+    })
+    monkeypatch.setattr(th_mod, "load_concepts", lambda: df)
+
+    resp = client.get("/api/v2/read/theme", headers={"Authorization": f"Bearer {token}"})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    d = resp.get_json()["data"]
+    assert d["source"] == th_mod.SOURCE_THS
+    assert d["unavailable"] == ["theme_eastmoney_unavailable"]
+    assert "同花顺概念资金流真实源" in d["note"]
+    assert "非换手率、非总市值" in d["note"]
+    ai = next(c for c in d["concepts"] if c["name"] == "AI")
+    assert ai["net_yi"] == 12.5
+    assert ai["mv"] is None
+    assert ai["turnover"] is None
+
+
 def test_theme_transmission_endpoint(client, token, monkeypatch):
     """theme-transmission（75 ④ 事件传导）：抓标题→命中概念→共现排序；取不到标题→unavailable；异常→仍 200。"""
     import pandas as pd

@@ -87,3 +87,55 @@ def test_theme_heat_offline_graceful(authed, monkeypatch):
         _auth_session(at)
     at.run()
     assert not at.exception, f"离线应优雅降级而非崩溃: {[str(e) for e in at.exception]}"
+
+
+def test_concepts_fallback_to_ths_when_eastmoney_fails(monkeypatch):
+    """东财代理/限流失败时切同花顺真实概念资金流，不静默吞、不冒充市值/换手率。"""
+    import akshare as ak
+    import modules.theme_heat as th
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("eastmoney proxy blocked")
+
+    ths = pd.DataFrame({
+        "行业": ["AI", "光伏"],
+        "行业-涨跌幅": [3.5, -2.0],
+        "净额": [12.5, "-3.2亿"],
+        "公司家数": [120, 60],
+        "领涨股": ["寒武纪", "通威股份"],
+    })
+    monkeypatch.setattr(ak, "stock_board_concept_name_em", _boom, raising=True)
+    monkeypatch.setattr(ak, "stock_fund_flow_concept", lambda symbol="即时": ths, raising=True)
+
+    th._concepts_cached.clear()
+    try:
+        got = th.load_concepts()
+        assert got is not None and not got.empty
+        assert list(got["板块名称"]) == ["AI", "光伏"]
+        assert set(got["_source"]) == {th.SOURCE_THS}
+        assert got["_heat_basis"].eq("资金净额绝对值分位").all()
+        assert got["_net_yi"].tolist() == [12.5, -3.2]
+        assert got["_life"].notna().all()
+        # 同花顺源没有总市值/换手率，派生列不得凭空补出东财字段
+        assert "总市值" not in got.columns
+        assert "换手率" not in got.columns
+    finally:
+        th._concepts_cached.clear()
+
+
+def test_concepts_all_sources_fail_returns_none(monkeypatch):
+    """两源都失败→返回 None 由上层诚实空态，不编题材。"""
+    import akshare as ak
+    import modules.theme_heat as th
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("all sources blocked")
+
+    monkeypatch.setattr(ak, "stock_board_concept_name_em", _boom, raising=True)
+    monkeypatch.setattr(ak, "stock_fund_flow_concept", _boom, raising=True)
+
+    th._concepts_cached.clear()
+    try:
+        assert th.load_concepts() is None
+    finally:
+        th._concepts_cached.clear()

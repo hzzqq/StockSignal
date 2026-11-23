@@ -102,7 +102,6 @@ ROUTES = (
     ("/replay", "replay"),
     ("/morning", "morning"),
     ("/p1", "p1"),
-    ("/p1-construction", "p1_construction"),  # P1 组合构建诊断（v2-native，本地 JSON 只读，无网络）
     ("/recommend", "recommend"),
     ("/paper", "paper"),
     ("/alerts", "alerts"),
@@ -127,7 +126,6 @@ ROUTES = (
     ("/backtest", "backtest"),                # Tier2 策略回测
     ("/pattern-scan", "pattern_scan"),        # 31 技术形态扫描（parity C）
     ("/panorama", "panorama"),                # Tier2 市场全景
-    ("/regime", "regime"),                    # Tier2 市场状态机
     ("/portfolio", "portfolio"),              # Tier2 持仓中心
     ("/fund-flow", "fund_flow"),              # Tier2 资金流向
     ("/trading-account", "trading_account"),  # Tier2 实盘交易（仅目检，不改页面代码）
@@ -148,16 +146,11 @@ ROUTES = (
     ("/earnings-calendar", "earnings_calendar"),  # 16 财报日历（真实 akshare 披露日历）
     ("/review-notes", "review_notes"),         # 99 决策问答（逐日复盘笔记，缺失即空态）
     ("/sentiment-clock", "sentiment_clock"), # 65 投机情绪时钟
-    ("/similar-days", "similar_days"), # 67 历史相似日
-    ("/inflection-scan", "inflection_scan"), # 68 情绪拐点扫描
-    ("/regime-duration", "regime_duration"), # 69 温度持续期
-    ("/momentum-resonance", "momentum_resonance"),  # 62 动量×广度共振（离线）
     ("/limit-up-review", "limit_up_review"),  # 70 涨停复盘（实时涨停池，诚实降级）
     ("/market-sentiment", "market_sentiment"),  # 50 市场情绪温度计（实时）
     ("/xingchen", "xingchen"),                  # 53 星辰 AI 助手（多会话 + 持久化）
     ("/forum", "forum"),                        # 52 股吧社区（parity A，此前漏审计）
     ("/event-backtest", "event_backtest"),      # 事件因子回测（补齐 AppPath 覆盖）
-    ("/market-drivers", "market_drivers"),      # 15 市场驱动力（v1-pinned→native 补齐 AppPath 覆盖）
     ("/policy-transmission", "policy_transmission"),  # 政策传导（政策上下文批次补齐 AppPath 覆盖）
     ("/stock/screener", "screener"),            # 31/33/81 选股框架（底部固定入口）
 )

@@ -156,4 +156,25 @@ describe('Theme 三态 + 热力图/生命周期/热度榜 + 传导图谱', () =>
     expect(screen.queryByText('算力需求超预期')).toBeNull()
   })
 
+  it('同花顺 fallback：无总市值也用真实净额作图，且显式标源/口径', async () => {
+    mocked.mockResolvedValue({
+      concepts: [
+        { name: 'AI', chg: 3.5, turnover_p: 100, lifecycle: '高潮', net_yi: 12.5, leader: '寒武纪' },
+        { name: '光伏', chg: -2.0, turnover_p: 50, lifecycle: '平淡', net_yi: -3.2, leader: '通威股份' },
+      ],
+      summary: { count: 2, n_up: 1, n_down: 1, top_name: 'AI', top_chg: 3.5 },
+      lifecycle_counts: { 高潮: 1, 平淡: 1 },
+      unavailable: ['theme_eastmoney_unavailable'],
+      source: 'ths_fund_flow',
+      note: '东财概念板块快照本次不可用，已切换同花顺概念资金流真实源；热度=资金净额绝对值分位启发式代理（非换手率、非总市值），生命周期非预测。',
+    })
+    mockedTx.mockResolvedValue({ status: 'unavailable', reason: 'x', entries: [], concepts_hit: [], members_unavailable: [], n_titles: 0, n_concepts: 0 })
+    renderWithClient(<Theme />)
+    expect(await screen.findByText('概念板块数')).toBeTruthy()
+    expect(screen.getAllByText(/面积=资金净额绝对值/).length).toBeGreaterThan(0)
+    expect(screen.getByText(/本批数据：东财概念板块快照本次不可用/)).toBeTruthy()
+    expect(screen.getByText(/theme_eastmoney_unavailable/)).toBeTruthy()
+    expect(screen.queryByText('题材热力图（面积=总市值，颜色=涨跌幅）')).toBeNull()
+  })
+
 })

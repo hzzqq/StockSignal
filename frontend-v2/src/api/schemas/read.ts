@@ -1048,6 +1048,8 @@ export const ThemeConceptSchema = z
     up: z.number().nullable().optional(),
     down: z.number().nullable().optional(),
     leader: z.string().nullable().optional(),
+    /** 同花顺 fallback 的概念资金净额（亿元）；东财源为 null。 */
+    net_yi: z.number().nullable().optional(),
   })
   .catchall(z.unknown())
 export type ThemeConcept = z.infer<typeof ThemeConceptSchema>
@@ -1069,7 +1071,8 @@ export const ThemeSchema = z
     summary: ThemeSummarySchema.nullable().optional(),
     lifecycle_counts: z.record(z.string(), z.number()).optional(),
     unavailable: z.array(z.unknown()).optional(),
-    note: z.string().optional(),
+    source: z.string().nullable().optional(),
+    note: z.string().nullable().optional(),
   })
   .catchall(z.unknown())
 export type Theme = z.infer<typeof ThemeSchema>

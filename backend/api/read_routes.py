@@ -4375,8 +4375,10 @@ def theme():
     返回概念板块快照的派生字段（name/chg/turnover_p/lifecycle/mv/turnover/up/down/leader）+
     汇总（概念数/上涨/下跌/领涨题材）+ 生命周期分布计数。
 
-    红线：取不到快照→仍 200、unavailable=['theme_concepts_unavailable']、concepts=[]，不 500、不编数据；
-    生命周期为启发式分类（涨跌幅+换手分位），非预测。
+    东财受限时 modules.theme_heat 会切同花顺概念资金流真实源，本端点用 source/note/unavailable
+    显式标出 fallback 口径；生命周期为启发式分类，非预测。
+
+    红线：两源都取不到→仍 200、unavailable=['theme_concepts_unavailable']、concepts=[]，不 500、不编数据。
     """
     try:
         from modules import theme_heat as th
@@ -4392,6 +4394,19 @@ def theme():
             "unavailable": ["theme_concepts_unavailable"],
         }
         return ok(data=_sanitize(data), message="theme")
+
+    source = None
+    heat_basis = None
+    if "_source" in df.columns and len(df):
+        source = _safe_str(df.iloc[0].get("_source")) or None
+        heat_basis = _safe_str(df.iloc[0].get("_heat_basis")) or None
+    is_ths_fallback = source == getattr(th, "SOURCE_THS", "ths_fund_flow")
+    note = None
+    if is_ths_fallback:
+        note = (
+            "东财概念板块快照本次不可用，已切换同花顺概念资金流真实源；涨跌幅/净额/领涨股均为原始字段，"
+            f"热度={heat_basis or '资金净额绝对值分位'}启发式代理（非换手率、非总市值），生命周期非预测。"
+        )
 
     name_c = th.col_of(df, "name")
     chg = df["_chg"]
@@ -4425,6 +4440,7 @@ def theme():
             "up": _to_int(r.get(up_c)) if up_c else None,
             "down": _to_int(r.get(down_c)) if down_c else None,
             "leader": _safe_str(r.get(leader_c)) if leader_c else None,
+            "net_yi": _to_float(r["_net_yi"]) if "_net_yi" in df.columns else None,
         })
 
     n_up = int((chg > 0).sum())
@@ -4451,7 +4467,9 @@ def theme():
         "concepts": concepts,
         "summary": summary,
         "lifecycle_counts": life_counts,
-        "unavailable": [],
+        "source": source,
+        "note": note,
+        "unavailable": ["theme_eastmoney_unavailable"] if is_ths_fallback else [],
     }
     return ok(data=_sanitize(data), message="theme")
 

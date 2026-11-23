@@ -53,11 +53,14 @@ function fmtInt(v: unknown): string {
 function treemapValue(c: ThemeConcept): number {
   const mv = typeof c.mv === 'number' && Number.isFinite(c.mv) ? c.mv : null
   if (mv != null && mv > 0) return mv
-  const chg = typeof c.chg === 'number' && Number.isFinite(c.chg) ? Math.abs(c.chg) : 0
-  return chg + 1
+  // 同花顺 fallback 没有总市值：用真实资金净额绝对值作图，面积单位换算仅为 ECharts 比例，不冒充市值。
+  const net = typeof c.net_yi === 'number' && Number.isFinite(c.net_yi) ? Math.abs(c.net_yi) * 1e8 : null
+  return net != null && net > 0 ? net : 0
 }
 
-function buildTreemapOption(concepts: ThemeConcept[]): EChartsOption {
+function buildTreemapOption(concepts: ThemeConcept[], isThsFallback: boolean): EChartsOption {
+  const netByLabel = new Map<string, number | null | undefined>()
+  for (const c of concepts) netByLabel.set(c.name ?? '—', c.net_yi)
   const data = concepts.map((c) => ({
     name: c.name ?? '—',
     value: treemapValue(c),
@@ -68,7 +71,12 @@ function buildTreemapOption(concepts: ThemeConcept[]): EChartsOption {
     tooltip: {
       formatter: (p: unknown) => {
         const pp = p as { name?: string; value: number }
-        // pp.value 来自 treemapValue，恒为有限数（仅 withMv 板块入图）；直接用，不补零。
+        // pp.value 来自 treemapValue，恒为有限数（仅有面积依据的板块入图）；直接用，不补零。
+        if (isThsFallback) {
+          const raw = netByLabel.get(pp.name ?? '')
+          const sign = typeof raw === 'number' && Number.isFinite(raw) && raw < 0 ? '-' : ''
+          return `${pp.name ?? ''}｜净额 ${sign}${(pp.value / 1e8).toFixed(2)} 亿元（绝对值作图）`
+        }
         return `${pp.name ?? ''}｜市值 ${pp.value / 1e8 >= 1 ? `${(pp.value / 1e8).toFixed(0)} 亿` : `${pp.value}`}`
       },
     },
@@ -122,8 +130,15 @@ export function Theme() {
   const lifecycleCounts = d?.lifecycle_counts ?? {}
   const unavailable = (d?.unavailable ?? []).filter((k): k is string => typeof k === 'string')
 
-  const withMv = concepts.filter((c) => typeof c.mv === 'number' && Number.isFinite(c.mv) && (c.mv as number) > 0)
-  const showTreemap = withMv.length > 0
+  const source = d?.source ?? null
+  const isThsFallback = source === 'ths_fund_flow'
+  const withHeat = concepts.filter((c) => {
+    const mv = typeof c.mv === 'number' && Number.isFinite(c.mv) ? c.mv : null
+    if (mv != null && mv > 0) return true
+    const net = typeof c.net_yi === 'number' && Number.isFinite(c.net_yi) ? Math.abs(c.net_yi) : 0
+    return net > 0
+  })
+  const showTreemap = withHeat.length > 0
   const showLifecycle = Object.keys(lifecycleCounts).length > 0
   const ranked = [...concepts].sort((a, b) => {
     const av = typeof a.chg === 'number' && Number.isFinite(a.chg) ? a.chg : -Infinity
@@ -137,8 +152,12 @@ export function Theme() {
     <div className="theme">
       <SectionTitle as="h2">题材热点</SectionTitle>
       <div className="text-xs text-sf-ink-3">
-        概念板块 treemap 热力图（面积=总市值，颜色=涨跌幅，红涨绿跌）+ 生命周期（发酵/高潮/退潮/平淡）。
-        数据源东财概念板块快照；生命周期为启发式分类，非预测。事件传导图谱按需生成（手动触发，取不到不顶替）。
+        概念板块 treemap 热力图（{isThsFallback ? '面积=资金净额绝对值' : '面积=总市值'}，颜色=涨跌幅，红涨绿跌）
+        + 生命周期（发酵/高潮/退潮/平淡）。
+        {isThsFallback
+          ? '数据源同花顺概念资金流真实源（东财本次受限）；热度=资金净额绝对值分位，生命周期为启发式分类，非预测。'
+          : '数据源东财概念板块快照；生命周期为启发式分类，非预测。'}
+        事件传导图谱按需生成（手动触发，取不到不顶替）。
       </div>
 
       <QueryState
@@ -164,9 +183,13 @@ export function Theme() {
             </div>
 
             {showTreemap && (
-              <Card title="题材热力图（面积=总市值，颜色=涨跌幅）">
-                <EChart option={buildTreemapOption(withMv)} height={460} ariaLabel="题材板块 treemap 热力图" />
-                <div className="mt-2 text-xs text-sf-ink-3">红=上涨、绿=下跌；方块面积越大表示板块总市值越高。</div>
+              <Card title={isThsFallback ? '题材热力图（面积=资金净额绝对值，颜色=涨跌幅）' : '题材热力图（面积=总市值，颜色=涨跌幅）'}>
+                <EChart option={buildTreemapOption(withHeat, isThsFallback)} height={460} ariaLabel="题材板块 treemap 热力图" />
+                <div className="mt-2 text-xs text-sf-ink-3">
+                  {isThsFallback
+                    ? '红=上涨、绿=下跌；方块面积表示概念资金净额绝对值（亿元），不是总市值；tooltip 保留净额正负号。'
+                    : '红=上涨、绿=下跌；方块面积越大表示板块总市值越高。'}
+                </div>
               </Card>
             )}
 
@@ -212,6 +235,11 @@ export function Theme() {
               </Card>
             </div>
 
+            {isThsFallback && d?.note && (
+              <div className="text-xs text-sf-ink-3 border-l-2 border-sf-accent pl-3">
+                ⚠️ 本批数据：{d.note}
+              </div>
+            )}
             {unavailable.length > 0 && (
               <div className="text-xs text-sf-ink-3 border-l-2 border-sf-line pl-3">
                 以下情况本次发生（已诚实标注）：{unavailable.join('、')}
@@ -219,9 +247,19 @@ export function Theme() {
             )}
 
             <div className="text-xs text-sf-ink-3">
-              {`口径与来源：概念板块涨跌幅/换手率/市值=东财概念板块实时快照（akshare stock_board_concept_name_em，120 秒缓存，非实时行情）； 生命周期=涨跌幅+换手分位启发式分类，描述当下状态，非预测；事件传导=近期新闻标题共现（手动触发，取不到不顶替）。`}
-              <LeadText>不构成投资建议</LeadText>
-              {`。`}
+              {isThsFallback ? (
+                <>
+                  {`口径与来源：涨跌幅/净额/领涨股=同花顺概念资金流真实源（akshare stock_fund_flow_concept 即时，120 秒缓存，非实时行情）；本批东财概念板块快照受限，已诚实切换；生命周期=涨跌幅+资金净额绝对值分位启发式分类（非换手率、非总市值），描述当下状态，非预测；事件传导=近期新闻标题共现（手动触发，取不到不顶替）。`}
+                  <LeadText>不构成投资建议</LeadText>
+                  {`。`}
+                </>
+              ) : (
+                <>
+                  {`口径与来源：概念板块涨跌幅/换手率/市值=东财概念板块实时快照（akshare stock_board_concept_name_em，120 秒缓存，非实时行情）； 生命周期=涨跌幅+换手分位启发式分类，描述当下状态，非预测；事件传导=近期新闻标题共现（手动触发，取不到不顶替）。`}
+                  <LeadText>不构成投资建议</LeadText>
+                  {`。`}
+                </>
+              )}
             </div>
           </div>
         ) : null}
