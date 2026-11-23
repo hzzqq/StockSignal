@@ -15,15 +15,17 @@ export function PageTabs({
   active,
   onChange,
   ariaLabel,
+  wide = false,
 }: {
   tabs: readonly PageTab[]
   active: string
   onChange: (key: string) => void
   ariaLabel: string
+  wide?: boolean
 }) {
   return (
     <div
-      className="flex rounded-tile border border-sf-line bg-sf-surface-2 p-1 mb-4 max-w-[420px]"
+      className={`flex rounded-tile border border-sf-line bg-sf-surface-2 p-1 mb-4 ${wide ? 'max-w-[720px]' : 'max-w-[420px]'}`}
       role="tablist"
       aria-label={ariaLabel}
     >

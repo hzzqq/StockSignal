@@ -86,7 +86,7 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   '46_自选股监控.py': { to: '/watch', note: WATCH_READONLY_NOTE },
   '35_资金流向.py': { to: '/fund-flow' },
   // 广度·温度簇
-  '56_市场状态机.py': { to: '/regime' },
+  '56_市场状态机.py': { to: '/panorama', note: '2026-11-23 相似页合并：与 57 市场全景同源（同 /market-panorama 端点），并入 /panorama「市场状态机」tab；旧 /regime 路由 redirect' },
   '57_市场全景.py': { to: '/panorama' },
   // 2026-11-20 迁移：59 四块能力已承接。/breadth 现含牧羊人 8 指标热度贡献分解、
   // 极端区信号（sentiment_edge）、历史情境类比与基准窗口切换（近一季/近一年/全历史 2007 起），
@@ -169,11 +169,11 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   '99_决策问答.py': { to: '/review-notes' },
   // 65/67/68/69 离线可靠广度统计：v2 真页面（共用 /breadth-analytics，68 另按需取 /breadth-zseries）。
   '65_投机情绪周期时钟.py': { to: '/sentiment-clock' },
-  '67_历史相似日聚类前向分布.py': { to: '/similar-days' },
-  '68_情绪拐点扫描器.py': { to: '/inflection-scan' },
-  '69_温度持续期与回归时长.py': { to: '/regime-duration' },
+  '67_历史相似日聚类前向分布.py': { to: '/sentiment-clock', note: '2026-11-23 相似页重组：与 65/68/69 同走 /breadth-analytics，并入 /sentiment-clock「历史相似日」tab；旧路径 redirect' },
+  '68_情绪拐点扫描器.py': { to: '/sentiment-clock', note: '2026-11-23 相似页重组：并入 /sentiment-clock「拐点扫描」tab；旧路径 redirect' },
+  '69_温度持续期与回归时长.py': { to: '/sentiment-clock', note: '2026-11-23 相似页重组：并入 /sentiment-clock「温度持续期」tab；旧路径 redirect' },
   // 62 动量×广度共振：v2 等价实现 /momentum-resonance（离线广度统计真页面）。
-  '62_动量广度共振.py': { to: '/momentum-resonance' },
+  '62_动量广度共振.py': { to: '/sentiment-clock', note: '2026-11-23 相似页重组：并入 /sentiment-clock「动量共振」tab；旧路径 redirect' },
   // 70 涨停复盘×龙头识别：v2 等价实现 /limit-up-review（实时涨停池，联网不可用诚实降级）。
   '70_涨停复盘.py': { to: '/limit-up-review' },
   // 50 市场情绪·温度计：v2 等价实现 /market-sentiment（实时市场驱动力，单源失败优雅降级）。

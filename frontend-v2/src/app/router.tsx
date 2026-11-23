@@ -44,8 +44,7 @@ const LazyLeadLagMatrixView = lazyRouteComponent(() => import('@/features/matrix
 const LazyGuideView = lazyRouteComponent(() => import('@/features/guide/GuideView'), 'GuideView')
 const LazyFactorAnalysis = lazyRouteComponent(() => import('@/features/factor/FactorAnalysis'), 'FactorAnalysis')
 const LazyBacktest = lazyRouteComponent(() => import('@/features/backtest/Backtest'), 'Backtest')
-const LazyMarketPanorama = lazyRouteComponent(() => import('@/features/market/MarketPanorama'), 'MarketPanorama')
-const LazyMarketRegime = lazyRouteComponent(() => import('@/features/market/MarketRegime'), 'MarketRegime')
+const LazyMarketPanorama = lazyRouteComponent(() => import('@/features/market/MarketPanoramaTabbed'), 'MarketPanoramaTabbed')
 const LazyPortfolio = lazyRouteComponent(() => import('@/features/portfolio/Portfolio'), 'Portfolio')
 const LazyFundFlow = lazyRouteComponent(() => import('@/features/fundflow/FundFlow'), 'FundFlow')
 const LazyTradingAccount = lazyRouteComponent(() => import('@/features/trading/TradingAccount'), 'TradingAccount')
@@ -62,11 +61,7 @@ const LazyDataExport = lazyRouteComponent(() => import('@/features/export/DataEx
 const LazyMe = lazyRouteComponent(() => import('@/features/me/Me'), 'Me')
 const LazyEarningsCalendar = lazyRouteComponent(() => import('@/features/calendar/EarningsCalendar'), 'EarningsCalendar')
 const LazyReviewNotes = lazyRouteComponent(() => import('@/features/review/ReviewNotes'), 'ReviewNotes')
-const LazySentimentClock = lazyRouteComponent(() => import('@/features/analytics/SentimentClock'), 'SentimentClock')
-const LazySimilarDays = lazyRouteComponent(() => import('@/features/analytics/SimilarDays'), 'SimilarDays')
-const LazyInflectionScan = lazyRouteComponent(() => import('@/features/analytics/InflectionScan'), 'InflectionScan')
-const LazyRegimeDuration = lazyRouteComponent(() => import('@/features/analytics/RegimeDuration'), 'RegimeDuration')
-const LazyMomentumResonance = lazyRouteComponent(() => import('@/features/breadth/MomentumResonance'), 'MomentumResonance')
+const LazySentimentClock = lazyRouteComponent(() => import('@/features/analytics/BreadthLabTabbed'), 'BreadthLabTabbed')
 const LazyLimitUpReview = lazyRouteComponent(() => import('@/features/breadth/LimitUpReview'), 'LimitUpReview')
 const LazyMarketSentiment = lazyRouteComponent(() => import('@/features/market/MarketSentimentTabbed'), 'MarketSentimentTabbed')
 const LazyXingchen = lazyRouteComponent(() => import('@/features/xingchen/XingchenPage'), 'XingchenPage')
@@ -307,7 +302,10 @@ const panoramaRoute = createRoute({
 const regimeRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/regime',
-  component: LazyMarketRegime,
+  // 2026-11-23 相似页合并：市场状态机并入 /panorama 的 tab，旧路径永久重定向。
+  beforeLoad: () => {
+    throw redirect({ to: '/panorama' })
+  },
 })
 
 const portfolioRoute = createRoute({
@@ -437,28 +435,32 @@ const sentimentClockRoute = createRoute({
 const similarDaysRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/similar-days',
-  component: LazySimilarDays,
+  // 2026-11-23 相似页合并：并入 /sentiment-clock 的广度情绪 tab，旧路径永久重定向。
+  beforeLoad: () => { throw redirect({ to: '/sentiment-clock' }) },
 })
 
 // 68 情绪拐点扫描器（v2 native /inflection-scan）：离线可靠广度统计真页面。
 const inflectionScanRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/inflection-scan',
-  component: LazyInflectionScan,
+  // 2026-11-23 相似页合并：并入 /sentiment-clock 的广度情绪 tab，旧路径永久重定向。
+  beforeLoad: () => { throw redirect({ to: '/sentiment-clock' }) },
 })
 
 // 69 温度持续期与回归时长（v2 native /regime-duration）：离线可靠广度统计真页面。
 const regimeDurationRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/regime-duration',
-  component: LazyRegimeDuration,
+  // 2026-11-23 相似页合并：并入 /sentiment-clock 的广度情绪 tab，旧路径永久重定向。
+  beforeLoad: () => { throw redirect({ to: '/sentiment-clock' }) },
 })
 
 // 62 动量×广度共振（v2 native /momentum-resonance）：离线广度统计真页面。
 const momentumResonanceRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/momentum-resonance',
-  component: LazyMomentumResonance,
+  // 2026-11-23 相似页合并：并入 /sentiment-clock 的广度情绪 tab，旧路径永久重定向。
+  beforeLoad: () => { throw redirect({ to: '/sentiment-clock' }) },
 })
 
 // 70 涨停复盘 × 龙头识别（v2 native /limit-up-review）：实时涨停池（东财，10 分钟缓存）。

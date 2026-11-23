@@ -32,7 +32,6 @@ export type AppPath =
   | '/factor'
   | '/backtest'
   | '/panorama'
-  | '/regime'
   | '/portfolio'
   | '/fund-flow'
   | '/trading-account'
@@ -54,10 +53,6 @@ export type AppPath =
   | '/me'
   | '/review-notes'
   | '/sentiment-clock'
-  | '/similar-days'
-  | '/inflection-scan'
-  | '/regime-duration'
-  | '/momentum-resonance'
   | '/limit-up-review'
   | '/market-sentiment'
   | '/xingchen'
@@ -82,7 +77,6 @@ export const NAV: NavGroup[] = [
     items: [
       { to: '/quote-board', label: '行情看板', icon: '📊' },
       { to: '/panorama', label: '市场全景', icon: '◉' },
-      { to: '/regime', label: '市场状态机', icon: '❖' },
       { to: '/sector-rotation', label: '板块轮动', icon: '🔥' },
       { to: '/theme', label: '题材热点', icon: '🧱' },
       { to: '/strong', label: '实时强势榜', icon: '🏅' },
@@ -100,12 +94,8 @@ export const NAV: NavGroup[] = [
       { to: '/breadth-divergence', label: '广度结构分化', icon: '▥' },
       { to: '/temperature-backtest', label: '温度档回测', icon: '⌁' },
       { to: '/ladder', label: '连板梯队共振', icon: '🪜' },
-      { to: '/sentiment-clock', label: '投机情绪时钟', icon: '◷' },
+      { to: '/sentiment-clock', label: '广度情绪实验室', icon: '◷' },
       { to: '/limit-up-review', label: '涨停复盘', icon: '🏆' },
-      { to: '/regime-duration', label: '温度持续期', icon: '⧗' },
-      { to: '/similar-days', label: '历史相似日', icon: '≋' },
-      { to: '/inflection-scan', label: '情绪拐点扫描', icon: '⤴' },
-      { to: '/momentum-resonance', label: '动量×广度共振', icon: '🌀' },
       { to: '/events', label: '事件因子池', icon: '◈' },
     ],
   },
