@@ -257,6 +257,9 @@ def test_research_deep_ok_envelope(client, token, monkeypatch):
     monkeypatch.setattr(rr, "_w4b_spot", lambda code: _fake_spot())
     monkeypatch.setattr(rr, "_w4b_kline", lambda code, period="daily": kl)
     monkeypatch.setattr(rr, "_w4b_financial", lambda code, rt: None)
+    # 显式桩掉腾讯单票快照：本用例断言 pb/turnover 为 null（源不可用语义），
+    # 不依赖真实网络失败，也不受 _qq_spot_single 60s 进程缓存污染。
+    monkeypatch.setattr(rr, "_qq_spot_single", lambda code: {})
     resp = client.get("/api/v2/read/research-deep?code=600519", headers=_auth(token))
     assert resp.status_code == 200, resp.get_data(as_text=True)[:200]
     obj = resp.get_json()
@@ -268,9 +271,9 @@ def test_research_deep_ok_envelope(client, token, monkeypatch):
         assert k in d, f"data 缺字段 {k}: {d}"
     assert d["code"] == "600519" and d["name"] == "贵州茅台"
     assert d["price"] == 1688.0 and d["pe_ttm"] == 28.1 and d["market_cap"] == 21000.0
-    # pb 无源 -> null；turnover 无源 -> null（诚实不编造）
-    assert d["pb"] is None, "pb 必须 null（get_fundamentals 不返回）"
-    assert d["turnover"] is None, "turnover 必须 null（需流通股本，无源）"
+    # 腾讯快照不可用 -> null（诚实不编造，不补 0）
+    assert d["pb"] is None, "腾讯市净率不可用时 pb 必须 null"
+    assert d["turnover"] is None, "腾讯换手率不可用时 turnover 必须 null"
     # 技术面真值（_fake_kline_long：close=1..70）
     assert d["ma5"] == 68.0 and d["ma10"] == 65.5 and d["ma20"] == 60.5 and d["ma60"] == 40.5
     # amplitude：末根 high=70.5, low=69.5, prev_close=69.0 -> (1.0)/69*100
@@ -295,6 +298,8 @@ def test_research_deep_all_sources_fail_null(client, token, monkeypatch):
     monkeypatch.setattr(rr, "_w4b_spot", lambda code: None)
     monkeypatch.setattr(rr, "_w4b_kline", lambda code, period="daily": None)
     monkeypatch.setattr(rr, "_w4b_financial", lambda code, rt: None)
+    # 全源失败亦含腾讯源：显式桩掉，避免依赖真实网络 / 60s 缓存
+    monkeypatch.setattr(rr, "_qq_spot_single", lambda code: {})
     resp = client.get("/api/v2/read/research-deep?code=600519", headers=_auth(token))
     assert resp.status_code == 200, resp.get_data(as_text=True)[:200]
     obj = resp.get_json()

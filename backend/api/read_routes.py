@@ -2410,7 +2410,8 @@ def research_deep():
     """24 页 deep 子视图的轻量同步技术面（price/pe_ttm/pb/market_cap + 技术字段）。
 
     GET /api/v2/read/research-deep?code=600519。复用 _w4b_basic/_w4b_spot/_w4b_kline
-    三源并行；pb 无源->null、turnover（换手率，需流通股本）无源->null。
+    三源并行；pb / turnover（换手率）来自腾讯单票快照 _qq_spot_single，取不到为 null
+    （市净率 0 无业务意义也视为无效；换手率 0 是合法真实值保留）。
     旧 24 页 56 键 analysis_engine 异步深度分析**本轮不接入**，deep_analysis_available
     诚实标注为 false（前端据实展示豁免卡，不造假）。
     """
@@ -2420,19 +2421,25 @@ def research_deep():
                     code="invalid_param", http_status=400)
     try:
         from modules.fetch_parallel import fetch_many
-        # 三源并行。曾接入第四源 _w4b_financial(code, "income")，但其输出在本端点
-        # 不被任何字段消费（pb/market_cap 由 basic 提供，财报三表无 pb 估值），
-        # 纯属白拉一次 akshare——已砍掉，提速且不改变任何响应字段。
+        # 四源并行。曾接入的第四源 _w4b_financial(code, "income") 输出不被任何字段
+        # 消费（财报三表无 pb 估值），纯属白拉一次 akshare——已砍掉；现第四源改为
+        # _qq_spot_single（腾讯单票快照），为 pb / turnover 提供真实数据。
         res = fetch_many([
             ("basic", lambda: _w4b_basic(code)),
             ("spot", lambda: _w4b_spot(code)),
             ("kline", lambda: _w4b_kline(code, "daily")),
+            ("qq", lambda: _qq_spot_single(code)),
         ])
     except Exception:  # noqa: BLE001
         res = {}
     basic = res.get("basic")
     spot = res.get("spot")
     kline = res.get("kline")
+    qq = res.get("qq") if isinstance(res.get("qq"), dict) else {}
+    # 市净率 0 无业务意义 -> None；换手率 0 是合法真实值必须保留
+    _qq_pb = _w4b_num(qq.get("市净率"))
+    if _qq_pb == 0:
+        _qq_pb = None
     bdict = basic if isinstance(basic, dict) else {}
     tech = _w4c_deep_tech(kline)
     date = _w4b_kline_date(kline) or _w4b_spot_date(spot)
@@ -2443,16 +2450,16 @@ def research_deep():
         "date": date,
         "price": _w4b_num(bdict.get("price")),
         "pe_ttm": _w4b_num(bdict.get("pe_ttm")),
-        "pb": None,  # get_fundamentals 不返回 pb（_w4b_basic 已核实），诚实 null
+        "pb": _qq_pb,  # 腾讯单票快照「市净率」；取不到或为 0 -> null，不补值
         "market_cap": _w4b_num(bdict.get("market_cap")),
         "ma5": tech.get("ma5"),
         "ma10": tech.get("ma10"),
         "ma20": tech.get("ma20"),
         "ma60": tech.get("ma60"),
         "amplitude": tech.get("amplitude"),
-        "turnover": None,  # 换手率需流通股本，kline 无此源，诚实 null
+        "turnover": _w4b_num(qq.get("换手率")),  # 腾讯单票快照「换手率」；取不到 -> null，0 保留
         "deep_analysis_available": False,
-        "note": _W4C_NOTE + "；轻量同步技术面（价格/PE/市值/均线/振幅）已返回；56 键异步深度分析暂未接入，可走 /legacy",
+        "note": _W4C_NOTE + "；轻量同步技术面（价格/PE/市值/均线/振幅）已返回，pb/换手率来自腾讯单票快照（取不到为 null）；56 键异步深度分析暂未接入，可走 POST /api/tasks type=analysis",
     }
     return ok(data=_sanitize(data), message="research-deep")
 
