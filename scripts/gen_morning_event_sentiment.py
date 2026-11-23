@@ -443,13 +443,26 @@ def main():
     _snap_newer = (_sh_lag is not None and _snap_lag is not None and _sh_lag > _snap_lag)
     if _snap_newer:
         _gap = _sh_lag - _snap_lag
+        # 封顶措辞须按「封顶是否实际约束仓位」动态判定（与第五节 _freshness_cap_note 同口径），
+        # 不可仅按 freshness_status in (warn,stale) 硬编码「已触发陈旧封顶」——
+        # 当推导仓位本就低于封顶阈值时（如 warn 阈值60% vs 推导9%），封顶并未约束，
+        # 硬编码会与第五节「封顶未实际约束」自相矛盾（11-12 同类 bug 残留）。
+        from modules.decision import FRESHNESS_CAPS as _CAPS
+        _cap_val = _CAPS.get(freshness_status)
+        if _cap_val is not None and pos_raw["pct"] > _cap_val and eff_pos["pct"] == _cap_val:
+            _fresh_cap_inline = f"已据此触发陈旧封顶 {eff_pos['pct']}%"
+        elif _cap_val is not None:
+            _fresh_cap_inline = (f"封顶阈值 {_cap_val:.0f}% 已显式告警但未实际约束"
+                                 f"（当日推导仓位 {eff_pos['pct']}% 低于该阈值）")
+        else:
+            _fresh_cap_inline = "未触发陈旧封顶"
         lines.append(f"> ⚠️ **注意（决策读数来源 vs 底层历史）**：本早报喂进 `derive_position` 的 score/bias/cycle/temp 取自"
                      f"**最新每日快照 `{os.path.basename(snap_path)}`（快照数据日 {fmt(snap_date)}，当日实时抓取）**；"
                      f"而 health 口径的「牧羊人情绪」源 `shepherd_history.csv` 末行仅到 **{fmt(_sh_asof)}**（滞后 {fmt(_sh_lag)} 天，{_sh_down_tag}）——"
                      f"**快照的牧羊人读数（{fmt(snap_date)}）比底层广度历史 CSV（{fmt(_sh_asof)}）新 {_gap} 天**。这意味着 "
                      f"`derive_position` 内由 `compute_dual_factor_inputs()` 计算的 regime/herd 拥挤因子基于落后的广度历史（{fmt(_sh_asof)}）；"
                      f"当前整体新鲜度判定为 **{freshness_status}**（决策输入源最大滞后 {fmt(fresh.get('max_lag_days'))} 天），"
-                     f"{'已据此触发陈旧封顶' if freshness_status in ('warn', 'stale') else '未触发陈旧封顶'}；"
+                     f"{_fresh_cap_inline}；"
                      f"regime/herd 因子本身基于落后 {fmt(_sh_lag)} 天的广度已如实标注，未误用过期广度抬高建议。")
     else:
         lines.append(f"> ⚠️ **注意（决策读数来源 vs 底层历史）**：本早报喂进 `derive_position` 的 score/bias/cycle/temp 取自"

@@ -148,6 +148,43 @@ def test_freshness_cap_note_three_branches():
     assert "未知" in s and "不臆造" in s and "封顶" in s and "新鲜（ok）" not in s
 
 
+def test_morning_report_inline_cap_wording_matches_fifth_section():
+    """早报「决策读数来源 vs 底层历史」inline 块的封顶措辞须与第五节同口径（T-319 续）。
+
+    反例（并发 AI 遗留修法前）：`freshness_status in ('warn','stale')` 硬编码
+    「已据此触发陈旧封顶」——当推导仓位本就低于封顶阈值时（如 warn 60% vs 推导 9%），
+    封顶并未约束，硬编码会与第五节「封顶未实际约束」自相矛盾。修正后须：
+      ① 从 modules.decision.FRESHNESS_CAPS 取阈值（单一真理源，勿硬编码）；
+      ② 同时比较 pos_raw 与 eff_pos（真触发=raw>阈值 且 eff==阈值）；
+      ③ 不再有 freshness_status in (...) 的硬编码触发。
+    """
+    import ast
+    import os as _os
+    src_path = _os.path.join(
+        _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+        "scripts", "gen_morning_event_sentiment.py")
+    src = open(src_path, encoding="utf-8").read()
+    tree = ast.parse(src)
+    main_fn = next(n for n in ast.walk(tree)
+                   if isinstance(n, ast.FunctionDef) and n.name == "main")
+    main_src = ast.get_source_segment(src, main_fn) or ""
+
+    # ① 单一真理源：main 内必须从 FRESHNESS_CAPS 取阈值
+    assert "FRESHNESS_CAPS" in main_src, \
+        "main() 未从 modules.decision.FRESHNESS_CAPS 取封顶阈值（禁止硬编码 60/40）"
+    # ② 真触发判定须同时读 pos_raw 与 eff_pos
+    assert 'pos_raw["pct"]' in main_src and 'eff_pos["pct"]' in main_src, \
+        "inline 封顶判定未同时比较 pos_raw/eff_pos（无法区分真触发与未约束）"
+    # ③ 不得再有 status in (warn,stale) 的硬编码触发
+    import re
+    assert not re.search(
+        r"freshness_status\s+in\s*\(\s*['\"]warn['\"]\s*,\s*['\"]stale['\"]\s*\)", main_src), \
+        "仍用 freshness_status in ('warn','stale') 硬编码触发封顶（诚实口径回归）"
+    # ④ inline 措辞须与第五节共用「未实际约束」的诚实表达
+    assert "未实际约束" in main_src, \
+        "inline 块缺少「封顶未实际约束」的诚实表达"
+
+
 def test_morning_report_freshness_status_bound_before_use():
     """freshness_status 必须经模块级 helper _overall_freshness_status 具名产出（T-322）。
 
