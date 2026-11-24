@@ -174,6 +174,14 @@ def create_app(config_object: type = Config) -> Flask:
     except Exception as e:
         app.logger.warning("启动 P1 同步调度器失败（不影响主服务）：%s", e)
 
+    # ---- 冷启动预热行业资金流缓存：避免登录页 public-picks 首访吃满东财超时 ----
+    # warm_fundflow_caches 幂等 + 后台 daemon 线程 + 失败静默降级，绝不阻塞启动。
+    try:
+        from modules.fundflow import warm_fundflow_caches
+        warm_fundflow_caches()
+    except Exception:  # 预热失败不影响服务可用性，取数端自有降级
+        logging.getLogger(__name__).warning("[app] fundflow 预热钩子调用失败", exc_info=True)
+
     # ---- 全局错误处理：把任何出口都锁回 JSON ----
     _register_error_handlers(app)
     _register_security_headers(app)
