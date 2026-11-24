@@ -2,7 +2,8 @@
 """P1 信号名称水合守卫（read_routes.py::p1_signals）。
 
 真实 JSON 的 top_long/top_short 每项只有 symbol/pred/rank，没有 name；
-本测试钉住「从零网络股票池补 name、未命中写 None、异常降级不 500、原文件不写回」。
+本测试钉住「本地零网络股票池补 name、未命中写 None、绝不逐票联网查名、
+池异常仍 200（全部留空）、原文件不写回」。
 
 为避免依赖真实 data/cache.db，所有用例 monkeypatch load_stock_pool 返回受控 tuple。
 """
@@ -28,6 +29,15 @@ from backend.models import User  # noqa: E402
 from backend.auth.service import issue_token  # noqa: E402
 import backend.api.read_routes as rr  # noqa: E402
 import backend.services.stock_pool_fallback as spf  # noqa: E402
+from modules import cache_utils  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _clean_ttl_cache():
+    """端点有 5min TTL 缓存，用例前后清空，避免不同临时数据树互相串扰。"""
+    cache_utils.clear_cache()
+    yield
+    cache_utils.clear_cache()
 
 
 # 受控真实股票池（code 6 位 + name），取自 data/cache.db::all_stocks 真实值
@@ -77,9 +87,11 @@ def client(app, tmp_path, monkeypatch):
     monkeypatch.setattr(rr, "_DATA_DIR", data)
     # 默认受控池；个别用例再覆盖
     monkeypatch.setattr(spf, "load_stock_pool", lambda: POOL)
-    # 默认封死腾讯实时查名层（返回空 dict = 查不到），避免任何用例真发网络；
-    # 专项用例自行覆盖为受控返回。
-    monkeypatch.setattr(rr, "_qq_spot_single", lambda code: {})
+    # 红线守卫：任何用例一旦走逐票网络查名立刻失败（p1_signals 不得调用该层）。
+    def _forbidden_qq(code):
+        raise AssertionError(f"p1-signals 不得调用 _qq_spot_single 查名: {code}")
+
+    monkeypatch.setattr(rr, "_qq_spot_single", _forbidden_qq)
     return app.test_client()
 
 
@@ -112,7 +124,10 @@ def _get(client, token):
 
 
 def test_name_hydrated_and_fields_preserved(client, token, tmp_path):
-    """命中池：补真实 name，归一取 symbol 尾 6 位，pred/rank 与其它字段不变，原文件不写回。"""
+    """命中池：补真实 name，归一取 symbol 尾 6 位，pred/rank 与消费字段不变，原文件不写回。
+
+    瘦身边界：daily/model/horizon 等无人消费的原始字段不得透出。
+    """
     p1 = tmp_path / "data" / "p1_signals"
     fp = _write_signal(
         p1,
@@ -136,11 +151,12 @@ def test_name_hydrated_and_fields_preserved(client, token, tmp_path):
     # pred / rank 原样保留
     assert long0["pred"] == 0.1079 and long0["rank"] == 1.0
     assert short0["pred"] == 0.1066 and short0["rank"] == 0.9986
-    # 其它字段原样保留
+    # 消费字段原样保留；大字段全部剔除（前端 schema 里是 optional，不消费）
     assert sig["generated_at"] == "2026-11-18T13:44:37"
     assert sig["latest_date"] == "2026-11-17"
-    assert sig["model"] == "baseline20"
-    assert sig["horizon"] == 20
+    assert set(sig) == {"generated_at", "latest_date", "top_long", "top_short"}, sig
+    for dropped in ("daily", "model", "horizon", "quality"):
+        assert dropped not in sig, dropped
     # 原 JSON 文件未被写回（无 name 字段）
     assert fp.read_text(encoding="utf-8") == raw_before
     assert "name" not in json.loads(raw_before)["top_long"][0]
@@ -179,61 +195,29 @@ def test_missing_code_name_is_none(client, token, tmp_path):
     assert item["symbol"] == "sh600519" and item["pred"] == 0.3
 
 
-def test_missing_code_hydrated_via_qq_spot(client, token, tmp_path, monkeypatch):
-    """池子快照滞后于新股上市（实证 sh688825 长鑫科技）-> 腾讯实时层兜底补真名。
+def test_missing_new_listing_name_is_none_no_network(client, token, tmp_path):
+    """池子快照滞后于新股上市（实证 sh688825 长鑫科技）-> name=None（诚实空）。
 
-    钉三件事：① symbol 尾 6 位传给腾讯层；② 查到「名称」补进 name；
-    ③ 池子命中的代码**不**触发腾讯层（零网络开销）。
+    钉两件事：① 池子命中的代码补真名；② 池子未命中的代码不再逐票联网查名，
+    即便腾讯层存在也不调用（client fixture 把它设成「调用即失败」）。
     """
-    calls: list[str] = []
-
-    def _fake_qq(code):
-        calls.append(code)
-        if code == "688825":
-            return {"名称": "长鑫科技"}
-        return {}
-
-    monkeypatch.setattr(rr, "_qq_spot_single", _fake_qq)
     p1 = tmp_path / "data" / "p1_signals"
     _write_signal(
         p1,
         "signal_new_listing.json",
         _sig(
             long_items=[
-                _item("sh688313", 0.1079, 1.0),  # 池子命中 -> 不走腾讯
-                _item("sh688825", 0.0954, 0.989),  # 池子缺 -> 腾讯兜底
-            ],
-        ),
-    )
-    _, obj = _get(client, token)
-    items = obj["data"]["signal_new_listing.json"]["top_long"]
-    assert items[0]["name"] == "仕佳光子"  # 池子命中，原水合路径不变
-    assert items[1]["name"] == "长鑫科技"  # 腾讯实时兜底补上
-    assert calls == ["688825"], calls  # 只对池子未命中的代码发请求
-
-
-def test_qq_spot_exception_name_is_none(client, token, tmp_path, monkeypatch):
-    """腾讯实时层抛异常 -> 该行 name=None（诚实空），端点仍 200，不影响其他行。"""
-    def _boom(code):
-        raise RuntimeError("qt blocked")
-
-    monkeypatch.setattr(rr, "_qq_spot_single", _boom)
-    p1 = tmp_path / "data" / "p1_signals"
-    _write_signal(
-        p1,
-        "signal_qq_boom.json",
-        _sig(
-            long_items=[
-                _item("sh688313", 0.1079, 1.0),  # 池子命中，不受影响
-                _item("sh600519", 0.3, 0.9),  # 池子缺 + 腾讯炸 -> None
+                _item("sh688313", 0.1079, 1.0),  # 池子命中
+                _item("sh688825", 0.0954, 0.989),  # 池子缺（新股，可能查得到真名也不查）
             ],
         ),
     )
     resp, obj = _get(client, token)
     assert resp.status_code == 200 and obj["status"] == "ok", obj
-    items = obj["data"]["signal_qq_boom.json"]["top_long"]
-    assert items[0]["name"] == "仕佳光子"
-    assert items[1]["name"] is None
+    items = obj["data"]["signal_new_listing.json"]["top_long"]
+    assert items[0]["name"] == "仕佳光子"  # 池子命中，补真名
+    assert items[1]["name"] is None, items[1]  # 池子未命中，诚实留空
+    assert items[1]["symbol"] == "sh688825" and items[1]["pred"] == 0.0954
 
 
 def test_empty_pool_all_none(client, token, tmp_path, monkeypatch):
@@ -282,10 +266,10 @@ def test_multi_signal_both_sides(client, token, tmp_path):
     assert b["top_short"][0]["name"] is None  # 600519 不在受控池
 
 
-def test_hydration_exception_degrades_with_warning(
+def test_pool_exception_degrades_to_none_names_with_warning(
     client, token, tmp_path, monkeypatch, caplog
 ):
-    """水合抛异常 -> 端点仍 200、原字段保留（无 name）、warning 留痕。"""
+    """本地股票池抛异常 -> 端点仍 200、所有 name=None（诚实空）、warning 留痕。"""
     def _boom():
         raise RuntimeError("pool exploded (simulated)")
 
@@ -302,8 +286,8 @@ def test_hydration_exception_degrades_with_warning(
 
     assert resp.status_code == 200 and obj["status"] == "ok", obj
     item = obj["data"]["signal_boom.json"]["top_long"][0]
-    # 降级为原样返回：不带 name 字段，其它字段完整
-    assert "name" not in item, item
-    assert item == {"symbol": "sh688313", "pred": 0.1079, "rank": 1.0}
-    assert obj["data"]["signal_boom.json"]["horizon"] == 10
-    assert any("名称水合失败" in r.getMessage() for r in caplog.records), caplog.text
+    assert item["name"] is None, item  # 池不可用即查不到，不编造、不联网
+    assert item["symbol"] == "sh688313" and item["pred"] == 0.1079 and item["rank"] == 1.0
+    sig = obj["data"]["signal_boom.json"]
+    assert "horizon" not in sig and "daily" not in sig and "model" not in sig
+    assert any("本地股票池不可用" in r.getMessage() for r in caplog.records), caplog.text

@@ -467,64 +467,64 @@ def virtual_users_sim():
 def p1_signals():
     """P1 量化信号（data/p1_signals/signal_*.json）—— 54/51 页多头侧灰度参考。
 
-    返回 {文件名: 解析后的信号 dict}；目录缺失 -> not_found(200)，目录存在但无信号
-    -> ok(data={})（与页面「未找到 P1 信号文件」的诚实语义一致）。
+    只返回前端实际消费的字段：generated_at/latest_date/top_long/top_short；
+    原始 JSON 里的 daily（逐日大数组，占文件绝大部分体积）/model/horizon/quality
+    等无任何消费者，全部剔除（审计见前端 P1Signals/Dashboard/schema）。
+    每只 top 项保留 symbol/pred/rank 并补本地池水合的 name。
+
+    名称水合只用零网络的本地股票池（load_stock_pool，lru_cache）；池子未命中的代码
+    直接写 None（诚实空，前端显示「—」）。绝不逐票调用 _qq_spot_single：首访为个别
+    新股牺牲整个端点 4s+ 不可接受，查不到就如实留空，绝不编造。
+    只读响应数据，绝不写回原 JSON 文件。
+
+    结果按数据日文件更新节奏做 5min TTL 缓存（键含数据目录），避免每次重读 ~73MB。
+    目录缺失 -> not_found(200)；目录存在但无有效信号 -> ok(data={})（诚实空态）。
     """
     d = _DATA_DIR / "p1_signals"
     if not d.is_dir():
         return _not_found("p1_signals/")
-    out: dict[str, object] = {}
-    for fp in sorted(d.glob("signal_*.json")):
-        status, data = _read_json(fp)
-        if status == "ok":
-            out[fp.name] = data
 
-    # 水合股票名称：P1 原始 JSON 的 top_long/top_short 只有 symbol/pred/rank，
-    # 两层补 name：① 从零网络真实股票池建 code->name 映射（主）；② 池子未命中（新股上市
-    # 快照滞后）→ 腾讯 qt 单票实时查名（兜底）。两层都未命中写 None（诚实空，前端显示 —），
-    # 绝不编造。只读响应数据，绝不写回原 JSON 文件。
-    try:
-        from ..services.stock_pool_fallback import load_stock_pool
+    from modules.cache_utils import TTL_TIERS, cached_ttl
 
-        _pool = load_stock_pool()  # 单次调用，复用 lru_cache
-        _name_by_code = {
-            str(it.get("code") or "").strip(): str(it.get("name") or "").strip()
-            for it in _pool
-            if isinstance(it, dict)
-        }
-        _hydrated: dict[str, object] = {}
-        for _fname, _sig in out.items():
-            if not isinstance(_sig, dict):
-                _hydrated[_fname] = _sig
+    def _build() -> dict[str, object]:
+        # 本地池一次建 code->name 映射；池子缺失/损坏 -> 空映射，所有 name=None（诚实空）。
+        name_by_code: dict[str, str] = {}
+        try:
+            from ..services.stock_pool_fallback import load_stock_pool
+
+            name_by_code = {
+                str(it.get("code") or "").strip(): str(it.get("name") or "").strip()
+                for it in load_stock_pool()
+                if isinstance(it, dict)
+            }
+        except Exception as e:  # noqa: BLE001 - 池不可用不得 500，留痕后按查不到处理
+            logging.getLogger(__name__).warning("p1-signals 本地股票池不可用，名称全部留空: %s", e)
+
+        out: dict[str, object] = {}
+        for fp in sorted(d.glob("signal_*.json")):
+            status, data = _read_json(fp)
+            if status != "ok" or not isinstance(data, dict):
                 continue
-            _new_sig = dict(_sig)
-            for _key in ("top_long", "top_short"):
-                _items = _new_sig.get(_key)
-                if not isinstance(_items, list):
+            sig: dict[str, object] = {
+                k: data[k] for k in ("generated_at", "latest_date") if k in data
+            }
+            for key in ("top_long", "top_short"):
+                raw = data.get(key)
+                if not isinstance(raw, list):
+                    sig[key] = raw
                     continue
-                _new_items = []
-                for _item in _items:
-                    if isinstance(_item, dict):
-                        _code = str(_item.get("symbol") or "")[-6:].zfill(6)
-                        _name = _name_by_code.get(_code)
-                        if _name is None:
-                            # 池子快照（data/cache.db）可能滞后于新股上市（实证：685 新代码段
-                            # 长鑫科技 sh688825 不在 5191 条池中）。对池子未命中的少数代码
-                            # 补一层腾讯 qt 实时查名；查到补真名，查不到诚实 None。绝不编造。
-                            try:
-                                _spot = _qq_spot_single(_code)
-                                _name = _spot.get("名称") if isinstance(_spot, dict) else None
-                            except Exception:  # noqa: BLE001 - 单票查名失败不得影响端点
-                                _name = None
-                        _new_items.append({**_item, "name": _name})
+                items = []
+                for item in raw:
+                    if isinstance(item, dict):
+                        code = str(item.get("symbol") or "")[-6:].zfill(6)
+                        items.append({**item, "name": name_by_code.get(code)})
                     else:
-                        _new_items.append(_item)
-                _new_sig[_key] = _new_items
-            _hydrated[_fname] = _new_sig
-        out = _hydrated
-    except Exception as e:  # T-239：名称水合失败不得静默/500，留痕后降级为原样返回
-        logging.getLogger(__name__).warning("p1-signals 名称水合失败，降级为原样返回: %s", e)
+                        items.append(item)
+                sig[key] = items
+            out[fp.name] = sig
+        return out
 
+    out = cached_ttl(TTL_TIERS["sentiment"], f"p1_signals:{d}", _build)
     return ok(data=out, message="p1_signals/")
 
 

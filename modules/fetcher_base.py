@@ -126,11 +126,17 @@ class ReferenceMixin:
         """
         return _get_sina_prefix(ticker, self._INDEX_SINA_PREFIX)
 
+    # 注意：以下方法签名均只收 name，没有 self 形参。
+    # 必须显式声明 @staticmethod，否则经 self._xxx(name) 实例调用时 Python 会把
+    # 实例绑定成第一个参数，抛 "takes 1 positional argument but 2 were given"。
+    # 加装饰器后实例调用（fetcher_search.py）与类调用（search_ui.py / 预热）都正常。
+    @staticmethod
     def _pinyin_static(name):
         """获取拼音首字母（纯函数，无副作用，用于缓存）。"""
         from modules._search_utils import pinyin_initials_static
         return pinyin_initials_static(name)
 
+    @staticmethod
     def _pinyin_initials_variants(name):
         """
         获取股票名称的所有拼音首字母组合（处理多音字）。
@@ -139,11 +145,13 @@ class ReferenceMixin:
         from modules._search_utils import pinyin_initials_variants
         return pinyin_initials_variants(name)
 
+    @staticmethod
     def _pinyin_full(name):
         """获取股票名称的完整拼音（小写无空格）。如 '贵州茅台' -> 'guizhoumaotai'。"""
         from modules._search_utils import pinyin_full
         return pinyin_full(name)
 
+    @staticmethod
     def _pinyin_initials(name):
         """
         获取股票名称的拼音首字母（大写）。
@@ -155,6 +163,7 @@ class ReferenceMixin:
             return cached
         return _fetcher_mod.StockFetcher._pinyin_static(name)
 
+    @staticmethod
     def _name_tokens(name):
         """
         将股票名称拆分为搜索用的中文分词 token。

@@ -60,7 +60,10 @@ describe('ChatPanel', () => {
     const { rerender } = render(
       <ChatPanel messages={[]} style="quick" mode="quick" onStyleChange={() => {}} onModeChange={() => {}} onSend={() => {}} />,
     )
-    expect(screen.getByText('规则引擎模式')).toBeTruthy()
+    // 诚实态：未探测模型配置时不得声称「规则引擎模式」/具体模型，只给中性文案
+    const badge = screen.getByText('模型：跟随后端配置')
+    expect(badge).toBeTruthy()
+    expect(badge.getAttribute('title')).toContain('前端不探测模型配置')
     rerender(
       <ChatPanel
         messages={[]}
@@ -73,6 +76,7 @@ describe('ChatPanel', () => {
       />,
     )
     expect(screen.getByText('gpt-4o')).toBeTruthy()
+    expect(screen.getByText('gpt-4o').getAttribute('title')).toContain('最终以服务端配置为准')
   })
 
   it('在输入框发送 → onSend 被调用', () => {

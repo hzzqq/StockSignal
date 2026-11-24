@@ -37,4 +37,29 @@ describe('classifyIntent（规则引擎）', () => {
     expect(r.kind).toBe('general')
     expect(r.confidence).toBeLessThan(0.6)
   })
+
+  // 诚实红线回归：中文股票名/实体不得被前端误拦截，须放行给后端兜底
+  it.each(['通富微电之后怎么走', '通富微电怎么看'])(
+    '中文股票名提问「%s」→ needsParam=false（放行给后端解析/兜底）',
+    (q) => {
+      const r = classifyIntent(q)
+      expect(r.needsParam).toBe(false)
+      expect(r.paramPrompts).toHaveLength(0)
+      // 放行后仍保留追问 chips（后端兜底或回答完可继续聊）
+      expect(r.suggestionChips.length).toBeGreaterThan(0)
+    },
+  )
+
+  it('含中文实义串但不在硬编码词表 → 也不误拦截', () => {
+    expect(classifyIntent('寒武纪还能追吗').needsParam).toBe(false)
+    expect(classifyIntent('为什么大涨').needsParam).toBe(false)
+  })
+
+  it('纯语气词仍追问（保留 ParamPromptCard 功能，不删功能）', () => {
+    for (const q of ['嗯', '哦哦', 'ok', '在吗']) {
+      const r = classifyIntent(q)
+      expect(r.needsParam).toBe(true)
+      expect(r.paramPrompts.length).toBeGreaterThan(0)
+    }
+  })
 })

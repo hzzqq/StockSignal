@@ -97,6 +97,22 @@ function chatToWire(m: ChatMessage): WireMessage {
   return { role: m.role === 'user' ? 'user' : 'assistant', content: m.content, ts: m.ts }
 }
 
+/**
+ * 多轮承接：取会话最近 ≤8 条 user/assistant 纯文本，role 用后端认识的 user/assistant。
+ * 超 8 条会被 AiResearchSubmitSchema.history.max(8) 拒绝，故必须切片（slice 取尾部）。
+ * 纯前端态消息（param-prompt / 空占位 / tool）不进历史，不编造上下文。
+ */
+export function buildRecentHistory(
+  messages: ChatMessage[] | undefined,
+  limit = 8,
+): { role: string; content: string }[] {
+  if (!messages) return []
+  return messages
+    .filter((m) => (m.role === 'user' || m.role === 'assistant') && !!m.content?.trim())
+    .slice(-limit)
+    .map((m) => ({ role: m.role, content: m.content }))
+}
+
 /** 浏览器下载（jsdom/无 document 时静默跳过）。 */
 function downloadText(filename: string, text: string, mime: string): void {
   if (typeof document === 'undefined') return
@@ -454,6 +470,9 @@ export const useXingchenStore = create<XingchenState>((set, get) => ({
     const convId = await ensureConv(sid)
     const intent = classifyIntent(question)
 
+    // 多轮承接：在追加本轮问题之前抓取历史（历史 = 本轮之前的轮次），≤8 条由 buildRecentHistory 切片
+    const history = buildRecentHistory(get().sessions[sid]?.messages)
+
     // 用户消息
     get().addMessage(sid, {
       id: genId('u'),
@@ -505,9 +524,21 @@ export const useXingchenStore = create<XingchenState>((set, get) => ({
         // 深度研究：多步工具调用 + 引用溯源（style=report 输出研报结构）。
         // 用当前页面风格决定合成方式：report→研报结构，其余→简洁。
         const researchStyle = get().style === 'report' ? 'report' : 'quick'
-        taskId = await submitAiResearch({ question, style: researchStyle, max_steps: 8 })
+        taskId = await submitAiResearch({
+          question,
+          style: researchStyle,
+          max_steps: 8,
+          ...(history.length > 0 ? { history } : {}),
+        })
       } else {
-        taskId = await submitAiConsult({ question, style: get().style, model: get().model })
+        // ai_consult 的 schema 无 history 字段，走 context（后端 ai_answer 读 context['history']）。
+        // 无历史时不下发 context，保持首轮 payload 形状不变。
+        taskId = await submitAiConsult({
+          question,
+          style: get().style,
+          model: get().model,
+          ...(history.length > 0 ? { context: { history } } : {}),
+        })
       }
     } catch (e) {
       get().updateMessage(sid, aId, {

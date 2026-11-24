@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('@/api/chat', () => ({
   submitAiConsult: vi.fn(),
+  submitAiResearch: vi.fn(),
   getAiConsultTask: vi.fn(),
   cancelAiConsult: vi.fn(),
   listConversations: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock('@/api/chat', () => ({
 
 import {
   submitAiConsult,
+  submitAiResearch,
   getAiConsultTask,
   cancelAiConsult,
   listConversations,
@@ -25,11 +27,32 @@ import {
   exportConversationMarkdown,
   getChatHistory,
 } from '@/api/chat'
-import { useXingchenStore, resetXingchen } from './useXingchen'
+import { useXingchenStore, resetXingchen, buildRecentHistory } from './useXingchen'
 
 const mockedSubmit = vi.mocked(submitAiConsult)
+const mockedResearchSubmit = vi.mocked(submitAiResearch)
 const mockedPoll = vi.mocked(getAiConsultTask)
 const mockedCancel = vi.mocked(cancelAiConsult)
+
+/** 造 N 轮真实 user/assistant 历史（content 即「历史i」）。 */
+function seedHistory(n: number) {
+  const messages = Array.from({ length: n }, (_, i) => ({
+    id: `h-${i}`,
+    kind: (i % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
+    role: i % 2 === 0 ? 'user' : 'assistant',
+    content: `历史${i}`,
+    status: 'done' as const,
+    ts: i,
+  }))
+  useXingchenStore.setState({
+    sessions: {
+      's-h': { id: 's-h', messages, createdAt: 1, updatedAt: 2 },
+    },
+    order: ['s-h'],
+    activeId: 's-h',
+  })
+  return messages
+}
 
 const RUNNING = {
   task_id: 't1',
@@ -52,6 +75,7 @@ describe('useXingchen 提交+轮询', () => {
   beforeEach(() => {
     resetXingchen()
     mockedSubmit.mockReset()
+    mockedResearchSubmit.mockReset()
     mockedPoll.mockReset()
     mockedCancel.mockReset()
   })
@@ -109,6 +133,73 @@ describe('useXingchen 提交+轮询', () => {
     expect(a?.status).toBe('error')
     expect(a?.errors?.[0]).toBe('已停止等待')
     void p // 让挂起的轮询自然结束，不阻塞测试
+  })
+
+  // 多轮承接回归：此前 submitAiConsult / submitAiResearch 均不带 history，
+  // 后端 ai_answer 读不到 context['history']，追问永远断片。
+  it('buildRecentHistory：过滤 tool/空内容、只取尾部 8 条', () => {
+    const messages = [
+      { id: 't', kind: 'tool', role: 'tool', content: '不应进历史', status: 'done' },
+      ...Array.from({ length: 9 }, (_, i) => ({
+        id: `u-${i}`, kind: 'user', role: 'user', content: `Q${i}`, status: 'done',
+      })),
+      { id: 'e', kind: 'assistant', role: 'assistant', content: '  ', status: 'done' },
+    ]
+    const history = buildRecentHistory(messages as never)
+    expect(history).toHaveLength(8)
+    expect(history[0].content).toBe('Q1')
+    expect(history.every((h) => h.role === 'user')).toBe(true)
+  })
+
+  it('quick 模式：带上最近 8 轮历史，且不含本轮问题', async () => {
+    seedHistory(10)
+    mockedSubmit.mockResolvedValue('t1')
+    mockedPoll.mockResolvedValueOnce(SUCCESS as never)
+
+    vi.useFakeTimers()
+    const p = useXingchenStore.getState().submitQuestion('本轮问题')
+    await vi.advanceTimersByTimeAsync(1500)
+    await p
+
+    expect(mockedSubmit).toHaveBeenCalledTimes(1)
+    const cfg = mockedSubmit.mock.calls[0][0]
+    const history = (cfg.context as { history?: { role: string; content: string }[] } | undefined)?.history
+    expect(history).toHaveLength(8)
+    expect(history?.[0]).toEqual({ role: 'user', content: '历史2' })
+    expect(history?.[7]).toEqual({ role: 'assistant', content: '历史9' })
+    expect(history?.some((h) => h.content === '本轮问题')).toBe(false)
+  })
+
+  it('research 模式：history 同样切片到 ≤8 并走顶层 history 字段', async () => {
+    seedHistory(9)
+    mockedResearchSubmit.mockResolvedValue('t2')
+    mockedPoll.mockResolvedValueOnce(SUCCESS as never)
+    useXingchenStore.getState().setMode('research')
+
+    vi.useFakeTimers()
+    const p = useXingchenStore.getState().submitQuestion('本轮研究')
+    await vi.advanceTimersByTimeAsync(1500)
+    await p
+
+    expect(mockedResearchSubmit).toHaveBeenCalledTimes(1)
+    const cfg = mockedResearchSubmit.mock.calls[0][0]
+    expect(cfg.history).toHaveLength(8)
+    expect(cfg.history?.[0].content).toBe('历史1')
+    expect(cfg.history?.[7].content).toBe('历史8')
+    expect(mockedSubmit).not.toHaveBeenCalled()
+  })
+
+  it('首轮无历史 → 不下发 context / history，payload 形状不变', async () => {
+    mockedSubmit.mockResolvedValue('t1')
+    mockedPoll.mockResolvedValueOnce(SUCCESS as never)
+
+    vi.useFakeTimers()
+    const p = useXingchenStore.getState().submitQuestion('茅台 600519 怎么样？')
+    await vi.advanceTimersByTimeAsync(1500)
+    await p
+
+    const cfg = mockedSubmit.mock.calls[0][0]
+    expect(cfg.context).toBeUndefined()
   })
 
   it('提交成功 → 写入 analysisMeta（标的/风格/维度）+ fresh 标记', async () => {

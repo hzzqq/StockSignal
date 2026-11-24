@@ -168,6 +168,21 @@ function hasEntity(q: string): boolean {
   return ENTITY_KEYWORDS.some((k) => q.includes(k))
 }
 
+/**
+ * 纯寒暄 / 纯语气词（无任何分析实义）——只有这类输入才前端追问补参。
+ *
+ * 诚实红线：后端 ai_answer 自带「没找到标的给诚实引导」兜底（modules/ai_engine.py:703-711），
+ * 前端无权替后端拒答。中文股票名（如「通富微电」）、2-6 字实体、泛泛提问一律放行给后端，
+ * 由后端解析 / 兜底；hasCode / hasEntity 只用于意图分类与主题抽取，不再作为拦截条件。
+ * 宁可放行给后端兜底，不可前端误拦截真实提问。
+ */
+const NO_SUBSTANCE_RE =
+  /^(?:你好|您好|哈喽|嗨|喂|在吗|在么|早上好|晚上好|hi|hello|hey|yo|谢谢|感谢|多谢|thanks|thx|嗯+|哦+|噢+|额+|呃+|啊+|呀+|哈+|吼+|好+|行+|ok|okay)[!！。.?,，~～\s]*$/i
+
+function isNoSubstance(q: string): boolean {
+  return q.length === 0 || NO_SUBSTANCE_RE.test(q)
+}
+
 function detectKind(q: string): XcIntentKind {
   const t = q.toLowerCase()
   if (/对比|比较|vs|孰强|哪个好|谁更强|pk|对决/.test(q) && (hasCode(q) || hasEntity(q))) {
@@ -194,7 +209,8 @@ function detectKind(q: string): XcIntentKind {
 export function classifyIntent(question: string): XcIntent {
   const q = (question || '').trim()
   const kind = detectKind(q)
-  const needsParam = q.length > 0 && !hasCode(q) && !hasEntity(q)
+  // 仅对无实义输入追问；真实提问（含中文股票名）一律放行给后端兜底
+  const needsParam = isNoSubstance(q)
   return {
     kind,
     label: KIND_LABELS[kind],
