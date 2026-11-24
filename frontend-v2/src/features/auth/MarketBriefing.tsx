@@ -38,6 +38,10 @@ export function MarketBriefing() {
     retry: false,
   })
 
+  // 三个公开端点打的都是同一个后端；任一查询 error 即视为行情服务不可用。
+  // 服务挂 → 明确提示条 + 「—」；字段本身 null（服务正常但无数据）→ 仅「—」，无提示条。
+  const serviceDown = overview.isError || intraday.isError || picks.isError
+
   const data = overview.data
   const ind = (data?.indicators ?? {}) as Record<string, unknown>
   const num = (v: unknown): number | null =>
@@ -68,6 +72,21 @@ export function MarketBriefing() {
           事件驱动的选股与仓位决策闭环：情绪温度 → 事件因子 → 仓位建议，逐日回测实证。
         </p>
       </div>
+
+      {/* 行情服务不可用提示：纯前端静态文案，不来自后端数据；服务挂时明确告知用户 */}
+      {serviceDown && (
+        <div
+          role="alert"
+          className="rounded-card p-4 text-[0.86rem] leading-relaxed"
+          style={{
+            background: 'color-mix(in srgb, var(--color-warn, #f59e0b) 12%, var(--color-sf-surface))',
+            border: '1px solid color-mix(in srgb, var(--color-warn, #f59e0b) 40%, transparent)',
+            color: 'var(--color-warn, #f59e0b)',
+          }}
+        >
+          ⚠️ 行情服务暂不可用，下方数据暂无法加载；请稍后刷新或联系管理员。已展示的「—」表示数据未取到，并非真实为 0。
+        </div>
+      )}
 
       {/* 资金温度 */}
       <div className="rounded-card bg-sf-surface border border-sf-line p-5">

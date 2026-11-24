@@ -50,6 +50,16 @@ const PUB_OK = {
   event_factor: { long_count: 20, adj: 2, as_of: '2026-11-09' },
 } as never
 
+// 服务正常但该字段无数据（temperature=null）——用于区分「服务挂」与「字段缺」
+const PUB_NULL_TEMP = {
+  date: '2026-11-17', as_of: '2026-11-17T16:31:19', cycle: '冰点', temperature: null,
+  indicators: {
+    up_count: 1216, down_count: 3882, limit_up: 37, limit_down: 84,
+    red_ratio: 23.85, median_chg: -1.27,
+  },
+  event_factor: { long_count: 20, adj: 2, as_of: '2026-11-09' },
+} as never
+
 const INTRADAY_OK = {
   code: 'sh000001', name: '上证指数', date: '2026-11-20', prev_close: 3401,
   rows: [
@@ -125,6 +135,29 @@ describe('LoginPage · 登录页 · 双态 + 端到端登录 + 行情台', () =>
     expect(await screen.findByText('快照数据日：—')).toBeTruthy()
     // 上涨家数等指标位 = 破折号占位（DeskMetric dash）
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(6)
+  })
+
+  it('三个公开端点全部失败 → 出现「行情服务暂不可用」提示（不静默全「—」）', async () => {
+    mPub.mockRejectedValue(new Error('net down'))
+    mIntraday.mockRejectedValue(new Error('net down'))
+    mPicks.mockRejectedValue(new Error('net down'))
+    renderLP()
+    fireEvent.click(screen.getByText(/去登录/))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+    expect(screen.getByText(/行情服务暂不可用/)).toBeTruthy()
+    // 提示条是补充，原有「—」诚实降级仍在：绝不因提示而伪造数字
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(6)
+  })
+
+  it('端点成功但字段为 null（temperature=null）→ 仅「—」，不出现服务不可用提示', async () => {
+    mPub.mockResolvedValue(PUB_NULL_TEMP)
+    renderLP()
+    fireEvent.click(screen.getByText(/去登录/))
+    // 等数据正常落地（指标位有真实数字），确认服务并未挂
+    expect(await screen.findByText('1216')).toBeTruthy()
+    expect(screen.getByText(/快照数据日：2026-11-17/)).toBeTruthy()
+    // 温度字段缺失 → 温度显「—」，但无 alert（服务本身正常）
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('登录成功 → 写 token/localStorage + navigate + 行情台保持真实温度', async () => {
