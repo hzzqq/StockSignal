@@ -70,6 +70,14 @@
   --radius-card: 14px;
   --radius-tile: 10px;
 
+  /* ── 三级克制 elevation（供 Tailwind 生成 shadow-e1/e2/e3 工具类） ──
+   * e1 静态卡片极淡抬升 / e2 交互态(hover、focus) / e3 浮层(下拉、Modal、Toast)。
+   * 暗色取此处默认值；亮色在 html[data-theme="light"] 用更淡值覆盖（亮底重阴影会脏）。
+   * 克制是关键词：仅极淡抬升，不做 Material 式重阴影。 */
+  --shadow-e1: 0 1px 2px rgb(0 0 0 / 0.16);
+  --shadow-e2: 0 4px 14px rgb(0 0 0 / 0.28);
+  --shadow-e3: 0 12px 32px rgb(0 0 0 / 0.42);
+
   /* ── 共用令牌（暗色取此处默认值，亮色在下方 html[data-theme="light"] 覆盖） ── */
   --color-sf-line-strong: #6a7194;
   --color-sf-ok-soft: #1d2636;
@@ -117,6 +125,10 @@ html[data-theme="light"] {
   --ss-down-ink: color-mix(in srgb, var(--color-ss-down) 55%, black);
   --doc-up-ink: color-mix(in srgb, var(--color-doc-up) 75%, black);
   --doc-down-ink: color-mix(in srgb, var(--color-doc-down) 75%, black);
+  /* 亮底重阴影会脏：三级 elevation 用更淡的带蓝黑投影覆盖 */
+  --shadow-e1: 0 1px 2px rgb(15 15 35 / 0.08);
+  --shadow-e2: 0 4px 14px rgb(15 15 35 / 0.14);
+  --shadow-e3: 0 12px 32px rgb(15 15 35 / 0.22);
   color-scheme: light;
 }
 

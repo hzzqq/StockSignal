@@ -79,10 +79,10 @@ describe('ReviewNotes · 99 决策问答 · 复盘笔记只读视图', () => {
     expect(mocked).toHaveBeenCalledWith('2026-08-31')
   })
 
-  it('加载中 → 显「加载中…」，不提前显示空态或笔记', () => {
+  it('加载中 → 显骨架屏（Skeleton，sr-only「加载中」），不提前显示空态或笔记', () => {
     mocked.mockReturnValue(new Promise<ReviewNotesData>(() => {}))
     renderWithClient(<ReviewNotes />)
-    expect(screen.getByText('加载中…')).toBeTruthy()
+    expect(screen.getByText('加载中')).toBeTruthy() // Skeleton 内 sr-only 文案
     expect(screen.queryByText('该日期暂无复盘笔记')).toBeNull()
     expect(screen.queryByText(/复盘笔记 ·/)).toBeNull()
   })
@@ -147,5 +147,25 @@ describe('ReviewNotes · 复盘图片上传（51 晨报 parity）', () => {
     renderWithClient(<ReviewNotes />)
     pickFile(new File([new Uint8Array([1])], 'ok.webp', { type: 'image/webp' }))
     expect(await screen.findByText('上传失败：图片超过 5MB 上限')).toBeTruthy()
+  })
+
+  it('点击可视化上传区 → 触发隐藏 file input 的 click（同一 input 与校验逻辑）', () => {
+    renderWithClient(<ReviewNotes />)
+    const input = screen.getByLabelText('选择复盘图片') as HTMLInputElement
+    const clickSpy = vi.spyOn(input, 'click').mockImplementation(() => {})
+    fireEvent.click(screen.getByRole('button', { name: /点击或拖拽图片到此处/ }))
+    expect(clickSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('拖拽不合规图片到上传区 → 走同一前置校验（Toast 提示，不发上传请求）', () => {
+    renderWithClient(<ReviewNotes />)
+    const zone = screen.getByRole('button', { name: /点击或拖拽图片到此处/ })
+    fireEvent.drop(zone, {
+      dataTransfer: {
+        files: [new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'big.png', { type: 'image/png' })],
+      } as unknown as DataTransfer,
+    })
+    expect(screen.getByText('图片不合规：图片超过 5MB 上限')).toBeTruthy()
+    expect(mockedUpload).not.toHaveBeenCalled()
   })
 })

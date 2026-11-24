@@ -44,8 +44,18 @@ describe('设计令牌单一真理源（DESIGN.md §2）', () => {
       '--color-sf-warn', '--color-sf-danger', '--color-sf-ok', '--color-sf-accent',
       '--text-kpi', '--text-page', '--text-title', '--text-body', '--text-label',
       '--radius-card', '--radius-tile',
+      '--shadow-e1', '--shadow-e2', '--shadow-e3',
     ]) {
       expect(css, `tokens.css 缺令牌 ${token}`).toContain(token)
+    }
+  })
+
+  it('DESIGN.md 已将「零阴影」铁律改为「克制层次」并写明三级 elevation', () => {
+    const design = readFileSync(resolve(process.cwd(), 'DESIGN.md'), 'utf-8')
+    expect(design, 'DESIGN.md 回退到「零阴影」铁律').not.toContain('零阴影')
+    expect(design).toContain('克制层次')
+    for (const k of ['shadow-e1', 'shadow-e2', 'shadow-e3']) {
+      expect(design, `DESIGN.md 缺 ${k} 令牌说明`).toContain(k)
     }
   })
 

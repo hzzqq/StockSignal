@@ -335,3 +335,37 @@ describe('C5 · 令牌作用域与 W0 兼容覆盖', () => {
     expect(fb).not.toContain('ss-down')
   })
 })
+
+describe('E1 · 三级 elevation 令牌（克制层次；阴影非文字/背景对比度对象，只比淡重）', () => {
+  const levels = ['--shadow-e1', '--shadow-e2', '--shadow-e3']
+
+  /** 取 `rgb(... / α)` 的透明度 α；阴影不做 WCAG 计算，只验证梯度与亮暗淡重。 */
+  const alphaOf = (v: string | undefined, ctx: string): number => {
+    const m = /rgba?\([^)]*\/\s*([\d.]+)\s*\)/.exec(v ?? '')
+    if (!m) throw new Error(`${ctx}：无法解析阴影透明度 ${JSON.stringify(v)}`)
+    return Number(m[1])
+  }
+
+  it('@theme 与 light 块都声明三级 shadow', () => {
+    for (const k of levels) {
+      expect(DARK[k], `暗色缺 ${k}`).toBeDefined()
+      expect(LIGHT[k], `亮色未覆盖 ${k}`).toBeDefined()
+    }
+  })
+
+  it('亮色三级阴影均比暗色更淡（α 更小；亮底重阴影发脏）', () => {
+    for (const k of levels) {
+      const da = alphaOf(DARK[k], `DARK.${k}`)
+      const la = alphaOf(LIGHT[k], `LIGHT.${k}`)
+      expect(la, `${k}：亮色 α ${la} 应 < 暗色 α ${da}`).toBeLessThan(da)
+    }
+  })
+
+  it('e1 < e2 < e3 抬升梯度递增（暗色与亮色各自成立）', () => {
+    for (const [name, theme] of [['dark', DARK], ['light', LIGHT]] as const) {
+      const [a1, a2, a3] = levels.map((k) => alphaOf(theme[k], `${name}.${k}`))
+      expect(a1, `${name}: e1 < e2`).toBeLessThan(a2)
+      expect(a2, `${name}: e2 < e3`).toBeLessThan(a3)
+    }
+  })
+})
