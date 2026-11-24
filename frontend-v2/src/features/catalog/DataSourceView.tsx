@@ -6,6 +6,7 @@ import { probeKind, BUSINESS_DEGRADED_CODES } from '@/api/schemas/diagnostics'
 import type { ProbeKind } from '@/api/schemas/diagnostics'
 import { Card } from '@/shared/ui/Card'
 import { QueryState } from '@/shared/ui/States'
+import { Select } from '@/shared/ui/Field'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
@@ -164,7 +165,7 @@ function DataRenderer({ data }: { data: unknown }) {
           <tbody className="text-sf-ink-2">
             {entries.map(([k, v]) => (
               <tr key={k} className="border-b border-sf-line last:border-0">
-                <td className="py-1.5 pr-3 font-mono text-label">{k}</td>
+                <td className="py-1.5 pr-3 font-mono text-body">{k}</td>
                 <td className="py-1.5 break-all">{cell(v)}</td>
               </tr>
             ))}
@@ -238,18 +239,16 @@ export function DataSourceView({ initialPath = '' }: { initialPath?: string }) {
           emptyLabel="后端未提供可查看的只读端点"
         >
           <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-label text-sf-ink-2">
-              只读端点
-              <select
-                aria-label="只读端点"
-                value={selected}
-                onChange={(e) => choose(e.target.value)}
-                className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-1.5 text-body text-sf-ink"
-              >
-                <option value="">— 请选择 —</option>
-                {paths.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </label>
+            <Select
+              label="只读端点"
+              aria-label="只读端点"
+              className="sm:w-80"
+              value={selected}
+              onChange={(e) => choose(e.target.value)}
+            >
+              <option value="">— 请选择 —</option>
+              {paths.map((p) => <option key={p} value={p}>{p}</option>)}
+            </Select>
             <label className="flex flex-col gap-1 text-label text-sf-ink-2">
               查询参数（示例值可修改）
               <input

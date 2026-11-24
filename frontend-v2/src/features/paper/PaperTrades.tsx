@@ -48,9 +48,9 @@ export function PaperTrades() {
 
             {p.positions && Object.keys(p.positions).length > 0 && (
               <Card title="持仓">
-                <table className="w-full text-sm">
+                <table className="w-full text-body">
                   <thead>
-                    <tr className="text-sf-ink-3 text-left">
+                    <tr className="text-label text-sf-ink-3 text-left">
                       <th className="py-1">代码</th>
                       <th className="py-1">名称</th>
                       <th className="py-1">数量</th>
@@ -59,7 +59,7 @@ export function PaperTrades() {
                   </thead>
                   <tbody>
                     {Object.entries(p.positions).map(([code, pos]) => (
-                      <tr key={code} className="border-t border-sf-line">
+                      <tr key={code} className="border-t border-sf-line hover:bg-sf-surface-2">
                         <td>{code}</td>
                         <td>{pos.name ?? '—'}</td>
                         <td>{pos.qty ?? '—'}</td>
@@ -82,9 +82,9 @@ export function PaperTrades() {
                 defaultOpen={false}
               >
                 <div className="max-h-64 overflow-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-body">
                     <thead>
-                      <tr className="text-sf-ink-3 text-left">
+                      <tr className="text-label text-sf-ink-3 text-left">
                         <th className="py-1">时间</th>
                         <th className="py-1">代码</th>
                         <th className="py-1">名称</th>
@@ -96,7 +96,7 @@ export function PaperTrades() {
                     </thead>
                     <tbody>
                       {p.trades.map((t, i) => (
-                        <tr key={i} className="border-t border-sf-line">
+                        <tr key={i} className="border-t border-sf-line hover:bg-sf-surface-2">
                           <td>{t.time ?? '—'}</td>
                           <td>{t.code ?? '—'}</td>
                           <td>{t.name ?? '—'}</td>

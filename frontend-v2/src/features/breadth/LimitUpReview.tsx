@@ -119,9 +119,9 @@ export function LimitUpReview() {
                 className="mt-3"
               >
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-body">
                     <thead>
-                      <tr className="border-b border-sf-line text-left text-xs font-medium text-sf-ink-3">
+                      <tr className="border-b border-sf-line text-left text-label font-medium text-sf-ink-3">
                         <th className="py-2 pr-3">名称</th>
                         <th className="py-2 pr-3">代码</th>
                         <th className="py-2 pr-3">行业</th>
@@ -134,7 +134,7 @@ export function LimitUpReview() {
                     </thead>
                     <tbody>
                       {data.pool.rows.map((r) => (
-                        <tr key={r.code} className="border-b border-sf-line/60">
+                        <tr key={r.code} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                           <td className="py-1.5 pr-3 text-sf-ink">{r.name}</td>
                           <td className="py-1.5 pr-3 text-sf-ink-2">{r.code}</td>
                           <td className="py-1.5 pr-3 text-sf-ink-2">{r.industry}</td>
@@ -164,9 +164,9 @@ export function LimitUpReview() {
                 className="mt-5"
               >
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-body">
                     <thead>
-                      <tr className="border-b border-sf-line text-left text-xs font-medium text-sf-ink-3">
+                      <tr className="border-b border-sf-line text-left text-label font-medium text-sf-ink-3">
                         <th className="py-2 pr-3">名称</th>
                         <th className="py-2 pr-3">代码</th>
                         <th className="py-2 pr-3 text-right">板数</th>
@@ -179,7 +179,7 @@ export function LimitUpReview() {
                     </thead>
                     <tbody>
                       {data.pool.leaderboard.map((l) => (
-                        <tr key={l.code} className="border-b border-sf-line/60">
+                        <tr key={l.code} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                           <td className="py-1.5 pr-3 text-sf-ink">{l.name}</td>
                           <td className="py-1.5 pr-3 text-sf-ink-2">{l.code}</td>
                           <td className="py-1.5 pr-3 text-right text-sf-ink">{l.boards}</td>

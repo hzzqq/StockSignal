@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useNlScreenExecute } from '@/lib/queriesBatchD'
 import { Card } from '@/shared/ui/Card'
 import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
+import { Select } from '@/shared/ui/Field'
 import { fmtNum } from '@/lib/format'
 
 /**
@@ -61,19 +62,16 @@ export function NlExecutePanel() {
           />
         </label>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className={LABEL_CLS}>
-            候选池
-            <select
-              aria-label="候选池来源"
-              value={scope}
-              onChange={(e) => setScope(e.target.value as typeof scope)}
-              className={INPUT_CLS}
-            >
-              {SCOPES.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </label>
+          <Select
+            label="候选池"
+            aria-label="候选池来源"
+            value={scope}
+            onChange={(e) => setScope(e.target.value as typeof scope)}
+          >
+            {SCOPES.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </Select>
           <label className={LABEL_CLS}>
             自定义代码池（可选，逗号分隔 6 位代码）
             <input
@@ -148,10 +146,10 @@ function NlRowsTable({ rows }: { rows: Record<string, unknown>[] }) {
   const cols = rows.length > 0 ? Object.keys(rows[0]) : []
   return (
     <div className="max-h-80 overflow-auto rounded-tile border border-sf-line">
-      <table className="w-full text-label">
+      <table className="w-full text-body">
         <caption className="sr-only">自然语言选股执行结果，列名来自后端原始记录</caption>
         <thead className="sticky top-0 bg-sf-surface">
-          <tr className="text-sf-ink-3 text-left">
+          <tr className="text-label text-sf-ink-3 text-left">
             {cols.map((c) => (
               <th key={c} className="py-1 px-2 font-normal">{c}</th>
             ))}

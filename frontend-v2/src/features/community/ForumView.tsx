@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Card } from '@/shared/ui/Card'
 import { ErrorState, QueryState } from '@/shared/ui/States'
+import { Textarea } from '@/shared/ui/Field'
 import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 import type { ForumPost } from '@/api/schemas/community'
 import {
@@ -259,14 +260,13 @@ export function ForumView() {
                   <label htmlFor="forum-content" className="mb-1 block text-label text-sf-ink-3">
                     正文
                   </label>
-                  <textarea
+                  <Textarea
                     id="forum-content"
                     aria-label="帖子内容"
                     value={content}
                     placeholder="分享你的研究逻辑与依据（必填，≤20000 字）"
                     onChange={(e) => setContent(e.target.value)}
                     rows={5}
-                    className="w-full resize-y rounded-tile border border-sf-line bg-sf-surface px-2.5 py-1.5 text-body text-sf-ink outline-none focus:border-sf-accent"
                   />
                 </div>
                 <StockSearchInput
@@ -419,14 +419,13 @@ export function ForumView() {
                       <label htmlFor="forum-comment" className="block text-label text-sf-ink-3">
                         参与讨论
                       </label>
-                      <textarea
+                      <Textarea
                         id="forum-comment"
                         aria-label="评论内容"
                         value={commentText}
                         placeholder="发表评论…"
                         onChange={(e) => setCommentText(e.target.value)}
                         rows={3}
-                        className="w-full resize-y rounded-tile border border-sf-line bg-sf-surface px-2.5 py-1.5 text-body text-sf-ink outline-none focus:border-sf-accent"
                       />
                       <button
                         type="button"

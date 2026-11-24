@@ -7,6 +7,7 @@ import { Loading, ErrorState, EmptyState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { AnalyticsHeader, DataBoundary, SectionState, show, showNum, showPct } from './shared'
+import { Select } from '@/shared/ui/Field'
 
 /** 与 v1 65 页侧栏及后端 _ANALYTICS_WINDOWS 一致；非法值后端直接 400，不静默兜底。 */
 const WINDOWS = [60, 120, 250, 750, 2000] as const
@@ -23,9 +24,6 @@ function normalize(vals: (number | null)[]): (number | null)[] {
     return lo === hi ? 0 : (v - lo) / (hi - lo)
   })
 }
-
-const SELECT_CLS =
-  'mt-1 w-full bg-sf-bg border border-sf-line text-sf-ink rounded px-2 py-1.5 outline-none focus:border-sf-accent'
 
 /**
  * 65 投机情绪周期时钟（v2 native /sentiment-clock）。
@@ -84,20 +82,17 @@ export function SentimentClock() {
       />
 
       <Card>
-        <label className="block text-xs text-sf-ink-2">
-          时间窗口
-          <select
-            className={SELECT_CLS}
-            value={window}
-            onChange={(e) => setWindow(Number(e.target.value))}
-          >
-            {WINDOWS.map((w) => (
-              <option key={w} value={w}>
-                近 {w} 日
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="时间窗口"
+          value={window}
+          onChange={(e) => setWindow(Number(e.target.value))}
+        >
+          {WINDOWS.map((w) => (
+            <option key={w} value={w}>
+              近 {w} 日
+            </option>
+          ))}
+        </Select>
         <p className="mt-2 text-xs text-sf-ink-3">
           本次响应窗口 {show(d?.window)} 交易日；时序实际返回 {show(ser?.dates?.length)} 个点。
         </p>

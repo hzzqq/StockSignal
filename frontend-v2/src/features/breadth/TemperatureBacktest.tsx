@@ -5,6 +5,7 @@ import { Card } from '@/shared/ui/Card'
 import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
+import { Select } from '@/shared/ui/Field'
 
 /**
  * 63 全温度档历史回测（v2 native /temperature-backtest）。
@@ -72,18 +73,16 @@ export function TemperatureBacktest() {
       </p>
 
       <Card title="回测窗口">
-        <label className="text-label text-sf-ink-3">
-          窗口
-          <select
-            value={windowText}
-            onChange={(e) => setWindowText(e.target.value)}
-            className="mt-1 block w-40 rounded-tile border border-sf-line bg-sf-surface px-2 py-1 text-sf-ink"
-          >
-            {WINDOWS.map((w) => (
-              <option key={w.value} value={w.value}>{w.label}</option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="窗口"
+          className="w-40"
+          value={windowText}
+          onChange={(e) => setWindowText(e.target.value)}
+        >
+          {WINDOWS.map((w) => (
+            <option key={w.value} value={w.value}>{w.label}</option>
+          ))}
+        </Select>
       </Card>
 
       <QueryState
@@ -125,9 +124,9 @@ export function TemperatureBacktest() {
             </div>
 
             <Card title="五档回测明细">
-              <table className="w-full text-label tabular-nums">
+              <table className="w-full text-body tabular-nums">
                 <thead>
-                  <tr className="text-sf-ink-3">
+                  <tr className="text-label text-sf-ink-3">
                     <th className="text-left py-1">温度档</th>
                     <th className="text-right py-1">样本 n</th>
                     <th className="text-right py-1">次日改善率</th>
@@ -138,7 +137,7 @@ export function TemperatureBacktest() {
                 </thead>
                 <tbody>
                   {d.bands?.map((b) => (
-                    <tr key={b.level} className="border-t border-sf-line">
+                    <tr key={b.level} className="border-t border-sf-line hover:bg-sf-surface-2">
                       <td className="py-1">
                         <span style={{ color: b.color }}>{b.label}</span>
                         {b.available && b.n < 50 && (

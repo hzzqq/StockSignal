@@ -1,4 +1,5 @@
 import { useState, type KeyboardEvent } from 'react'
+import { Textarea } from '@/shared/ui/Field'
 import { StyleSelector } from './StyleSelector'
 import type { XcStyle } from './intent'
 
@@ -109,14 +110,14 @@ export function Composer({
       )}
 
       <div className="flex items-end gap-2">
-        <textarea
+        <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
           onFocus={() => setQuickOpen(true)}
           rows={2}
           placeholder="问点什么？Enter 发送，Shift+Enter 换行"
-          className="min-h-[2.5rem] flex-1 resize-none rounded-tile border border-sf-line bg-sf-bg px-3 py-2 text-body text-sf-ink placeholder:text-sf-ink-3 focus:border-sf-accent"
+          className="flex-1 [&_textarea]:resize-none [&_textarea]:min-h-[2.5rem]"
         />
         <button
           type="button"

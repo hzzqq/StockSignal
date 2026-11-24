@@ -3,9 +3,7 @@ import { useSnapshotDates, useSnapshot } from '@/lib/queries'
 import { SnapshotView } from './SnapshotView'
 import { ErrorState, QueryState } from '@/shared/ui/States'
 import { Card } from '@/shared/ui/Card'
-
-const SELECT_CLS =
-  'mt-1 w-full bg-sf-bg border border-sf-line text-sf-ink rounded px-2 py-1.5 outline-none focus:border-sf-accent'
+import { Select } from '@/shared/ui/Field'
 
 /** 97 决策回放：选归档日期 → 拉取当日快照（与面板同视图，验证历史一致性）。 */
 export function DecisionReplay() {
@@ -17,9 +15,8 @@ export function DecisionReplay() {
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">决策回放</h2>
       <Card>
-        <label className="text-xs text-sf-ink-2">选择归档日期</label>
-        <select
-          className={SELECT_CLS}
+        <Select
+          label="选择归档日期"
           value={selected ?? ''}
           onChange={(e) => setSelected(e.target.value || null)}
         >
@@ -29,7 +26,7 @@ export function DecisionReplay() {
               {d}
             </option>
           ))}
-        </select>
+        </Select>
         {datesQ.isLoading && <span className="text-xs text-sf-ink-3 ml-2">加载日期清单…</span>}
         {datesQ.isError && (
           <ErrorState

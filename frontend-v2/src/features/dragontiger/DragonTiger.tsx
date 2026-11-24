@@ -245,9 +245,9 @@ function RankTable({
   return (
     <CollapsibleCard title={title} summary={summary} defaultOpen={false}>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs text-sf-ink">
+        <table className="w-full text-body text-sf-ink">
           <thead>
-            <tr className="text-sf-ink-3 border-b border-sf-line">
+            <tr className="text-label text-sf-ink-3 border-b border-sf-line">
               <th className="text-left py-1.5 pr-3">代码</th>
               <th className="text-left py-1.5 pr-3">名称</th>
               <th className="text-right py-1.5">净买额</th>
@@ -255,7 +255,7 @@ function RankTable({
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={r.code ?? r.name ?? i} className="border-b border-sf-line/60">
+              <tr key={r.code ?? r.name ?? i} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                 <td className="py-1.5 pr-3">{r.code ?? '—'}</td>
                 <td className="py-1.5 pr-3">{r.name ?? '—'}</td>
                 <td className="py-1.5 text-right font-medium" style={{ color: netColor(r.net_yi) }}>
@@ -274,9 +274,9 @@ function DetailTable({ rows }: { rows: Record<string, unknown>[] }) {
   const cols = Array.from(new Set(rows.flatMap((r) => Object.keys(r))))
   return (
     <div className="overflow-x-auto max-h-[420px] overflow-y-auto">
-      <table className="w-full text-xs text-sf-ink">
+      <table className="w-full text-body text-sf-ink">
         <thead>
-          <tr className="text-sf-ink-3 border-b border-sf-line sticky top-0 bg-sf-surface">
+          <tr className="text-label text-sf-ink-3 border-b border-sf-line sticky top-0 bg-sf-surface">
             {cols.map((c) => (
               <th key={c} className="text-left py-1.5 pr-3 whitespace-nowrap">
                 {c}
@@ -286,7 +286,7 @@ function DetailTable({ rows }: { rows: Record<string, unknown>[] }) {
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i} className="border-b border-sf-line/60">
+            <tr key={i} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
               {cols.map((c) => {
                 const v = r[c]
                 const txt =

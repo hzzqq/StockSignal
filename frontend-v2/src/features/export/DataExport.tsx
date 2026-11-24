@@ -6,10 +6,8 @@ import { Card } from '@/shared/ui/Card'
 import { ApiError } from '@/api/client'
 import type { DailySnapshot } from '@/api/schemas/read'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
+import { Select } from '@/shared/ui/Field'
 import { ExportBundlePanel, StockReportPanel } from './ExportBundlePanels'
-
-const SELECT_CLS =
-  'mt-1 w-full bg-sf-bg border border-sf-line text-sf-ink rounded px-2 py-1.5 outline-none focus:border-sf-accent'
 
 /** 把快照导出为 JSON 文件（纯前端，不写后端；环境不支持下载能力时安全降级）。 */
 function downloadJson(filename: string, data: DailySnapshot) {
@@ -61,9 +59,8 @@ export function DataExport() {
       </p>
 
       <Card>
-        <label className="text-xs text-sf-ink-2">选择归档日期</label>
-        <select
-          className={SELECT_CLS}
+        <Select
+          label="选择归档日期"
           aria-label="选择归档日期"
           value={selected ?? ''}
           onChange={(e) => setSelected(e.target.value || null)}
@@ -74,7 +71,7 @@ export function DataExport() {
               {d}
             </option>
           ))}
-        </select>
+        </Select>
         {datesQ.isLoading && <span className="text-xs text-sf-ink-3 ml-2">加载日期清单…</span>}
         {datesQ.isError && (
           <p className="text-xs text-sf-warn mt-1">

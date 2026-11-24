@@ -10,6 +10,7 @@ import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
+import { Select } from '@/shared/ui/Field'
 
 /**
  * 71 页「因子分析」V2 化落地（对应 IA-MIGRATION.md W4 后续簇）。
@@ -72,20 +73,17 @@ export function FactorAnalysis() {
               }
             />
           </label>
-          <label className="text-xs text-sf-ink-3 flex flex-col gap-1">
-            因子
-            <select
-              className="rounded-tile bg-sf-surface-2 border border-sf-line px-2 py-1.5 text-sm text-sf-ink"
-              value={form.factor}
-              onChange={(e) => setForm((f) => ({ ...f, factor: e.target.value }))}
-            >
-              {Object.entries(FACTORS).map(([k, label]) => (
-                <option key={k} value={k}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select
+            label="因子"
+            value={form.factor}
+            onChange={(e) => setForm((f) => ({ ...f, factor: e.target.value }))}
+          >
+            {Object.entries(FACTORS).map(([k, label]) => (
+              <option key={k} value={k}>
+                {label}
+              </option>
+            ))}
+          </Select>
           <label className="text-xs text-sf-ink-3 flex flex-col gap-1">
             回看天数
             <input

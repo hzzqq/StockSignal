@@ -16,6 +16,7 @@ import {
 } from '@/api/exportBundle'
 import { ApiError } from '@/api/client'
 import { Card } from '@/shared/ui/Card'
+import { Select } from '@/shared/ui/Field'
 import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 import { fmtNum } from '@/lib/format'
 
@@ -86,21 +87,18 @@ export function ExportBundlePanel() {
     <Card title="平台数据集导出（CSV / Excel / PDF / JSON）">
       <div className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-3">
-          <label className={LABEL_CLS}>
-            导出格式
-            <select
-              aria-label="导出格式"
-              value={fmt}
-              onChange={(e) => setFmt(e.target.value as ExportFormat)}
-              className={INPUT_CLS}
-            >
-              {EXPORT_FORMATS.map((f) => (
-                <option key={f} value={f}>
-                  {EXPORT_FORMAT_LABELS[f]}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select
+            label="导出格式"
+            aria-label="导出格式"
+            value={fmt}
+            onChange={(e) => setFmt(e.target.value as ExportFormat)}
+          >
+            {EXPORT_FORMATS.map((f) => (
+              <option key={f} value={f}>
+                {EXPORT_FORMAT_LABELS[f]}
+              </option>
+            ))}
+          </Select>
           <label className={LABEL_CLS}>
             报告期（可选，YYYYMMDD）
             <input
@@ -182,9 +180,9 @@ function JsonBundlePreview({ data }: { data: ExportBundleJson }) {
               <p className="text-xs text-sf-ink-3">空数据集，不伪造行。</p>
             ) : (
               <div className="max-h-48 overflow-auto rounded-tile border border-sf-line">
-                <table className="w-full text-label">
+                <table className="w-full text-body">
                   <thead className="sticky top-0 bg-sf-surface">
-                    <tr className="text-sf-ink-3 text-left">
+                    <tr className="text-sf-ink-3 text-left text-label">
                       {cols.map((c) => (
                         <th key={c} className="py-1 px-2 font-normal">{c}</th>
                       ))}
@@ -271,25 +269,22 @@ export function StockReportPanel() {
               <p className="text-label text-sf-ink-2">{`已选标的：${codeName}（${codeInput.trim()}）`}</p>
             )}
           </div>
-          <label className={LABEL_CLS}>
-            格式
-            <select
-              aria-label="研报格式"
-              value={format}
-              onChange={(e) => {
-                // 切格式即失效旧研报：旧内容只对应旧格式，残留会让
-                // 「下载 Markdown 文件」按钮实下 HTML 文件（格式不符真缺陷）。
-                setFormat(e.target.value as StockReportFormat)
-                setReport(null)
-                setError(null)
-              }}
-              className={INPUT_CLS}
-            >
-              {STOCK_REPORT_FORMATS.map((f) => (
-                <option key={f} value={f}>{f === 'html' ? 'HTML 自包含' : 'Markdown'}</option>
-              ))}
-            </select>
-          </label>
+          <Select
+            label="格式"
+            aria-label="研报格式"
+            value={format}
+            onChange={(e) => {
+              // 切格式即失效旧研报：旧内容只对应旧格式，残留会让
+              // 「下载 Markdown 文件」按钮实下 HTML 文件（格式不符真缺陷）。
+              setFormat(e.target.value as StockReportFormat)
+              setReport(null)
+              setError(null)
+            }}
+          >
+            {STOCK_REPORT_FORMATS.map((f) => (
+              <option key={f} value={f}>{f === 'html' ? 'HTML 自包含' : 'Markdown'}</option>
+            ))}
+          </Select>
           <div className="flex items-end">
             <button type="button" onClick={submit} disabled={busy} className={BTN_CLS}>
               {busy ? '装配中…' : '生成研报'}

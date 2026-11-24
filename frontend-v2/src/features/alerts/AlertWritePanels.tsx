@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { QueryState } from '@/shared/ui/States'
 import { Card } from '@/shared/ui/Card'
+import { Select, Textarea } from '@/shared/ui/Field'
 import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 import { getCurrentUser } from '@/lib/auth'
 import {
@@ -150,20 +151,17 @@ function PriceAlertPanel() {
     <div className="space-y-4">
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className={labelCls}>
-            预警类型
-            <select
-              value={alertType}
-              onChange={(e) => setAlertType(e.target.value as AlertType)}
-              className={inputCls}
-            >
-              {ALERT_TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {ALERT_TYPE_LABELS[t]}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select
+            label="预警类型"
+            value={alertType}
+            onChange={(e) => setAlertType(e.target.value as AlertType)}
+          >
+            {ALERT_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {ALERT_TYPE_LABELS[t]}
+              </option>
+            ))}
+          </Select>
           <StockSearchInput
             value={stockCode}
             label="选择股票"
@@ -187,17 +185,14 @@ function PriceAlertPanel() {
                 className={inputCls}
               />
             </label>
-            <label className={labelCls}>
-              预警方向
-              <select
-                value={condition}
-                onChange={(e) => setCondition(e.target.value as 'above' | 'below')}
-                className={inputCls}
-              >
-                <option value="above">上破</option>
-                <option value="below">下破</option>
-              </select>
-            </label>
+            <Select
+              label="预警方向"
+              value={condition}
+              onChange={(e) => setCondition(e.target.value as 'above' | 'below')}
+            >
+              <option value="above">上破</option>
+              <option value="below">下破</option>
+            </Select>
           </div>
         )}
         {alertType === 'pattern' && (
@@ -371,15 +366,13 @@ function MarketAlertPanel() {
             emptyLabel="配置不可得"
           >
             <div className="space-y-2">
-              <label className={labelCls}>
-                扫描策略配置
-                <textarea
-                  value={configText}
-                  onChange={(e) => setConfigText(e.target.value)}
-                  rows={6}
-                  className={`${inputCls} font-mono`}
-                />
-              </label>
+              <Textarea
+                label="扫描策略配置"
+                value={configText}
+                onChange={(e) => setConfigText(e.target.value)}
+                rows={6}
+                className="[&_textarea]:font-mono"
+              />
               <button type="button" onClick={handleUpdateConfig} className={btnCls}>
                 保存配置
               </button>

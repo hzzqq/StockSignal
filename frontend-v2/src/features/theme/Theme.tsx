@@ -204,9 +204,9 @@ export function Theme() {
               <Card title={`热度榜（涨幅 Top ${topRanked.length}）`}>
                 {topRanked.length > 0 ? (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-xs text-sf-ink">
+                    <table className="w-full text-body text-sf-ink">
                       <thead>
-                        <tr className="text-sf-ink-3 border-b border-sf-line">
+                        <tr className="text-label text-sf-ink-3 border-b border-sf-line">
                           <th className="text-left py-1.5 pr-3">题材</th>
                           <th className="text-right py-1.5 pr-3">涨跌幅</th>
                           <th className="text-left py-1.5 pr-3">生命周期</th>
@@ -215,7 +215,7 @@ export function Theme() {
                       </thead>
                       <tbody>
                         {topRanked.map((c, i) => (
-                          <tr key={c.name ?? i} className="border-b border-sf-line/60">
+                          <tr key={c.name ?? i} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                             <td className="py-1.5 pr-3">{c.name ?? '—'}</td>
                             <td className="py-1.5 pr-3 text-right font-medium" style={{ color: chgColor(c.chg) }}>
                               {fmtChgPct(c.chg)}
@@ -307,9 +307,9 @@ export function Theme() {
               </div>
             )}
             <div className="overflow-x-auto">
-              <table className="w-full text-xs text-sf-ink">
+              <table className="w-full text-body text-sf-ink">
                 <thead>
-                  <tr className="text-sf-ink-3 border-b border-sf-line">
+                  <tr className="text-label text-sf-ink-3 border-b border-sf-line">
                     <th className="text-right py-1.5 pr-3">#</th>
                     <th className="text-left py-1.5 pr-3">标的</th>
                     <th className="text-right py-1.5 pr-3">关联度</th>
@@ -320,7 +320,7 @@ export function Theme() {
                 </thead>
                 <tbody>
                   {(tx.data.entries ?? []).map((e, i) => (
-                    <tr key={`${e.code ?? ''}-${i}`} className="border-b border-sf-line/60">
+                    <tr key={`${e.code ?? ''}-${i}`} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                       <td className="py-1.5 pr-3 text-right opacity-50">{i + 1}</td>
                       <td className="py-1.5 pr-3">
                         <b>{e.name ?? '—'}</b>
@@ -328,8 +328,8 @@ export function Theme() {
                       </td>
                       <td className="py-1.5 pr-3 text-right font-medium">{typeof e.score === 'number' ? e.score : '—'}</td>
                       <td className="py-1.5 pr-3" style={{ color: e.dir_color ?? CHART.ink2 }}>{e.direction ?? '—'}</td>
-                      <td className="py-1.5 pr-3 opacity-85 text-[11px]">{e.concepts ?? '—'}</td>
-                      <td className="py-1.5 opacity-60 text-[11px]">{e.evidence ?? '—'}</td>
+                      <td className="py-1.5 pr-3 opacity-85 text-body">{e.concepts ?? '—'}</td>
+                      <td className="py-1.5 opacity-60 text-body">{e.evidence ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -6,10 +6,8 @@ import { Stat } from '@/shared/ui/Stat'
 import { Loading, ErrorState, EmptyState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
+import { Select } from '@/shared/ui/Field'
 import { AnalyticsHeader, DataBoundary, SectionState, show } from './shared'
-
-const SELECT_CLS =
-  'mt-1 w-full bg-sf-bg border border-sf-line text-sf-ink rounded px-2 py-1.5 outline-none focus:border-sf-accent'
 
 /**
  * 68 情绪拐点扫描器（v2 native /inflection-scan）。
@@ -107,9 +105,9 @@ export function InflectionScan() {
                 <Card title="近期拐点事件（末 20 交易日）">
                   {events.length > 0 ? (
                     <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
+                      <table className="w-full text-body">
                         <thead>
-                          <tr className="border-b border-sf-line text-left text-xs font-medium text-sf-ink-3">
+                          <tr className="border-b border-sf-line text-left text-label text-sf-ink-3">
                             <th className="py-2 pr-3">日期</th>
                             <th className="py-2 pr-3">维度</th>
                             <th className="py-2 pr-3">类型</th>
@@ -139,20 +137,18 @@ export function InflectionScan() {
                 </Card>
 
                 <Card title="单维度 z-score 轨迹（含拐点标注）">
-                  <label className="block text-xs text-sf-ink-2 mb-3">
-                    扫描维度
-                    <select
-                      className={SELECT_CLS}
-                      value={dim}
-                      onChange={(e) => setPicked(e.target.value)}
-                    >
-                      {dims.map((k) => (
-                        <option key={k} value={k}>
-                          {labels[k] ?? k}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                <Select
+                  label="扫描维度"
+                  className="mb-3"
+                  value={dim}
+                  onChange={(e) => setPicked(e.target.value)}
+                >
+                  {dims.map((k) => (
+                    <option key={k} value={k}>
+                      {labels[k] ?? k}
+                    </option>
+                  ))}
+                </Select>
 
                   {zq.isLoading && <Loading label="加载 z-score 轨迹…" />}
                   {zq.isError && (

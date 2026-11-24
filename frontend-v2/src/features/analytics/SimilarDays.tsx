@@ -107,9 +107,9 @@ export function SimilarDays() {
             <Card title="最相似历史日（按距离升序）">
               {rows.length > 0 ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-body">
                     <thead>
-                      <tr className="border-b border-sf-line text-left text-xs font-medium text-sf-ink-3">
+                      <tr className="border-b border-sf-line text-left text-label font-medium text-sf-ink-3">
                         <th className="py-2 pr-3">日期</th>
                         <th className="py-2 pr-3">距离</th>
                         <th className="py-2 pr-3">后 5 日红盘%</th>
@@ -119,7 +119,7 @@ export function SimilarDays() {
                     </thead>
                     <tbody>
                       {rows.map((r) => (
-                        <tr key={r.date} className="border-b border-sf-line/60">
+                        <tr key={r.date} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                           <td className="py-2 pr-3 text-sf-ink">{r.date}</td>
                           <td className="py-2 pr-3 text-sf-ink-2">{show(r.dist)}</td>
                           <td className="py-2 pr-3 text-sf-ink-2">{show(r.fwd?.['5'], '%')}</td>

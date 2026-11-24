@@ -23,6 +23,7 @@ import {
 } from '@/lib/freshness'
 import { fmtNum } from '@/lib/format'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
+import { Select } from '@/shared/ui/Field'
 
 /**
  * W3 广度·温度首簇落地页（对应 IA-MIGRATION.md §4 W3）。
@@ -147,21 +148,19 @@ export function BreadthOverview() {
       {/* ───── v1 59「市场温度计」四块迁移：基准窗口 + 三卡（牧羊人贡献 / 极端区信号 / 历史情境类比）───── */}
       <div className="flex flex-wrap items-center gap-3 mt-2">
         <SectionTitle as="h2">市场温度计（v1 59 页四块）</SectionTitle>
-        <label className="text-label text-sf-ink-3">
-          基准窗口
-          <select
-            aria-label="温度基准窗口"
-            className="ml-2 rounded-tile border border-sf-line bg-sf-surface px-2 py-1 text-sm text-sf-ink"
-            value={histDays}
-            onChange={(e) => setHistDays(Number(e.target.value) as MarketTemperatureWindow)}
-          >
-            {HIST_WINDOWS.map((w) => (
-              <option key={w.value} value={w.value}>
-                {w.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="基准窗口"
+          aria-label="温度基准窗口"
+          className="w-56"
+          value={histDays}
+          onChange={(e) => setHistDays(Number(e.target.value) as MarketTemperatureWindow)}
+        >
+          {HIST_WINDOWS.map((w) => (
+            <option key={w.value} value={w.value}>
+              {w.label}
+            </option>
+          ))}
+        </Select>
       </div>
 
       <Card title="牧羊人指标热度贡献分解">

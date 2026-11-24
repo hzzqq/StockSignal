@@ -6,6 +6,7 @@ import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
+import { Select } from '@/shared/ui/Field'
 
 /**
  * 61 广度结构分化（v2 native /breadth-divergence）。
@@ -20,7 +21,7 @@ function fmt(v: number | null | undefined, digits = 1): string {
   return typeof v === 'number' && Number.isFinite(v) ? v.toFixed(digits) : '—'
 }
 
-const CELL_CLS = 'h-7 min-w-9 border border-sf-line text-center text-[11px] tabular-nums'
+const CELL_CLS = 'h-7 min-w-9 border border-sf-line text-center tabular-nums'
 
 /** 红盘率越高越偏红（A 股语义）；null 用中性底 + 「—」，绝不按 0 上色。 */
 function heatStyle(v: number | null): CSSProperties {
@@ -110,17 +111,17 @@ export function BreadthDivergence() {
           </label>
           <label className="text-sf-ink-3">
             趋势窗口（交易日）
-            <select
+            <Select
+              className="mt-1 w-32"
               value={windowDays}
               onChange={(e) => setWindowDays(e.target.value)}
-              className="mt-1 block w-32 rounded-tile border border-sf-line bg-sf-surface px-2 py-1 text-sf-ink"
             >
               <option value="250">近 1 年</option>
               <option value="750">近 3 年</option>
               <option value="1250">近 5 年</option>
               <option value="2500">近 10 年</option>
               <option value="5000">全历史</option>
-            </select>
+            </Select>
           </label>
           {!paramsValid && (
             <span className="text-sf-danger">参数超出合法范围，未发起请求</span>
@@ -175,9 +176,9 @@ export function BreadthDivergence() {
               {query.data.divergence.episodes.length === 0 ? (
                 <p className="text-xs text-sf-ink-3">该阈值下无分化日，不伪造样本。</p>
               ) : (
-                <table className="w-full text-label tabular-nums">
+                <table className="w-full text-body tabular-nums">
                   <thead>
-                    <tr className="text-sf-ink-3">
+                    <tr className="text-label text-sf-ink-3">
                       <th className="text-left py-1">日期</th>
                       <th className="text-right py-1">红盘率</th>
                       <th className="text-right py-1">跌停家数</th>
@@ -190,7 +191,7 @@ export function BreadthDivergence() {
                       .slice(-15)
                       .reverse()
                       .map((e) => (
-                        <tr key={e.date} className="border-t border-sf-line">
+                        <tr key={e.date} className="border-t border-sf-line hover:bg-sf-surface-2">
                           <td className="py-1">{e.date}</td>
                           <td className="text-right py-1">{fmt(e.red_ratio)}%</td>
                           <td className="text-right py-1">
@@ -208,12 +209,12 @@ export function BreadthDivergence() {
             <Card title="广度日历热力（年 × 月，月均红盘率）">
               {query.data.calendar.available ? (
                 <div className="overflow-auto">
-                  <table className="border-collapse text-[11px]">
+                  <table className="border-collapse text-body">
                     <thead>
-                      <tr>
-                        <th className="px-1 text-sf-ink-3">年</th>
+                      <tr className="text-label text-sf-ink-3">
+                        <th className="px-1">年</th>
                         {query.data.calendar.months.map((m) => (
-                          <th key={m} className="px-1 text-sf-ink-3">{m}</th>
+                          <th key={m} className="px-1">{m}</th>
                         ))}
                       </tr>
                     </thead>

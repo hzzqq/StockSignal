@@ -295,7 +295,7 @@ function KlineTable({ rows }: { rows: StockKline['rows'] }) {
         </thead>
         <tbody className="text-sf-ink-2">
           {rows.map((r, i) => (
-            <tr key={i} className="border-b border-sf-line last:border-0">
+            <tr key={i} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
               {cols.map((c) => (
                 <td key={c} className="py-1.5 pr-3 tabular-nums">{fmtNum(r[c])}</td>
               ))}
@@ -714,7 +714,7 @@ export function DeepBody({ data }: { data: ResearchDeep }) {
                 {techKeys.map((k) => {
                   const v = (data as Record<string, unknown>)[k]
                   return (
-                    <tr key={k} className="border-b border-sf-line last:border-0">
+                    <tr key={k} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
                       <th
                         scope="row"
                         className="text-left py-1.5 pr-3 font-normal text-sf-ink-3"

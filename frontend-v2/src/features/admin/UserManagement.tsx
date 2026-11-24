@@ -4,6 +4,7 @@ import { listUsers, createUser, updateUser, deleteUser, listLogs } from '@/api/a
 import type { PublicUser, AdminLog } from '@/api/schemas/admin'
 import { Card } from '@/shared/ui/Card'
 import { QueryState, EmptyState } from '@/shared/ui/States'
+import { Select } from '@/shared/ui/Field'
 import { getCurrentUser } from '@/lib/auth'
 
 /**
@@ -129,9 +130,9 @@ function ListTab({ me }: { me: PublicUser }) {
           emptyHint="点击「创建用户」标签，填写用户名与密码即可新增账户。"
         >
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-sf-ink">
+            <table className="w-full text-body text-sf-ink">
               <thead>
-                <tr className="text-sf-ink-3 border-b border-sf-line">
+                <tr className="text-label text-sf-ink-3 border-b border-sf-line">
                   <th className="text-left py-1.5 pr-3">用户</th>
                   <th className="text-left py-1.5 pr-3">ID</th>
                   <th className="text-left py-1.5 pr-3">角色</th>
@@ -146,7 +147,7 @@ function ListTab({ me }: { me: PublicUser }) {
                   const isRootAdmin = u.username === 'admin'
                   const canDelete = !isSelf && !isRootAdmin
                   return (
-                    <tr key={u.id} className="border-b border-sf-line/60">
+                    <tr key={u.id} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                       <td className="py-1.5 pr-3">
                         <span className="font-medium">{u.username}</span>
                         {u.role === 'admin' && <span className="ml-1" aria-label="管理员">🛡️</span>}
@@ -261,18 +262,15 @@ function EditModal({ user, me, onClose }: { user: PublicUser; me: PublicUser; on
     <Modal title={`编辑用户 ${user.username}`} onClose={onClose}>
       <div className="space-y-3">
         <p className="text-label text-sf-ink-3">ID: {user.id} · 创建于 {String(user.created_at).slice(0, 10)}</p>
-        <label className="flex flex-col gap-1 text-label text-sf-ink-2">
-          角色
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value as 'user' | 'admin')}
-            aria-label="角色"
-            className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-1.5 text-body text-sf-ink"
-          >
-            <option value="user">👤 普通用户 (user)</option>
-            <option value="admin">🛡️ 管理员 (admin)</option>
-          </select>
-        </label>
+        <Select
+          label="角色"
+          aria-label="角色"
+          value={role}
+          onChange={(e) => setRole(e.target.value as 'user' | 'admin')}
+        >
+          <option value="user">👤 普通用户 (user)</option>
+          <option value="admin">🛡️ 管理员 (admin)</option>
+        </Select>
         <label className="flex items-center gap-2 text-label text-sf-ink-2">
           <input
             type="checkbox"
@@ -443,18 +441,15 @@ function CreateTab() {
             className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-1.5 text-body text-sf-ink"
           />
         </label>
-        <label className="flex flex-col gap-1 text-label text-sf-ink-2">
-          角色
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value as 'user' | 'admin')}
-            aria-label="角色"
-            className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-1.5 text-body text-sf-ink"
-          >
-            <option value="user">👤 普通用户 (user)</option>
-            <option value="admin">🛡️ 管理员 (admin)</option>
-          </select>
-        </label>
+        <Select
+          label="角色"
+          aria-label="角色"
+          value={role}
+          onChange={(e) => setRole(e.target.value as 'user' | 'admin')}
+        >
+          <option value="user">👤 普通用户 (user)</option>
+          <option value="admin">🛡️ 管理员 (admin)</option>
+        </Select>
 
         {err && <div role="alert" className="text-sf-danger text-body">{err}</div>}
         {okMsg && <div role="status" className="text-sf-ok text-body">{okMsg}</div>}

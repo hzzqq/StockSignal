@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Card } from '@/shared/ui/Card'
 import { ErrorState, QueryState } from '@/shared/ui/States'
+import { Textarea } from '@/shared/ui/Field'
 import { SettingsInputSchema, AvatarInputSchema } from '@/api/schemas/community'
 import {
   useMe,
@@ -35,6 +36,8 @@ export function AccountPanel() {
   const [settingsError, setSettingsError] = useState<string | null>(null)
   const [avatarError, setAvatarError] = useState<string | null>(null)
   const initialized = useRef(false)
+  // 隐藏 file input：可视化上传区点击时触发同一 input 与校验逻辑
+  const avatarInputRef = useRef<HTMLInputElement>(null)
 
   // 首次拿到 /me 后把当前偏好回填到编辑框（只回填一次，保存后不被刷新覆盖用户输入）。
   useEffect(() => {
@@ -165,13 +168,13 @@ export function AccountPanel() {
 
       <Card title="偏好设置">
         <div className="space-y-2">
-          <textarea
+          <Textarea
             aria-label="偏好设置 JSON"
             value={settingsText}
             placeholder='{"theme_mode": "dark"}'
             onChange={(e) => setSettingsText(e.target.value)}
             rows={4}
-            className="w-full rounded-tile border border-sf-line bg-sf-surface px-2.5 py-1.5 text-body text-sf-ink outline-none focus:border-sf-accent"
+            className="[&_textarea]:font-mono"
           />
           <div className="flex items-center gap-2">
             <button
@@ -192,12 +195,34 @@ export function AccountPanel() {
       <Card title="头像">
         <div className="space-y-2">
           <input
+            ref={avatarInputRef}
             aria-label="头像文件"
             type="file"
             accept="image/*"
             onChange={onAvatarFile}
-            className="text-body text-sf-ink-2"
+            className="sr-only"
           />
+          <button
+            type="button"
+            onClick={() => avatarInputRef.current?.click()}
+            className="flex w-full cursor-pointer flex-col items-center gap-1 rounded-tile border border-dashed border-sf-line p-4 text-center transition-colors hover:border-sf-accent"
+          >
+            <span aria-hidden="true" className="text-sf-ink-3">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-6 w-6"
+              >
+                <path d="M12 16V4m0 0 4 4m-4-4-4 4" />
+                <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+              </svg>
+            </span>
+            <span className="text-xs text-sf-ink-2">点击选择头像图片</span>
+          </button>
           <p className="text-xs text-sf-ink-3">仅接受 data:image/ 开头的图片，体积 ≤3MB。</p>
           {avatarM.isSuccess && <span className="text-xs text-sf-ok">头像已保存</span>}
           {avatarError && <ErrorState message={avatarError} />}

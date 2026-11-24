@@ -109,9 +109,9 @@ function PositionBlock({ rows }: { rows: TradingAccountPosition[] }) {
   return (
     <Card title={`当前持仓（${rows.length}）`}>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs text-sf-ink">
+        <table className="w-full text-body text-sf-ink">
           <thead>
-            <tr className="text-sf-ink-3 border-b border-sf-line">
+            <tr className="text-label text-sf-ink-3 border-b border-sf-line">
               <th className="text-left py-1.5 pr-3">代码</th>
               <th className="text-left py-1.5 pr-3">名称</th>
               <th className="text-right py-1.5 pr-3">持股数</th>
@@ -121,7 +121,7 @@ function PositionBlock({ rows }: { rows: TradingAccountPosition[] }) {
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={`${r.code}-${i}`} className="border-b border-sf-line/60">
+              <tr key={`${r.code}-${i}`} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                 <td className="py-1.5 pr-3">{r.code ?? '—'}</td>
                 <td className="py-1.5 pr-3">{r.name ?? '—'}</td>
                 <td className="py-1.5 pr-3 text-right">{num(r.qty)}</td>
@@ -150,9 +150,9 @@ function OrderBlock({ rows }: { rows: TradingAccountOrder[] }) {
   return (
     <Card title={`订单流水（${rows.length}）`}>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs text-sf-ink">
+        <table className="w-full text-body text-sf-ink">
           <thead>
-            <tr className="text-sf-ink-3 border-b border-sf-line">
+            <tr className="text-label text-sf-ink-3 border-b border-sf-line">
               <th className="text-left py-1.5 pr-3">时间</th>
               <th className="text-left py-1.5 pr-3">代码</th>
               <th className="text-left py-1.5 pr-3">名称</th>
@@ -164,7 +164,7 @@ function OrderBlock({ rows }: { rows: TradingAccountOrder[] }) {
           </thead>
           <tbody>
             {rows.map((o, i) => (
-              <tr key={`${o.time}-${o.code}-${i}`} className="border-b border-sf-line/60">
+              <tr key={`${o.time}-${o.code}-${i}`} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                 <td className="py-1.5 pr-3">{o.time ?? '—'}</td>
                 <td className="py-1.5 pr-3">{o.code ?? '—'}</td>
                 <td className="py-1.5 pr-3">{o.name ?? '—'}</td>

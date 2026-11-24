@@ -190,9 +190,9 @@ function RegionBlock({ title, rows }: { title: string; rows: [string, MacroIndic
   return (
     <Card title={`${title}（${rows.length}）`}>
       <div className="overflow-x-auto">
-        <table className="w-full text-xs text-sf-ink">
+        <table className="w-full text-body text-sf-ink">
           <thead>
-            <tr className="text-sf-ink-3 border-b border-sf-line">
+            <tr className="text-label text-sf-ink-3 border-b border-sf-line">
               <th className="text-left py-1.5 pr-3">指标</th>
               <th className="text-right py-1.5 pr-3">最新值</th>
               <th className="text-right py-1.5 pr-3">较上期</th>
@@ -205,7 +205,7 @@ function RegionBlock({ title, rows }: { title: string; rows: [string, MacroIndic
             {rows.map(([key, ind]) => {
               const chg = fmtChange(ind.change, ind.unit)
               return (
-                <tr key={key} className="border-b border-sf-line/60">
+                <tr key={key} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                   <td className="py-1.5 pr-3">
                     <div>{ind.name ?? key}</div>
                     {ind.desc && <div className="text-sf-ink-3 text-[11px]">{ind.desc}</div>}

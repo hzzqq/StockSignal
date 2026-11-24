@@ -21,6 +21,21 @@ export function Loading({ label = '加载中…' }: { label?: string }) {
 export function EmptyState({ label = '暂无数据', hint }: { label?: string; hint?: ReactNode }) {
   return (
     <div role="status" className="py-10 text-center">
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="mx-auto mb-2 w-6 h-6 text-sf-ink-3"
+      >
+        {/* 证据文档缺页隐喻：纸张 + 折角 + 省略行 */}
+        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+        <path d="M14 3v5h5" />
+        <path d="M9 13h6M9 16h4" />
+      </svg>
       <div className="text-body text-sf-ink-2">{label}</div>
       {hint && <div className="text-label text-sf-ink-3 mt-1">{hint}</div>}
     </div>

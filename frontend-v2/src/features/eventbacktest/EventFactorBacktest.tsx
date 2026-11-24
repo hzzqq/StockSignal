@@ -6,6 +6,7 @@ import { useEventBacktest } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
+import { Select } from '@/shared/ui/Field'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { SectionTitle } from '@/shared/ui/EmphasisText'
@@ -98,59 +99,47 @@ export function EventFactorBacktest() {
           ))}
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          <label className="text-xs text-sf-ink-3 flex flex-col gap-1">
-            指标
-            <select
-              className="rounded-tile bg-sf-surface-2 border border-sf-line px-2 py-1.5 text-sm text-sf-ink"
-              value={form.metric}
-              onChange={(e) => setForm((f) => ({ ...f, metric: e.target.value as MetricKey }))}
-            >
-              {(Object.keys(METRIC_LABELS) as MetricKey[]).map((m) => (
-                <option key={m} value={m}>
-                  {METRIC_LABELS[m]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs text-sf-ink-3 flex flex-col gap-1">
-            方向
-            <select
-              className="rounded-tile bg-sf-surface-2 border border-sf-line px-2 py-1.5 text-sm text-sf-ink"
-              value={form.direction}
-              onChange={(e) => setForm((f) => ({ ...f, direction: e.target.value as Direction }))}
-            >
-              <option value="high">达历史高位（前 X%）</option>
-              <option value="low">落历史低位（后 X%）</option>
-            </select>
-          </label>
-          <label className="text-xs text-sf-ink-3 flex flex-col gap-1">
-            尾部比例
-            <select
-              className="rounded-tile bg-sf-surface-2 border border-sf-line px-2 py-1.5 text-sm text-sf-ink"
-              value={form.quantile}
-              onChange={(e) => setForm((f) => ({ ...f, quantile: Number(e.target.value) }))}
-            >
-              {[0.05, 0.1, 0.2].map((qt) => (
-                <option key={qt} value={qt}>
-                  前/后 {qt * 100}%
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs text-sf-ink-3 flex flex-col gap-1">
-            前向天数
-            <select
-              className="rounded-tile bg-sf-surface-2 border border-sf-line px-2 py-1.5 text-sm text-sf-ink"
-              value={form.horizon}
-              onChange={(e) => setForm((f) => ({ ...f, horizon: Number(e.target.value) as Horizon }))}
-            >
-              {([1, 3, 5, 10] as Horizon[]).map((h) => (
-                <option key={h} value={h}>
-                  {h} 日
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select
+            label="指标"
+            value={form.metric}
+            onChange={(e) => setForm((f) => ({ ...f, metric: e.target.value as MetricKey }))}
+          >
+            {(Object.keys(METRIC_LABELS) as MetricKey[]).map((m) => (
+              <option key={m} value={m}>
+                {METRIC_LABELS[m]}
+              </option>
+            ))}
+          </Select>
+          <Select
+            label="方向"
+            value={form.direction}
+            onChange={(e) => setForm((f) => ({ ...f, direction: e.target.value as Direction }))}
+          >
+            <option value="high">达历史高位（前 X%）</option>
+            <option value="low">落历史低位（后 X%）</option>
+          </Select>
+          <Select
+            label="尾部比例"
+            value={form.quantile}
+            onChange={(e) => setForm((f) => ({ ...f, quantile: Number(e.target.value) }))}
+          >
+            {[0.05, 0.1, 0.2].map((qt) => (
+              <option key={qt} value={qt}>
+                前/后 {qt * 100}%
+              </option>
+            ))}
+          </Select>
+          <Select
+            label="前向天数"
+            value={form.horizon}
+            onChange={(e) => setForm((f) => ({ ...f, horizon: Number(e.target.value) as Horizon }))}
+          >
+            {([1, 3, 5, 10] as Horizon[]).map((h) => (
+              <option key={h} value={h}>
+                {h} 日
+              </option>
+            ))}
+          </Select>
         </div>
         <button
           type="button"
@@ -226,7 +215,7 @@ function EventBacktestBody({ data }: { data: EventBacktest }) {
       {examples.length > 0 && (
         <Card title="触发示例（历史极值日）">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-body">
               <thead>
                 <tr className="text-sf-ink-3 text-label border-b border-sf-line">
                   <th className="text-left py-1.5 px-2">日期</th>

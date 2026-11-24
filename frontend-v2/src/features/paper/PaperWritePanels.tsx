@@ -6,6 +6,7 @@ import {
 } from '@/lib/queriesPatternPaper'
 import { usePaperTrades } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
+import { Select } from '@/shared/ui/Field'
 import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 
 /**
@@ -70,14 +71,11 @@ export function PaperWritePanels() {
             {/* 代码：统一 StockSearchInput（代码/名称/拼音召回 + 键盘选择）；
                 提交前的 6 位数字校验保留（直接按代码查询也回写合法码）。 */}
             <StockSearchInput label="代码" value={code} onSelect={(c) => setCode(c)} />
-            <label className={LABEL_CLS}>
-              方向
-              <select aria-label="模拟成交方向" value={side}
-                onChange={(e) => setSide(e.target.value as '买' | '卖')} className={INPUT_CLS}>
-                <option value="买">买入</option>
-                <option value="卖">卖出</option>
-              </select>
-            </label>
+            <Select label="方向" aria-label="模拟成交方向" value={side}
+              onChange={(e) => setSide(e.target.value as '买' | '卖')}>
+              <option value="买">买入</option>
+              <option value="卖">卖出</option>
+            </Select>
             <label className={LABEL_CLS}>
               价格
               <input aria-label="模拟成交价格" type="number" step="0.01" value={price}

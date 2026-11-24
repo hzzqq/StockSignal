@@ -126,9 +126,9 @@ function NorthboundBlock({ nb }: { nb?: FundFlowNorthbound }) {
 
       {boards.length > 0 && (
         <div className="mt-3 overflow-x-auto">
-          <table className="w-full text-xs text-sf-ink">
+          <table className="w-full text-body text-sf-ink">
             <thead>
-              <tr className="text-sf-ink-3 border-b border-sf-line">
+              <tr className="text-label text-sf-ink-3 border-b border-sf-line">
                 <th className="text-left py-1.5 pr-3">板块</th>
                 <th className="text-left py-1.5 pr-3">资金方向</th>
                 <th className="text-right py-1.5 pr-3">成交净买额</th>
@@ -140,7 +140,7 @@ function NorthboundBlock({ nb }: { nb?: FundFlowNorthbound }) {
             </thead>
             <tbody>
               {boards.map((b, i) => (
-                <tr key={`${b.board}-${i}`} className="border-b border-sf-line/60">
+                <tr key={`${b.board}-${i}`} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                   <td className="py-1.5 pr-3">{b.board ?? '—'}</td>
                   <td className="py-1.5 pr-3">{b.direction ?? '—'}</td>
                   <td className="py-1.5 pr-3 text-right" style={{ color: flowColor(b.trade_net) }}>{yi(b.trade_net)}</td>
@@ -264,9 +264,9 @@ function MarketBlock({ rows, available }: { rows: FundFlowMarketRow[]; available
       )}
 
       <div className="mt-3 overflow-x-auto">
-        <table className="w-full text-xs text-sf-ink">
+        <table className="w-full text-body text-sf-ink">
           <thead>
-            <tr className="text-sf-ink-3 border-b border-sf-line">
+            <tr className="text-label text-sf-ink-3 border-b border-sf-line">
               <th className="text-left py-1.5 pr-3">日期</th>
               <th className="text-right py-1.5 pr-3">上证涨跌幅%</th>
               <th className="text-right py-1.5 pr-3">主力净流入(亿)</th>
@@ -277,7 +277,7 @@ function MarketBlock({ rows, available }: { rows: FundFlowMarketRow[]; available
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={`${r.date}-${i}`} className="border-b border-sf-line/60">
+              <tr key={`${r.date}-${i}`} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                 <td className="py-1.5 pr-3">{r.date ?? '—'}</td>
                 <td className="py-1.5 pr-3 text-right">{pct(r.index_chg_pct)}</td>
                 <td className="py-1.5 pr-3 text-right" style={{ color: flowColor(r.main_net) }}>{yi(r.main_net)}</td>
@@ -325,9 +325,9 @@ function MarginBlock({ rows, latest, available }: { rows: FundFlowMarginRow[]; l
       )}
 
       <div className="mt-3 overflow-x-auto">
-        <table className="w-full text-xs text-sf-ink">
+        <table className="w-full text-body text-sf-ink">
           <thead>
-            <tr className="text-sf-ink-3 border-b border-sf-line">
+            <tr className="text-label text-sf-ink-3 border-b border-sf-line">
               <th className="text-left py-1.5 pr-3">日期</th>
               <th className="text-right py-1.5 pr-3">沪融资买入(亿)</th>
               <th className="text-right py-1.5 pr-3">深融资买入(亿)</th>
@@ -339,7 +339,7 @@ function MarginBlock({ rows, latest, available }: { rows: FundFlowMarginRow[]; l
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={`${r.date}-${i}`} className="border-b border-sf-line/60">
+              <tr key={`${r.date}-${i}`} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                 <td className="py-1.5 pr-3">{r.date ?? '—'}</td>
                 <td className="py-1.5 pr-3 text-right">{yi(r.sh_rzmr_yi)}</td>
                 <td className="py-1.5 pr-3 text-right">{yi(r.sz_rzmr_yi)}</td>

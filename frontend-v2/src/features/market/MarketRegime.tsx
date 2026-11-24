@@ -9,6 +9,7 @@ import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
+import { Select } from '@/shared/ui/Field'
 
 /**
  * 56 页「市场状态机」V2 化落地。
@@ -48,20 +49,18 @@ export function MarketRegime() {
 
       <Card title="类比参数">
         <div className="flex items-center gap-3">
-          <label className="text-xs text-sf-ink-3 flex items-center gap-2">
-            相似日数量 k
-            <select
-              className="rounded-tile bg-sf-surface-2 border border-sf-line px-2 py-1.5 text-sm text-sf-ink"
-              value={k}
-              onChange={(e) => setK(Number(e.target.value))}
-            >
-              {[3, 5, 8, 10, 12, 15].map((v) => (
-                <option key={v} value={v}>
-                  {v}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select
+            label="相似日数量 k"
+            className="w-24"
+            value={k}
+            onChange={(e) => setK(Number(e.target.value))}
+          >
+            {[3, 5, 8, 10, 12, 15].map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </Select>
         </div>
       </Card>
 

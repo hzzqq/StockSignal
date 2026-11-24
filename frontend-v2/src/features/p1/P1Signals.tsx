@@ -8,9 +8,9 @@ function P1Table({ title, rows }: { title: string; rows?: P1TopItem[] }) {
     <div>
       <div className="text-xs text-sf-ink-2 mb-1">{title}</div>
       {rows && rows.length > 0 ? (
-        <table className="w-full text-sm">
+        <table className="w-full text-body">
           <thead>
-            <tr className="text-sf-ink-3 text-left">
+            <tr className="text-label text-sf-ink-3 text-left">
               <th className="py-1">代码</th>
               <th className="py-1">名称</th>
               <th className="py-1">预测</th>
@@ -19,7 +19,7 @@ function P1Table({ title, rows }: { title: string; rows?: P1TopItem[] }) {
           </thead>
           <tbody>
             {rows.map((r, i) => (
-              <tr key={`${r.symbol}-${i}`} className="border-t border-sf-line">
+              <tr key={`${r.symbol}-${i}`} className="border-t border-sf-line hover:bg-sf-surface-2">
                 <td>{r.symbol}</td>
                 <td>{r.name ?? '—'}</td>
                 <td>{r.pred != null ? r.pred.toFixed(4) : '—'}</td>

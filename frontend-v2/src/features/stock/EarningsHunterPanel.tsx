@@ -11,6 +11,7 @@ import { useEarningsHunter } from '@/lib/queriesBatchD'
 import { Card } from '@/shared/ui/Card'
 import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { QueryState } from '@/shared/ui/States'
+import { Select } from '@/shared/ui/Field'
 import { fmtNum } from '@/lib/format'
 
 /**
@@ -50,24 +51,21 @@ export function EarningsHunterPanel() {
     <Card title="业绩预告信号扫描（跨股）">
       <div className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-3">
-          <label className={LABEL_CLS}>
-            预告报告期
-            <select
-              aria-label="业绩预告报告期"
-              value={period}
-              onChange={(e) => {
-                setPeriod(e.target.value as EarningsPeriod)
-                setEnabled(false)
-              }}
-              className={INPUT_CLS}
-            >
-              {EARNINGS_PERIODS.map((p) => (
-                <option key={p} value={p}>
-                  {EARNINGS_PERIOD_LABELS[p]}（{p}）
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select
+            label="预告报告期"
+            aria-label="业绩预告报告期"
+            value={period}
+            onChange={(e) => {
+              setPeriod(e.target.value as EarningsPeriod)
+              setEnabled(false)
+            }}
+          >
+            {EARNINGS_PERIODS.map((p) => (
+              <option key={p} value={p}>
+                {EARNINGS_PERIOD_LABELS[p]}（{p}）
+              </option>
+            ))}
+          </Select>
           <label className={LABEL_CLS}>
             最小业绩变动幅度（%，-200~200）
             <input

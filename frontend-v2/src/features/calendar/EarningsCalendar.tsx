@@ -5,6 +5,7 @@ import { Loading, EmptyState, ErrorState } from '@/shared/ui/States'
 import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { EarningsFinancialModal } from './EarningsFinancialModal'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
+import { Select } from '@/shared/ui/Field'
 
 const MARKETS = ['沪深京', '沪市', '深市'] as const
 const PERIODS = ['2026年报', '2025年报', '2024年报', '2023年报'] as const
@@ -29,9 +30,6 @@ function pickReportPeriod(row: Record<string, unknown>, fallback: string): strin
   const v = row['报告期']
   return v !== null && v !== undefined && v !== '' ? String(v) : fallback
 }
-
-const SELECT_CLS =
-  'mt-1 w-full bg-sf-bg border border-sf-line text-sf-ink rounded px-2 py-1.5 outline-none focus:border-sf-accent'
 
 /** A 股个股代码形态（6 位纯数字）才允许行点击弹财报详情；「—」等兜底码不可点。 */
 const A_SHARE_CODE_RE = /^\d{6}$/
@@ -65,34 +63,28 @@ export function EarningsCalendar() {
 
       <Card>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <label className="text-xs text-sf-ink-2">
-            市场
-            <select
-              className={SELECT_CLS}
-              value={market}
-              onChange={(e) => setMarket(e.target.value)}
-            >
-              {MARKETS.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-xs text-sf-ink-2">
-            报告期
-            <select
-              className={SELECT_CLS}
-              value={period}
-              onChange={(e) => setPeriod(e.target.value)}
-            >
-              {PERIODS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select
+            label="市场"
+            value={market}
+            onChange={(e) => setMarket(e.target.value)}
+          >
+            {MARKETS.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </Select>
+          <Select
+            label="报告期"
+            value={period}
+            onChange={(e) => setPeriod(e.target.value)}
+          >
+            {PERIODS.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </Select>
         </div>
       </Card>
 
@@ -113,9 +105,9 @@ export function EarningsCalendar() {
           defaultOpen={false}
         >
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-body">
               <thead>
-                <tr className="border-b border-sf-line text-left text-xs font-medium text-sf-ink-3">
+                <tr className="border-b border-sf-line text-left text-label font-medium text-sf-ink-3">
                   <th className="py-2 pr-3">代码</th>
                   <th className="py-2 pr-3">名称</th>
                   <th className="py-2 pr-3">报告期</th>

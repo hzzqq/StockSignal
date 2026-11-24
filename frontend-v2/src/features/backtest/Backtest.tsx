@@ -11,6 +11,7 @@ import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
+import { Select } from '@/shared/ui/Field'
 
 /**
  * 30 页「策略回测」V2 化落地（对应 IA-MIGRATION.md W4 后续簇）。
@@ -84,20 +85,17 @@ export function Backtest() {
               onChange={(e) => setForm((f) => ({ ...f, end: e.target.value }))}
             />
           </label>
-          <label className="text-xs text-sf-ink-3 flex flex-col gap-1">
-            策略
-            <select
-              className="rounded-tile bg-sf-surface-2 border border-sf-line px-2 py-1.5 text-sm text-sf-ink"
-              value={form.strategy}
-              onChange={(e) => setForm((f) => ({ ...f, strategy: e.target.value }))}
-            >
-              {Object.entries(STRATEGIES).map(([k, label]) => (
-                <option key={k} value={k}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <Select
+            label="策略"
+            value={form.strategy}
+            onChange={(e) => setForm((f) => ({ ...f, strategy: e.target.value }))}
+          >
+            {Object.entries(STRATEGIES).map(([k, label]) => (
+              <option key={k} value={k}>
+                {label}
+              </option>
+            ))}
+          </Select>
         </div>
         <div className="mt-3 w-72">
           <StockSearchInput

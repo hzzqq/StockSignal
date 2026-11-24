@@ -256,9 +256,9 @@ function PositionsView({ data }: { data: PortfolioData }) {
           <div className="text-xs text-sf-ink-3">暂无持仓。</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-sf-ink">
+            <table className="w-full text-body text-sf-ink">
               <thead>
-                <tr className="text-sf-ink-3 border-b border-sf-line">
+                <tr className="text-label text-sf-ink-3 border-b border-sf-line">
                   <th className="text-left py-1.5 pr-3">代码</th>
                   <th className="text-left py-1.5 pr-3">名称</th>
                   <th className="text-right py-1.5 pr-3">买入价</th>
@@ -273,7 +273,7 @@ function PositionsView({ data }: { data: PortfolioData }) {
               </thead>
               <tbody>
                 {positions.map((p, i) => (
-                  <tr key={`${p.ticker}-${i}`} className="border-b border-sf-line/60">
+                  <tr key={`${p.ticker}-${i}`} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                     <td className="py-1.5 pr-3">{p.ticker}</td>
                     <td className="py-1.5 pr-3">{p.name ?? '—'}</td>
                     <td className="py-1.5 pr-3 text-right">{f2(p.buy_price)}</td>
@@ -492,9 +492,9 @@ function AllocationBody({ data }: { data: PositionAllocation }) {
           <div className="text-xs text-sf-ink-3">暂无分配结果。</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-sf-ink">
+            <table className="w-full text-body text-sf-ink">
               <thead>
-                <tr className="text-sf-ink-3 border-b border-sf-line">
+                <tr className="text-label text-sf-ink-3 border-b border-sf-line">
                   <th className="text-left py-1.5 pr-3">代码</th>
                   <th className="text-left py-1.5 pr-3">名称</th>
                   <th className="text-right py-1.5 pr-3">评分</th>
@@ -505,7 +505,7 @@ function AllocationBody({ data }: { data: PositionAllocation }) {
               </thead>
               <tbody>
                 {allocations.map((a, i) => (
-                  <tr key={`${a.code}-${i}`} className="border-b border-sf-line/60">
+                  <tr key={`${a.code}-${i}`} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                     <td className="py-1.5 pr-3">{a.code}</td>
                     <td className="py-1.5 pr-3">{a.name ?? '—'}</td>
                     <td className="py-1.5 pr-3 text-right">{a.score == null ? '—' : f2(a.score)}</td>

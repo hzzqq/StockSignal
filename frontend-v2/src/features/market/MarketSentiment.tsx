@@ -3,6 +3,7 @@ import { useMarketSentiment } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Loading, EmptyState, ErrorState } from '@/shared/ui/States'
 import { SectionTitle } from '@/shared/ui/EmphasisText'
+import { Select } from '@/shared/ui/Field'
 
 /** 迷你走势：把近 40 日序列画成折线；含 null 时按有效点缩放，全 null 显「—」。 */
 function Spark({ values }: { values: Array<number | null> }) {
@@ -46,20 +47,18 @@ export function MarketSentiment() {
       </p>
 
       <Card>
-        <label className="text-xs text-sf-ink-2">
-          回溯天数
-          <select
-            className="mt-1 w-40 bg-sf-bg border border-sf-line text-sf-ink rounded px-2 py-1.5 outline-none focus:border-sf-accent"
-            value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
-          >
-            {[90, 180, 250, 500, 750, 1200].map((d) => (
-              <option key={d} value={d}>
-                {d} 日
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="回溯天数"
+          className="w-40"
+          value={days}
+          onChange={(e) => setDays(Number(e.target.value))}
+        >
+          {[90, 180, 250, 500, 750, 1200].map((d) => (
+            <option key={d} value={d}>
+              {d} 日
+            </option>
+          ))}
+        </Select>
       </Card>
 
       {q.isLoading && <Loading label="加载市场情绪…" />}
@@ -103,9 +102,9 @@ export function MarketSentiment() {
                 <div className="text-label text-sf-ink-3">该维度暂无可用指标</div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-body">
                     <thead>
-                      <tr className="border-b border-sf-line text-left text-xs font-medium text-sf-ink-3">
+                      <tr className="border-b border-sf-line text-left text-label font-medium text-sf-ink-3">
                         <th className="py-2 pr-3">指标</th>
                         <th className="py-2 pr-3 text-right">最新值</th>
                         <th className="py-2 pr-3 text-right">单位</th>

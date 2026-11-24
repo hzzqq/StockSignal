@@ -6,6 +6,7 @@ import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
 import { CHART } from '@/shared/charts/palette'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
+import { Select } from '@/shared/ui/Field'
 
 /**
  * 76 页「实时强势榜」V2 化（对应 V2-STATUS-PLAN Tier2）。
@@ -115,18 +116,16 @@ export function Strong() {
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <label className="text-xs text-sf-ink-3">
-          显示数量{' '}
-          <select
-            className="ml-1 rounded border border-sf-line bg-sf-surface px-2 py-1 text-xs"
-            value={topN}
-            onChange={(e) => setTopN(Number(e.target.value))}
-          >
-            {TOP_N_OPTIONS.map((n) => (
-              <option key={n} value={n}>{n}</option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="显示数量"
+          className="w-28"
+          value={topN}
+          onChange={(e) => setTopN(Number(e.target.value))}
+        >
+          {TOP_N_OPTIONS.map((n) => (
+            <option key={n} value={n}>{n}</option>
+          ))}
+        </Select>
         <button
           type="button"
           className={`rounded px-3 py-1 text-xs font-medium border ${onlyUp ? 'bg-sf-accent text-white border-sf-accent' : 'bg-sf-surface text-sf-ink-3 border-sf-line'}`}
