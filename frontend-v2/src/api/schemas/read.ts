@@ -1796,3 +1796,41 @@ export const DecisionLoopHealthSchema = z.object({
   message: z.string(),
 })
 export type DecisionLoopHealth = z.infer<typeof DecisionLoopHealthSchema>
+
+// ───────── 个股事件追踪（stock-events / v1 23_事件追踪.py 迁移）─────────
+// 后端契约 GET /api/v2/read/stock-events?code=600519&limit=50。
+// 诚实红线：score/date/name/source/url 缺失必须是 null（页面渲染 '—'），
+// 绝不用 0 / '' 伪造；distribution 三个字段是真实计数，为 0 即真实为 0。
+export const StockEventItemSchema = z
+  .object({
+    date: z.string().nullable().optional(),
+    title: z.string(),
+    source: z.string().nullable().optional(),
+    url: z.string().nullable().optional(),
+    sentiment: z.string(),
+    level: z.string(),
+    score: z.number().nullable().optional(),
+    is_major: z.boolean(),
+  })
+  .catchall(z.unknown())
+export type StockEventItem = z.infer<typeof StockEventItemSchema>
+
+export const StockEventSchema = z
+  .object({
+    code: z.string(),
+    name: z.string().nullable().optional(),
+    date: z.string().nullable().optional(),
+    available: z.boolean(),
+    events: z.array(StockEventItemSchema).default([]),
+    distribution: z
+      .object({
+        正面: z.number().nullable().optional(),
+        负面: z.number().nullable().optional(),
+        中性: z.number().nullable().optional(),
+      })
+      .optional(),
+    count: z.number(),
+    note: z.string(),
+  })
+  .catchall(z.unknown())
+export type StockEvent = z.infer<typeof StockEventSchema>

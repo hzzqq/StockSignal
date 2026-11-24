@@ -5094,6 +5094,8 @@ _DIAG_REQUIRED_QUERY = {
     "/api/v2/read/review-notes": {"date": "2026-09-21"},
     "/api/v2/read/six-dim": {"code": "600519"},
     "/api/v2/read/stock-profile": {"code": "600519"},
+    # 个股事件追踪：code 必填，缺参即 400（invalid_param），登记以免诊断探测假报故障。
+    "/api/v2/read/stock-events": {"code": "600519"},
     "/api/v2/read/technical-score": {"code": "600519"},
     "/api/v2/read/fundamentals": {"code": "600519"},
     "/api/v2/read/financials": {"code": "600519"},
@@ -5655,3 +5657,148 @@ def get_review_image(date, filename):
         mimetype=mime,
         headers={"Content-Disposition": f'inline; filename="{filename}"'},
     )
+
+
+# ───────────────────────── 个股事件追踪（v1 pages/23 → React v2，只读）────────────────────────
+_STOCK_EVENTS_NOTE = (
+    "个股事件来自公开公告与新闻，情感判定为词典/SnowNLP 启发式结果，仅供参考、"
+    "未经因果验证，不构成投资建议；数据缺失时字段为 null 未做任何填充。"
+)
+_STOCK_EVENTS_LIMITS = {10, 20, 30, 50}
+
+
+def _se_date(v):
+    """事件/数据日期 -> 'YYYY-MM-DD' | None；非真实日期一律 null，禁 now()/today() 兜底。"""
+    if v is None:
+        return None
+    try:
+        if pd.isna(v):
+            return None
+    except (TypeError, ValueError):
+        # ui_audit_exempt: 非标量输入不可判空，交由后续形状校验处理
+        pass
+    s = str(v).strip()[:10]
+    return s if re.fullmatch(r"\d{4}-\d{2}-\d{2}", s) else None
+
+
+def _se_str(v):
+    """字符串字段 -> str|None；None/NaN/NaT/空串一律 null。
+
+    pandas 构造 DataFrame 时会把 None 在同列字符串间转成 NaN，若直接 str() 会
+    产出 'nan' 假值，违反「缺失一律 null、不做填充」的诚实红线。
+    """
+    if v is None:
+        return None
+    try:
+        if pd.isna(v):
+            return None
+    except (TypeError, ValueError):
+        pass
+    return _w4b_str(v)
+
+
+@bp.get("/stock-events")
+@jwt_required
+def stock_events():
+    """GET /api/v2/read/stock-events?code=600519&limit=50 —— 个股事件爬取/排序/好坏判定。
+
+    data 字段全集逐字约定：code/name/date/available/events/distribution/count/note；
+    events[] 字段：date/title/source/url/sentiment/level/score/is_major。
+    取数复用 NewsFetcher.fetch_stock_events（东财公告 + 板块新闻，按 date 降序）与
+    SentimentAnalyzer.batch_analyze（五档来自 modules/event_levels.py::level_from_score），
+    不新造爬虫、不臆造事件；异常/空结果一律空态 200，绝不 500。
+    """
+    code = request.args.get("code", "")
+    if not re.fullmatch(r"\d{6}", code or ""):
+        return fail(message="code 非法（须为 6 位数字股票代码）",
+                    code="invalid_param", http_status=400)
+    raw_limit = request.args.get("limit")
+    if raw_limit is None or raw_limit == "":
+        limit = 50
+    else:
+        try:
+            limit = int(raw_limit)
+        except (TypeError, ValueError):
+            return fail(message="limit 非法（仅支持 10/20/30/50）",
+                        code="invalid_param", http_status=400)
+        if limit not in _STOCK_EVENTS_LIMITS:
+            return fail(message="limit 非法（仅支持 10/20/30/50）",
+                        code="invalid_param", http_status=400)
+
+    dist = {"正面": 0, "负面": 0, "中性": 0}
+    data = {
+        "code": code,
+        "name": None,
+        "date": None,
+        "available": False,
+        "events": [],
+        "distribution": dist,
+        "count": 0,
+        "note": _STOCK_EVENTS_NOTE,
+    }
+    try:
+        from urllib.parse import urlparse
+
+        from modules._news_io import NewsFetcher
+        from modules._news_nlp import SentimentAnalyzer
+
+        try:
+            name = _sp_name_from_pool(code)
+        except Exception:  # noqa: BLE001 - 名称水合失败仅让 name=null，不影响事件抓取
+            logging.getLogger(__name__).warning("[stock-events] 名称水合失败: %s", code)
+            name = None
+        data["name"] = _w4b_str(name)
+
+        df = NewsFetcher().fetch_stock_events(
+            stock_code=code, stock_name=name, keywords=None, limit=limit
+        )
+        if df is None or getattr(df, "empty", True):
+            return ok(data=_sanitize(data), message="stock-events")
+
+        events_df = df.reset_index(drop=True)
+        # batch_analyze 返回列含 date/title，但不含 source/url：按行位置从原 df 合并回，
+        # 绝不丢字段；其行序与 events_df.iterrows() 一一对应。
+        analyzed = SentimentAnalyzer().batch_analyze(events_df)
+        events = []
+        dates = []
+        for i in range(len(events_df)):
+            row = events_df.iloc[i]
+            ev_date = _se_date(row.get("date"))
+            if ev_date is not None:
+                dates.append(ev_date)
+            raw_url = _se_str(row.get("url"))
+            # 非 http(s) 链接一律 null，禁止透出相对路径/javascript: 等无效地址
+            url = raw_url if raw_url and urlparse(raw_url).scheme in ("http", "https") else None
+            arow = analyzed.iloc[i] if i < len(analyzed) else None
+            sentiment = _se_str(arow.get("sentiment") if arow is not None else None)
+            level = _se_str(arow.get("level") if arow is not None else None)
+            if sentiment is None or level is None:
+                # 分析结果缺失不臆造档位：整条链降级为空态（外层 except 收口）
+                raise ValueError("情感分析结果缺失")
+            score = _w4b_num(arow.get("score") if arow is not None else None)
+            is_major = bool(arow.get("is_major")) if arow is not None else False
+            if sentiment in dist:
+                dist[sentiment] += 1
+            events.append({
+                "date": ev_date,
+                "title": _se_str(row.get("title")) or "",
+                "source": _se_str(row.get("source")),
+                "url": url,
+                "sentiment": sentiment,
+                "level": level,
+                "score": score,
+                "is_major": is_major,
+            })
+        data["events"] = events
+        data["count"] = len(events)
+        data["available"] = bool(events)
+        # 数据日期 = 最新一条真实事件日期（取 max，不依赖上游排序），无事件则 null
+        data["date"] = max(dates) if dates else None
+    except Exception as exc:  # noqa: BLE001 - 取数链整体降级，不把异常抛成 500
+        logging.getLogger(__name__).warning("[stock-events] 取数失败，走空态: %s", exc)
+        # 异常可能发生在 dist 已部分累加之后：空态必须整体复位，绝不残留半个分布。
+        dist.update({"正面": 0, "负面": 0, "中性": 0})
+        # name 来自本地股票池、与抓取链独立，取到了就保留；其余字段整体复位为空态。
+        data.update({"date": None, "available": False,
+                     "events": [], "count": 0, "distribution": dist})
+    return ok(data=_sanitize(data), message="stock-events")

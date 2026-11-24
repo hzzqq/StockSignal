@@ -56,6 +56,7 @@ import type {
   MarketTemperatureWindow,
   DecisionLoopHealth,
   EventBacktest,
+  StockEvent,
 } from '@/api/schemas/read'
 
 /**
@@ -637,5 +638,16 @@ export function useStockSearch(q: string, limit = 10): UseQueryResult<StockSearc
     enabled: q.trim().length > 0,
     staleTime: 60_000,
     retry: false,
+  })
+}
+
+// ───────── 个股事件追踪（v1 23 页迁移）─────────
+// 仅在合法 6 位代码时发请求；事件爬取属低频数据，与事件池同用 30min staleTime。
+export function useStockEvents(code: string | null, limit = 50): UseQueryResult<StockEvent> {
+  return useQuery({
+    queryKey: ['stock-events', code, limit],
+    queryFn: () => api.getStockEvents(code!, limit),
+    enabled: !!code && /^\d{6}$/.test(code),
+    staleTime: THIRTY_MIN,
   })
 }

@@ -34,6 +34,8 @@ const LazyTemperatureBacktest = lazyRouteComponent(() => import('@/features/brea
 const LazyPatternScan = lazyRouteComponent(() => import('@/features/pattern/PatternScan'), 'PatternScan')
 const LazyLadderResonance = lazyRouteComponent(() => import('@/features/breadth/LadderResonance'), 'LadderResonance')
 const LazyEventPoolView = lazyRouteComponent(() => import('@/features/ops/EventPoolView'), 'EventPoolView')
+// 23 事件追踪 V2 化：个股事件爬取 + 时间轴 + 五档好坏判定（与事件因子池是不同能力）
+const LazyStockEventTracker = lazyRouteComponent(() => import('@/features/event/StockEventTracker'), 'StockEventTracker')
 const LazyPredictionLogView = lazyRouteComponent(() => import('@/features/ops/PredictionLogView'), 'PredictionLogView')
 const LazySystemStatusView = lazyRouteComponent(() => import('@/features/ops/SystemStatusView'), 'SystemStatusView')
 const LazyDiagnosticsView = lazyRouteComponent(() => import('@/features/ops/DiagnosticsView'), 'DiagnosticsView')
@@ -222,6 +224,12 @@ const eventsRoute = createRoute({
   getParentRoute: () => appRoute,
   path: '/events',
   component: LazyEventPoolView,
+})
+
+const stockEventsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/stock-events',
+  component: LazyStockEventTracker,
 })
 
 const eventBacktestRoute = createRoute({
@@ -633,6 +641,7 @@ const routeTree = rootRoute.addChildren([
     patternScanRoute,
     ladderRoute,
     eventsRoute,
+    stockEventsRoute,
     eventBacktestRoute,
     policyTransmissionRoute,
     predictionsRoute,

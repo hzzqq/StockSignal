@@ -58,7 +58,7 @@ const NATIVE: Record<string, { to: AppPath; note?: string }> = {
   '20_个股分析.py': { to: '/stock/research', note: 'v1 已内嵌进 24 页，v2 统一由个股研究承接；' + SNAPSHOT_READONLY_NOTE },
   '21_多股对比.py': { to: '/stock/compare' },
   '22_基本面分析.py': { to: '/stock/fundamentals' },
-  '23_事件追踪.py': { to: '/events', note: '以事件因子池视图承载' },
+  '23_事件追踪.py': { to: '/stock-events', note: '个股事件爬取/时间轴/五档好坏判定' },
   '24_个股研究.py': { to: '/stock/research' },
   // 决策 / 复盘 / 晨报 / 信号
   '36_每日荐股.py': { to: '/recommend' },

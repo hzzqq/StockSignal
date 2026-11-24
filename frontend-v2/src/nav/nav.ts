@@ -16,6 +16,7 @@ export type AppPath =
   | '/pattern-scan'
   | '/ladder'
   | '/events'
+  | '/stock-events'
   | '/event-backtest'
   | '/policy-transmission'
   | '/predictions'
@@ -97,6 +98,9 @@ export const NAV: NavGroup[] = [
       { to: '/sentiment-clock', label: '广度情绪实验室', icon: '◷' },
       { to: '/limit-up-review', label: '涨停复盘', icon: '🏆' },
       { to: '/events', label: '事件因子池', icon: '◈' },
+      // 23 事件追踪：个股事件爬取 + 时间轴 + 五档判定，紧邻「事件因子池」(市场级) 但能力不同。
+      // 不入决策组（已满 11，触 12 上限），也不入个股研究组（e2e 守卫锁定 8 项）。
+      { to: '/stock-events', label: '个股事件追踪', icon: '🔔' },
     ],
   },
   {

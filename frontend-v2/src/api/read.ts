@@ -48,6 +48,7 @@ import {
   LimitUpReviewSchema,
   MarketSentimentSchema,
   MarketTemperatureSchema,
+  StockEventSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -97,6 +98,7 @@ import {
   type PublicOverview,
   type PublicIndexIntraday,
   type PublicPicks,
+  type StockEvent,
 } from './schemas/read'
 
 /**
@@ -466,4 +468,12 @@ export function getQuoteBoard(): Promise<QuoteBoard> {
 /** GET /api/v2/read/decision-loop-health —— 决策闭环是否停摆（v2 全局横幅真值源） */
 export function getDecisionLoopHealth(): Promise<DecisionLoopHealth> {
   return readValidated('decision-loop-health', DecisionLoopHealthSchema)
+}
+
+/** GET /api/v2/read/stock-events —— 个股事件爬取 + 时间轴 + 五档好坏判定（v1 23 页迁移） */
+export function getStockEvents(code: string, limit = 50): Promise<StockEvent> {
+  return readValidated(
+    `stock-events?code=${encodeURIComponent(code)}&limit=${encodeURIComponent(String(limit))}`,
+    StockEventSchema,
+  )
 }
