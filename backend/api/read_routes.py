@@ -4400,13 +4400,22 @@ def theme():
     if "_source" in df.columns and len(df):
         source = _safe_str(df.iloc[0].get("_source")) or None
         heat_basis = _safe_str(df.iloc[0].get("_heat_basis")) or None
-    is_ths_fallback = source == getattr(th, "SOURCE_THS", "ths_fund_flow")
+    source_ths = getattr(th, "SOURCE_THS", "ths_fund_flow")
+    source_sina = getattr(th, "SOURCE_SINA", "sina_concept")
     note = None
-    if is_ths_fallback:
+    unavailable = []
+    if source == source_ths:
         note = (
             "东财概念板块快照本次不可用，已切换同花顺概念资金流真实源；涨跌幅/净额/领涨股均为原始字段，"
             f"热度={heat_basis or '资金净额绝对值分位'}启发式代理（非换手率、非总市值），生命周期非预测。"
         )
+        unavailable = ["theme_eastmoney_unavailable"]
+    elif source == source_sina:
+        note = (
+            "东财/同花顺概念板块快照本次均不可用，已切换新浪概念板块真实源；涨跌幅/领涨股/公司家数均为原始字段，"
+            f"热度={heat_basis or '公司家数分位'}启发式代理（非换手率、非总市值、非净额），生命周期非预测。"
+        )
+        unavailable = ["theme_eastmoney_unavailable", "theme_ths_unavailable"]
 
     name_c = th.col_of(df, "name")
     chg = df["_chg"]
@@ -4469,7 +4478,7 @@ def theme():
         "lifecycle_counts": life_counts,
         "source": source,
         "note": note,
-        "unavailable": ["theme_eastmoney_unavailable"] if is_ths_fallback else [],
+        "unavailable": unavailable,
     }
     return ok(data=_sanitize(data), message="theme")
 

@@ -124,7 +124,7 @@ def test_concepts_fallback_to_ths_when_eastmoney_fails(monkeypatch):
 
 
 def test_concepts_all_sources_fail_returns_none(monkeypatch):
-    """两源都失败→返回 None 由上层诚实空态，不编题材。"""
+    """三级全失败→返回 None 由上层诚实空态，不编题材。"""
     import akshare as ak
     import modules.theme_heat as th
 
@@ -133,9 +133,98 @@ def test_concepts_all_sources_fail_returns_none(monkeypatch):
 
     monkeypatch.setattr(ak, "stock_board_concept_name_em", _boom, raising=True)
     monkeypatch.setattr(ak, "stock_fund_flow_concept", _boom, raising=True)
+    monkeypatch.setattr(ak, "stock_sector_spot", _boom, raising=True)
+    # 直连东财也一并封死（requests.get）
+    import requests as _requests
+    monkeypatch.setattr(_requests, "get", _boom, raising=True)
 
     th._concepts_cached.clear()
     try:
         assert th.load_concepts() is None
     finally:
         th._concepts_cached.clear()
+
+
+def test_concepts_third_level_sina_fallback(monkeypatch):
+    """东财/同花顺都失败→新浪概念第三级兜底，热度=公司家数分位，不冒充换手率/市值/净额。"""
+    import akshare as ak
+    import modules.theme_heat as th
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("blocked")
+
+    sina = pd.DataFrame({
+        "label": ["gn_a", "gn_b", "gn_c"],
+        "板块": ["人工智能", "光伏", "白酒"],
+        "公司家数": [200, 80, 40],
+        "涨跌幅": [4.2, -1.0, 0.5],
+        "股票名称": ["寒武纪", "通威股份", "贵州茅台"],
+    })
+    monkeypatch.setattr(ak, "stock_board_concept_name_em", _boom, raising=True)
+    monkeypatch.setattr(ak, "stock_fund_flow_concept", _boom, raising=True)
+    monkeypatch.setattr(ak, "stock_sector_spot", lambda indicator="概念": sina, raising=True)
+
+    th._concepts_cached.clear()
+    try:
+        got = th.load_concepts()
+        assert got is not None and not got.empty
+        assert list(got["板块名称"]) == ["人工智能", "光伏", "白酒"]
+        assert set(got["_source"]) == {th.SOURCE_SINA}
+        assert got["_heat_basis"].eq("公司家数分位").all()
+        assert got["_life"].notna().all()
+        # 新浪源没有总市值/换手率/净额，派生列不得凭空补出
+        assert "总市值" not in got.columns
+        assert "换手率" not in got.columns
+        assert got["_net_yi"].isna().all()
+    finally:
+        th._concepts_cached.clear()
+
+
+def test_concepts_eastmoney_direct_fallback_when_akshare_blocked(monkeypatch):
+    """akshare 东财入口被代理拦 → 直连 push2 主域恢复东财原口径（总市值/换手率真实带出）。"""
+    import akshare as ak
+    import modules.theme_heat as th
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("79.push2 proxy blocked")
+
+    monkeypatch.setattr(ak, "stock_board_concept_name_em", _boom, raising=True)
+
+    class _Resp:
+        def __init__(self, payload):
+            self._p = payload
+        def raise_for_status(self):
+            pass
+        def json(self):
+            return self._p
+
+    def _fake_get(url, **kwargs):
+        assert "push2.eastmoney.com" in url, f"直连域名错误: {url}"
+        assert url.startswith("https://push2.eastmoney.com/"), f"必须是主域，非子域: {url}"
+        pn = int(kwargs["params"]["pn"])
+        if pn == 1:
+            diff = [
+                {"f3": 3.5, "f8": 8.0, "f12": "BK001", "f14": "AI", "f20": 1e12, "f104": 10, "f105": 2, "f128": "寒武纪"},
+                {"f3": -2.0, "f8": 9.0, "f12": "BK002", "f14": "光伏", "f20": 5e11, "f104": 3, "f105": 9, "f128": "通威股份"},
+            ]
+            return _Resp({"data": {"diff": diff}})
+        return _Resp({"data": {"diff": []}})
+
+    import requests as _requests
+    monkeypatch.setattr(_requests, "get", _fake_get, raising=True)
+
+    th._concepts_cached.clear()
+    try:
+        got = th.load_concepts()
+        assert got is not None and not got.empty
+        assert list(got["板块名称"]) == ["AI", "光伏"]
+        assert set(got["_source"]) == {th.SOURCE_EM}
+        assert got["_heat_basis"].eq("换手率分位").all()
+        # 东财原口径字段必须真实带出（不再被 fallback 清空）
+        assert "总市值" in got.columns
+        assert "换手率" in got.columns
+        assert got["总市值"].tolist() == [1e12, 5e11]
+        assert got["_net_yi"].isna().all()
+    finally:
+        th._concepts_cached.clear()
+

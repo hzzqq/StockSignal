@@ -1,15 +1,16 @@
 """题材/概念热度（G7）：数据获取 + 生命周期纯逻辑。
 
-数据源优先级：
-1. 东财概念板块实时快照 ``ak.stock_board_concept_name_em``（缓存 120s）——原始口径含涨跌幅/换手率/总市值。
-2. 东财失败（代理/限流/接口变更）→ 同花顺概念资金流 ``ak.stock_fund_flow_concept(symbol='即时')``——
-   真实源含涨跌幅/净额/领涨股/公司家数，但**没有换手率和总市值**。
+三级降级链（每级都标 ``_source`` / ``_heat_basis``，绝不冒充换手率/总市值）：
+1. **东财概念板块快照**（``ak.stock_board_concept_name_em``）——字段最全（涨跌幅/总市值/换手率/涨跌家数/领涨股）。
+   akshare 官方入口写死 ``79.push2.eastmoney.com``，本机代理下会拦；失败后**切东财主域直连**
+   ``push2.eastmoney.com``（同一 clist 接口，字段映射等价）。
+2. **同花顺概念资金流**（``ak.stock_fund_flow_concept(symbol='即时')``）——涨跌幅/净额/领涨股/公司家数，无总市值/换手率。
+3. **新浪概念板块**（``ak.stock_sector_spot(indicator='概念')``）——涨跌幅/领涨股/公司家数，无总市值/换手率/净额。
 
 生命周期为**启发式分类**（非预测）：
 - 东财：涨跌幅 + 换手率分位。
 - 同花顺 fallback：涨跌幅 + 资金净额绝对值分位（热度代理，不冒充换手率）。
-
-所有 fallback 都带 ``_source`` / ``_heat_basis`` 标记返回，由 API 显式透出口径，前端不得把代理量包装成东财市值。
+- 新浪 fallback：涨跌幅 + 公司家数分位（热度代理）。
 """
 from __future__ import annotations
 
@@ -22,17 +23,24 @@ logger = logging.getLogger(__name__)
 
 SOURCE_EM = "eastmoney"
 SOURCE_THS = "ths_fund_flow"
+SOURCE_SINA = "sina_concept"
 
 COL = {
-    "name": ["板块名称", "行业"],
+    "name": ["板块名称", "行业", "板块"],
     "chg": ["涨跌幅", "行业-涨跌幅"],
     "mv": ["总市值"],
     "turnover": ["换手率"],
     "up": ["上涨家数"],
     "down": ["下跌家数"],
-    "leader": ["领涨股票", "领涨股"],
+    "leader": ["领涨股票", "领涨股", "股票名称"],
     "net": ["净额亿元", "净额"],
     "members": ["公司家数"],
+}
+
+_EM_FIELDS = "f2,f3,f4,f8,f12,f14,f20,f104,f105,f128"
+_EM_RENAME = {
+    "f3": "涨跌幅", "f8": "换手率", "f12": "板块代码", "f14": "板块名称",
+    "f20": "总市值", "f104": "上涨家数", "f105": "下跌家数", "f128": "领涨股票",
 }
 
 
@@ -81,14 +89,20 @@ def turnover_pct(df: pd.DataFrame) -> pd.Series:
 
 
 def heat_pct(df: pd.DataFrame) -> pd.Series:
-    """热度分位：东财用换手率；同花顺 fallback 用资金净额绝对值。绝不混用冒充。"""
+    """热度分位：东财用换手率；同花顺 fallback 用资金净额绝对值；新浪 fallback 用公司家数。绝不混用冒充。"""
     if col_of(df, "turnover") is not None:
         return turnover_pct(df)
-    net = _net_yi(df).abs()
-    if len(net) <= 1:
-        return pd.Series([50.0] * len(net), index=net.index)
-    p = net.rank(pct=True, method="average") * 100.0
-    return p.fillna(50.0)
+    net = _net_yi(df)
+    if net.notna().any() and len(net) > 1:
+        p = net.abs().rank(pct=True, method="average") * 100.0
+        return p.fillna(50.0)
+    members = num_of(df, "members")
+    if len(members) > 1:
+        p = members.rank(pct=True, method="average") * 100.0
+        return p.fillna(50.0)
+    if len(net) == 1:
+        return pd.Series([50.0], index=net.index)
+    return pd.Series([50.0] * len(df), index=df.index)
 
 
 def lifecycle_label(chg_pct, turnover_p):
@@ -113,20 +127,60 @@ def lifecycle_label(chg_pct, turnover_p):
 LIFECYCLE_ORDER = ["高潮", "发酵", "退潮", "平淡", "未知"]
 
 
-def _fetch_eastmoney():
-    import akshare as ak
-
-    df = ak.stock_board_concept_name_em()
-    if df is None or df.empty:
-        return None
+def _mark(df: pd.DataFrame, source: str, heat_basis: str) -> pd.DataFrame:
     d = df.copy()
-    d["_source"] = SOURCE_EM
-    d["_heat_basis"] = "换手率分位"
+    d["_source"] = source
+    d["_heat_basis"] = heat_basis
     return d
 
 
+def _fetch_eastmoney():
+    """东财主源：先 akshare 官方入口，被代理拦后切主域直连（同一接口、等价字段映射）。"""
+    import akshare as ak
+
+    try:
+        df = ak.stock_board_concept_name_em()
+        if df is not None and not df.empty:
+            return _mark(df, SOURCE_EM, "换手率分位")
+        logger.warning("[theme] 东财概念板块快照为空，切主域直连")
+    except Exception as e:  # noqa: BLE001 - 官方入口失败必须留痕并继续直连
+        logger.warning("[theme] 东财概念板块 akshare 入口失败，切主域直连: %s", e)
+
+    import requests
+
+    rows = []
+    params = {
+        "pz": "100", "po": "1", "np": "1",
+        "ut": "bd1d9ddb04089700cf9c27f6f7426281",
+        "fltt": "2", "invt": "2", "fid": "f12",
+        "fs": "m:90 t:3 f:!50",
+        "fields": _EM_FIELDS,
+    }
+    for pn in range(1, 21):
+        params["pn"] = str(pn)
+        r = requests.get(
+            "https://push2.eastmoney.com/api/qt/clist/get",
+            params=params, timeout=12,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
+        )
+        r.raise_for_status()
+        diff = ((r.json() or {}).get("data") or {}).get("diff") or []
+        if isinstance(diff, dict):
+            diff = [diff[k] for k in sorted(diff, key=lambda x: int(x))]
+        rows.extend(diff)
+        if len(diff) < 100:
+            break
+    df = pd.DataFrame(rows).rename(columns=_EM_RENAME)
+    if df.empty or "板块名称" not in df.columns:
+        return None
+    for c in ("涨跌幅", "总市值", "换手率", "上涨家数", "下跌家数"):
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+    return _mark(df, SOURCE_EM, "换手率分位")
+
+
 def _fetch_ths_fund_flow():
-    """同花顺概念资金流 fallback：真实涨跌幅/净额/领涨股；无总市值、无换手率。"""
+    """同花顺概念资金流：真实涨跌幅/净额/领涨股；无总市值、无换手率。"""
     import akshare as ak
 
     df = ak.stock_fund_flow_concept(symbol="即时")
@@ -141,33 +195,47 @@ def _fetch_ths_fund_flow():
     d = d[keep].copy()
     if "板块名称" not in d.columns:
         return None
-    d["_source"] = SOURCE_THS
-    d["_heat_basis"] = "资金净额绝对值分位"
-    return d
+    return _mark(d, SOURCE_THS, "资金净额绝对值分位")
+
+
+def _fetch_sina_concept():
+    """新浪概念板块（第三级）：涨跌幅/领涨股/公司家数；无总市值/换手率/净额。"""
+    import akshare as ak
+
+    df = ak.stock_sector_spot(indicator="概念")
+    if df is None or df.empty:
+        return None
+    d = df.rename(columns={
+        "板块": "板块名称",
+        "股票名称": "领涨股票",
+    }).copy()
+    keep = [c for c in ("板块名称", "涨跌幅", "公司家数", "领涨股票") if c in d.columns]
+    d = d[keep].copy()
+    if "板块名称" not in d.columns:
+        return None
+    return _mark(d, SOURCE_SINA, "公司家数分位")
 
 
 @st.cache_data(ttl=120, show_spinner=False)
 def _concepts_cached() -> pd.DataFrame:
-    try:
-        d = _fetch_eastmoney()
-        if d is not None:
-            return d
-        logger.warning("[theme] 东财概念板块快照为空，切换同花顺概念资金流")
-    except Exception as e:  # noqa: BLE001 - 主源失败必须留痕并继续 fallback
-        logger.warning("[theme] 东财概念板块快照失败，切换同花顺概念资金流: %s", e)
-
-    try:
-        d = _fetch_ths_fund_flow()
-        if d is not None:
-            return d
-        logger.warning("[theme] 同花顺概念资金流为空")
-    except Exception as e:  # noqa: BLE001 - 备用源失败必须留痕，返回空让上层诚实降级
-        logger.warning("[theme] 同花顺概念资金流失败: %s", e)
+    fetchers = (
+        (_fetch_eastmoney, "东财概念板块快照"),
+        (_fetch_ths_fund_flow, "同花顺概念资金流"),
+        (_fetch_sina_concept, "新浪概念板块"),
+    )
+    for fn, label in fetchers:
+        try:
+            d = fn()
+            if d is not None:
+                return d
+            logger.warning("[theme] %s 为空，降级", label)
+        except Exception as e:  # noqa: BLE001 - 每级失败必须留痕并继续降级
+            logger.warning("[theme] %s 失败: %s", label, e)
     return pd.DataFrame()
 
 
 def load_concepts():
-    """取概念板块快照并派生生命周期列；两源都取不到返回 None。
+    """取概念板块快照并派生生命周期列；三级全取不到返回 None。
 
     返回列除原始字段外新增：``_chg``/``_turnover_p``/``_heat``/``_net_yi``/``_life``/
     ``_source``/``_heat_basis``。``_turnover_p`` 为兼容旧调用方保留，语义由 ``_heat_basis`` 显式给出。
