@@ -480,8 +480,9 @@ def p1_signals():
             out[fp.name] = data
 
     # 水合股票名称：P1 原始 JSON 的 top_long/top_short 只有 symbol/pred/rank，
-    # 从零网络真实股票池建一次性 code->name 映射补 name；未命中写 None（诚实空，
-    # 前端显示 —），绝不编造。只读响应数据，绝不写回原 JSON 文件。
+    # 两层补 name：① 从零网络真实股票池建 code->name 映射（主）；② 池子未命中（新股上市
+    # 快照滞后）→ 腾讯 qt 单票实时查名（兜底）。两层都未命中写 None（诚实空，前端显示 —），
+    # 绝不编造。只读响应数据，绝不写回原 JSON 文件。
     try:
         from ..services.stock_pool_fallback import load_stock_pool
 
@@ -505,7 +506,17 @@ def p1_signals():
                 for _item in _items:
                     if isinstance(_item, dict):
                         _code = str(_item.get("symbol") or "")[-6:].zfill(6)
-                        _new_items.append({**_item, "name": _name_by_code.get(_code)})
+                        _name = _name_by_code.get(_code)
+                        if _name is None:
+                            # 池子快照（data/cache.db）可能滞后于新股上市（实证：685 新代码段
+                            # 长鑫科技 sh688825 不在 5191 条池中）。对池子未命中的少数代码
+                            # 补一层腾讯 qt 实时查名；查到补真名，查不到诚实 None。绝不编造。
+                            try:
+                                _spot = _qq_spot_single(_code)
+                                _name = _spot.get("名称") if isinstance(_spot, dict) else None
+                            except Exception:  # noqa: BLE001 - 单票查名失败不得影响端点
+                                _name = None
+                        _new_items.append({**_item, "name": _name})
                     else:
                         _new_items.append(_item)
                 _new_sig[_key] = _new_items

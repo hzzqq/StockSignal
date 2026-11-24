@@ -77,6 +77,9 @@ def client(app, tmp_path, monkeypatch):
     monkeypatch.setattr(rr, "_DATA_DIR", data)
     # 默认受控池；个别用例再覆盖
     monkeypatch.setattr(spf, "load_stock_pool", lambda: POOL)
+    # 默认封死腾讯实时查名层（返回空 dict = 查不到），避免任何用例真发网络；
+    # 专项用例自行覆盖为受控返回。
+    monkeypatch.setattr(rr, "_qq_spot_single", lambda code: {})
     return app.test_client()
 
 
@@ -163,7 +166,7 @@ def test_normalization_tail6_with_and_without_prefix(client, token, tmp_path):
 
 
 def test_missing_code_name_is_none(client, token, tmp_path):
-    """池缺该代码 -> name=None（诚实空，绝不编造/补空字符串）。"""
+    """池缺该代码且腾讯实时层也查不到 -> name=None（诚实空，绝不编造/补空字符串）。"""
     p1 = tmp_path / "data" / "p1_signals"
     _write_signal(
         p1,
@@ -174,6 +177,63 @@ def test_missing_code_name_is_none(client, token, tmp_path):
     item = obj["data"]["signal_missing.json"]["top_long"][0]
     assert item["name"] is None, item
     assert item["symbol"] == "sh600519" and item["pred"] == 0.3
+
+
+def test_missing_code_hydrated_via_qq_spot(client, token, tmp_path, monkeypatch):
+    """池子快照滞后于新股上市（实证 sh688825 长鑫科技）-> 腾讯实时层兜底补真名。
+
+    钉三件事：① symbol 尾 6 位传给腾讯层；② 查到「名称」补进 name；
+    ③ 池子命中的代码**不**触发腾讯层（零网络开销）。
+    """
+    calls: list[str] = []
+
+    def _fake_qq(code):
+        calls.append(code)
+        if code == "688825":
+            return {"名称": "长鑫科技"}
+        return {}
+
+    monkeypatch.setattr(rr, "_qq_spot_single", _fake_qq)
+    p1 = tmp_path / "data" / "p1_signals"
+    _write_signal(
+        p1,
+        "signal_new_listing.json",
+        _sig(
+            long_items=[
+                _item("sh688313", 0.1079, 1.0),  # 池子命中 -> 不走腾讯
+                _item("sh688825", 0.0954, 0.989),  # 池子缺 -> 腾讯兜底
+            ],
+        ),
+    )
+    _, obj = _get(client, token)
+    items = obj["data"]["signal_new_listing.json"]["top_long"]
+    assert items[0]["name"] == "仕佳光子"  # 池子命中，原水合路径不变
+    assert items[1]["name"] == "长鑫科技"  # 腾讯实时兜底补上
+    assert calls == ["688825"], calls  # 只对池子未命中的代码发请求
+
+
+def test_qq_spot_exception_name_is_none(client, token, tmp_path, monkeypatch):
+    """腾讯实时层抛异常 -> 该行 name=None（诚实空），端点仍 200，不影响其他行。"""
+    def _boom(code):
+        raise RuntimeError("qt blocked")
+
+    monkeypatch.setattr(rr, "_qq_spot_single", _boom)
+    p1 = tmp_path / "data" / "p1_signals"
+    _write_signal(
+        p1,
+        "signal_qq_boom.json",
+        _sig(
+            long_items=[
+                _item("sh688313", 0.1079, 1.0),  # 池子命中，不受影响
+                _item("sh600519", 0.3, 0.9),  # 池子缺 + 腾讯炸 -> None
+            ],
+        ),
+    )
+    resp, obj = _get(client, token)
+    assert resp.status_code == 200 and obj["status"] == "ok", obj
+    items = obj["data"]["signal_qq_boom.json"]["top_long"]
+    assert items[0]["name"] == "仕佳光子"
+    assert items[1]["name"] is None
 
 
 def test_empty_pool_all_none(client, token, tmp_path, monkeypatch):
