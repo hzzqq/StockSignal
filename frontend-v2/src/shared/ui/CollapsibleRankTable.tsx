@@ -132,9 +132,9 @@ export function CollapsibleRankTable<T>({
 
       <div id={listId} hidden={!open} className="mt-3">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs text-sf-ink">
+          <table className="w-full text-body text-sf-ink">
             <thead>
-              <tr className="border-b border-sf-line text-sf-ink-3">
+              <tr className="border-b border-sf-line text-label text-sf-ink-3">
                 <th scope="col" className="py-1.5 pr-3 text-left">#</th>
                 {columns.map((c) => {
                   const active = sort.key === c.key
@@ -165,12 +165,12 @@ export function CollapsibleRankTable<T>({
             </thead>
             <tbody>
               {ordered.map((row, i) => (
-                <tr key={rowKey(row, i)} className="border-b border-sf-line/60">
-                  <td className="py-1.5 pr-3 text-label text-sf-ink-3">{i + 1}</td>
+                <tr key={rowKey(row, i)} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
+                  <td className="py-1.5 pr-3 text-label tabular-nums text-sf-ink-3">{i + 1}</td>
                   {columns.map((c) => (
                     <td
                       key={c.key}
-                      className={`py-1.5 pr-3 ${c.align === 'right' ? 'text-right' : 'text-left'}`}
+                      className={`py-1.5 pr-3 ${c.align === 'right' ? 'text-right tabular-nums' : 'text-left'}`}
                     >
                       {c.render(row, i)}
                     </td>

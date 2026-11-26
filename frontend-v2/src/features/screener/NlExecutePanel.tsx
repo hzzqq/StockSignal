@@ -156,7 +156,7 @@ function NlRowsTable({ rows }: { rows: Record<string, unknown>[] }) {
         </thead>
         <tbody className="text-sf-ink-2">
           {rows.map((r, i) => (
-            <tr key={i} className="border-t border-sf-line">
+            <tr key={i} className="border-t border-sf-line hover:bg-sf-surface-2">
               {cols.map((c) => (
                 <td key={c} className="py-1 px-2 tabular-nums">{fmtNum(r[c])}</td>
               ))}
