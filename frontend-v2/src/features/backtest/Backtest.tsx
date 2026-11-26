@@ -232,9 +232,9 @@ function BacktestBody({ data }: { data: BacktestData }) {
           defaultOpen={false}
         >
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-sf-ink">
+            <table className="w-full text-body text-sf-ink">
               <thead>
-                <tr className="text-sf-ink-3 border-b border-sf-line">
+                <tr className="text-label text-sf-ink-3 border-b border-sf-line">
                   <th className="text-left py-1.5 pr-3">买入日</th>
                   <th className="text-left py-1.5 pr-3">卖出日</th>
                   <th className="text-right py-1.5 pr-3">买入价</th>
@@ -249,16 +249,16 @@ function BacktestBody({ data }: { data: BacktestData }) {
                   const p = t.profit_pct
                   const color = typeof p === 'number' ? (p >= 0 ? CHART.up : CHART.down) : CHART.ink2
                   return (
-                    <tr key={i} className="border-b border-sf-line/60">
+                    <tr key={i} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                       <td className="py-1.5 pr-3">{t.entry_date ?? '—'}</td>
                       <td className="py-1.5 pr-3">{t.exit_date ?? '—'}</td>
-                      <td className="py-1.5 pr-3 text-right">{typeof t.entry_price === 'number' ? t.entry_price.toFixed(2) : '—'}</td>
-                      <td className="py-1.5 pr-3 text-right">{typeof t.exit_price === 'number' ? t.exit_price.toFixed(2) : '—'}</td>
-                      <td className="py-1.5 pr-3 text-right" style={{ color }}>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">{typeof t.entry_price === 'number' ? t.entry_price.toFixed(2) : '—'}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">{typeof t.exit_price === 'number' ? t.exit_price.toFixed(2) : '—'}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums" style={{ color }}>
                         {typeof p === 'number' ? `${p >= 0 ? '+' : ''}${p.toFixed(2)}%` : '—'}
                       </td>
                       <td className="py-1.5 pr-3">{t.exit_reason ?? '—'}</td>
-                      <td className="py-1.5 text-right">{typeof t.bars_held === 'number' ? t.bars_held : '—'}</td>
+                      <td className="py-1.5 text-right tabular-nums">{typeof t.bars_held === 'number' ? t.bars_held : '—'}</td>
                     </tr>
                   )
                 })}

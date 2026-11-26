@@ -110,9 +110,9 @@ export function RegimeDuration() {
 
             <Card title="持续期明细">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-body">
                   <thead>
-                    <tr className="border-b border-sf-line text-left text-xs font-medium text-sf-ink-3">
+                    <tr className="border-b border-sf-line text-left text-label font-medium text-sf-ink-3">
                       <th className="py-2 pr-3">温度档</th>
                       <th className="py-2 pr-3">run 数</th>
                       <th className="py-2 pr-3">均值(天)</th>
@@ -121,11 +121,11 @@ export function RegimeDuration() {
                   </thead>
                   <tbody>
                     {bands.map((b, i) => (
-                      <tr key={b} className="border-b border-sf-line/60">
+                      <tr key={b} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                         <td className="py-2 pr-3 text-sf-ink">{b}</td>
-                        <td className="py-2 pr-3 text-sf-ink-2">{show(durations[String(i)]?.n)}</td>
-                        <td className="py-2 pr-3 text-sf-ink-2">{show(durations[String(i)]?.mean)}</td>
-                        <td className="py-2 pr-3 text-sf-ink-2">{show(durations[String(i)]?.median)}</td>
+                        <td className="py-2 pr-3 text-sf-ink-2 tabular-nums">{show(durations[String(i)]?.n)}</td>
+                        <td className="py-2 pr-3 text-sf-ink-2 tabular-nums">{show(durations[String(i)]?.mean)}</td>
+                        <td className="py-2 pr-3 text-sf-ink-2 tabular-nums">{show(durations[String(i)]?.median)}</td>
                       </tr>
                     ))}
                   </tbody>

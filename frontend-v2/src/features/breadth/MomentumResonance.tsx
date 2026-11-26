@@ -61,9 +61,9 @@ export function MomentumResonance() {
           {/* 共振矩阵 */}
           <Card title="共振矩阵（共现天数）">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-body">
                 <thead>
-                  <tr className="border-b border-sf-line text-left text-xs font-medium text-sf-ink-3">
+                  <tr className="border-b border-sf-line text-left text-label font-medium text-sf-ink-3">
                     <th className="py-2 pr-3">红盘率＼动量</th>
                     {data.mom_labels.map((m, j) => (
                       <th key={j} className="py-2 pr-3 text-right">
@@ -81,24 +81,24 @@ export function MomentumResonance() {
                     return (
                       <tr
                         key={i}
-                        className={`border-b border-sf-line/60 ${isCurrent ? 'bg-sf-surface-2' : ''}`}
+                        className={`border-b border-sf-line/60 hover:bg-sf-surface-2 ${isCurrent ? 'bg-sf-surface-2' : ''}`}
                       >
                         <td className="py-2 pr-3 text-sf-ink-2">{r}</td>
                         {row.map((v, j) => (
-                          <td key={j} className="py-2 pr-3 text-right text-sf-ink">
+                          <td key={j} className="py-2 pr-3 text-right text-sf-ink tabular-nums">
                             {v}
                           </td>
                         ))}
-                        <td className="py-2 pr-3 text-right font-medium text-sf-ink">
+                        <td className="py-2 pr-3 text-right font-medium text-sf-ink tabular-nums">
                           {data.totals_col[i] ?? '—'}
                         </td>
                       </tr>
                     )
                   })}
-                  <tr className="border-t border-sf-line">
+                  <tr className="border-t border-sf-line hover:bg-sf-surface-2">
                     <td className="py-2 pr-3 text-sf-ink-2 font-medium">合计</td>
                     {data.totals_row.map((v, j) => (
-                      <td key={j} className="py-2 pr-3 text-right font-medium text-sf-ink">
+                      <td key={j} className="py-2 pr-3 text-right font-medium text-sf-ink tabular-nums">
                         {v}
                       </td>
                     ))}
@@ -118,9 +118,9 @@ export function MomentumResonance() {
           {/* 共振轨迹 */}
           <Card title="共振轨迹（近期）">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-body">
                 <thead>
-                  <tr className="border-b border-sf-line text-left text-xs font-medium text-sf-ink-3">
+                  <tr className="border-b border-sf-line text-left text-label font-medium text-sf-ink-3">
                     <th className="py-2 pr-3">日期</th>
                     <th className="py-2 pr-3 text-right">红盘率档</th>
                     <th className="py-2 pr-3 text-right">动量档</th>
@@ -128,12 +128,12 @@ export function MomentumResonance() {
                 </thead>
                 <tbody>
                   {data.trajectory.dates.map((d, i) => (
-                    <tr key={d} className="border-b border-sf-line/60">
+                    <tr key={d} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                       <td className="py-1.5 pr-3 text-sf-ink-2">{d}</td>
-                      <td className="py-1.5 pr-3 text-right text-sf-ink">
+                      <td className="py-1.5 pr-3 text-right text-sf-ink tabular-nums">
                         {data.trajectory.rr_band[i] ?? '—'}
                       </td>
-                      <td className="py-1.5 pr-3 text-right text-sf-ink">
+                      <td className="py-1.5 pr-3 text-right text-sf-ink tabular-nums">
                         {data.trajectory.mom_band[i] ?? '—'}
                       </td>
                     </tr>

@@ -121,9 +121,9 @@ export function Watch() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs border-collapse">
+                  <table className="w-full text-body border-collapse">
                     <thead>
-                      <tr className="text-sf-ink-3 border-b border-sf-line">
+                      <tr className="text-label text-sf-ink-3 border-b border-sf-line">
                         <th className="text-left py-1 pr-2 font-medium">代码</th>
                         <th className="text-left py-1 pr-2 font-medium">名称</th>
                         <th className="text-right py-1 pr-2 font-medium">主力净流入</th>
@@ -139,13 +139,13 @@ export function Watch() {
                         const f = w.fund ?? {}
                         const code = w.code ?? '—'
                         return (
-                          <tr key={code} className="border-b border-sf-line/60">
+                          <tr key={code} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                             <td className="py-1 pr-2 font-mono">{code}</td>
                             <td className="py-1 pr-2">{w.name ?? '—'}</td>
-                            <td className="py-1 pr-2 text-right" style={{ color: chgColor(f.main_net) }}>{fmtYi(f.main_net)}</td>
-                            <td className="py-1 pr-2 text-right" style={{ color: chgColor(f.main_net_pct) }}>{fmtPct(f.main_net_pct)}</td>
-                            <td className="py-1 pr-2 text-right">{fmtYi(f.big_net)}</td>
-                            <td className="py-1 pr-2 text-right">{fmtYi(f.super_net)}</td>
+                            <td className="py-1 pr-2 text-right tabular-nums" style={{ color: chgColor(f.main_net) }}>{fmtYi(f.main_net)}</td>
+                            <td className="py-1 pr-2 text-right tabular-nums" style={{ color: chgColor(f.main_net_pct) }}>{fmtPct(f.main_net_pct)}</td>
+                            <td className="py-1 pr-2 text-right tabular-nums">{fmtYi(f.big_net)}</td>
+                            <td className="py-1 pr-2 text-right tabular-nums">{fmtYi(f.super_net)}</td>
                             <td className="py-1 pr-2">{sourceLabel(f.source)}</td>
                             <td className="py-1 pr-2">
                               {(() => {

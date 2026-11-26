@@ -185,9 +185,9 @@ function RegimeBody({ data }: { data: MarketPanoramaData }) {
           <div className="text-xs text-sf-ink-3">无相似日（历史样本不足或参数异常）。</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs text-sf-ink">
+            <table className="w-full text-body text-sf-ink">
               <thead>
-                <tr className="text-sf-ink-3 border-b border-sf-line">
+                <tr className="text-label text-sf-ink-3 border-b border-sf-line">
                   <th className="text-left py-1.5 pr-3">相似日</th>
                   <th className="text-right py-1.5 pr-3">距离</th>
                   <th className="text-left py-1.5 pr-3">状态</th>
@@ -202,13 +202,13 @@ function RegimeBody({ data }: { data: MarketPanoramaData }) {
             | { avg_red?: number; up_frac?: number; median_delta?: number }
             | undefined
           return (
-                    <tr key={i} className="border-b border-sf-line/60">
+                    <tr key={i} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                       <td className="py-1.5 pr-3">{a.date}</td>
-                      <td className="py-1.5 pr-3 text-right">{num(a.distance)?.toFixed(2) ?? '—'}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">{num(a.distance)?.toFixed(2) ?? '—'}</td>
                       <td className="py-1.5 pr-3" style={{ color: STATE_COLOR[a.state as string] ?? CHART.ink2 }}>{a.state ?? '—'}</td>
-                      <td className="py-1.5 pr-3 text-right">{fmtPct(a.metrics?.red_ratio)}</td>
-                      <td className="py-1.5 pr-3 text-right">{fmtPct(fwd?.avg_red)}</td>
-                      <td className="py-1.5 text-right">{fmtPct(fwd?.median_delta)}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">{fmtPct(a.metrics?.red_ratio)}</td>
+                      <td className="py-1.5 pr-3 text-right tabular-nums">{fmtPct(fwd?.avg_red)}</td>
+                      <td className="py-1.5 text-right tabular-nums">{fmtPct(fwd?.median_delta)}</td>
                     </tr>
                   )
                 })}
