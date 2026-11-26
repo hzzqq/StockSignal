@@ -327,34 +327,49 @@ def public_picks():
     sectors: 行业资金流净额前 3（get_industry_fund_flow，TTL 30min 缓存；
             净额原文透传 + 可比数值内部排序；失败/空 -> []，绝不编造板块）。
     两组数据都是灰度参考，不构成投资建议；disclaimer 原文带出。
+
+    P1 解析结果按数据日文件更新节奏做 5min TTL 缓存（键含数据目录，与
+    /p1-signals 同款 cached_ttl 口径）；无有效信号 -> (None, []) 诚实空态。
     """
     stocks: list[dict] = []
     as_of = None
     d = _DATA_DIR / "p1_signals"
     if d.is_dir():
-        best = None
-        for fp in sorted(d.glob("signal_*.json")):
-            status, data = _read_json(fp)
-            if status != "ok" or not isinstance(data, dict):
-                continue
-            ld = str(data.get("latest_date") or "")
-            if not ld:
-                continue
-            if best is None or ld > best[0]:
-                best = (ld, data)
-        if best:
-            as_of = best[0]
+        from modules.cache_utils import TTL_TIERS, cached_ttl
+
+        def _build() -> tuple[str | None, list[dict]]:
+            # 逐个解析 signal_*.json（每个 ~10MB）选 latest_date 最新的文件；
+            # 结果按数据日文件更新节奏做 5min TTL 缓存（同 /p1-signals 口径），
+            # 避免登录页每次请求都重读全目录。
+            best = None
+            for fp in sorted(d.glob("signal_*.json")):
+                status, data = _read_json(fp)
+                if status != "ok" or not isinstance(data, dict):
+                    continue
+                ld = str(data.get("latest_date") or "")
+                if not ld:
+                    continue
+                if best is None or ld > best[0]:
+                    best = (ld, data)
+            if not best:
+                # 诚实空态：无有效信号文件 -> (None, [])，不补 0 不编造
+                return None, []
+            as_of_b = best[0]
             name_by_code = _public_stock_name_map()
+            stocks_b: list[dict] = []
             for it in (best[1].get("top_long") or [])[:5]:
                 if not isinstance(it, dict):
                     continue
                 code = str(it.get("symbol") or "")[-6:].zfill(6)
                 pred = it.get("pred")
-                stocks.append({
+                stocks_b.append({
                     "code": code,
                     "name": name_by_code.get(code) or None,
                     "pred": pred if isinstance(pred, (int, float)) else None,
                 })
+            return as_of_b, stocks_b
+
+        as_of, stocks = cached_ttl(TTL_TIERS["sentiment"], f"public_picks_p1:{d}", _build)
 
     sectors = _public_top_sectors()
     return ok(

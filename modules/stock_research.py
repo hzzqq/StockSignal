@@ -1631,11 +1631,18 @@ def render_stock_picker() -> None:
             start_str = start_date.strftime("%Y-%m-%d")
             end_str = end_date.strftime("%Y-%m-%d")
             if kline_period == "daily":
-                cache_key = _build_cache_key("daily", symbol=ticker, start=start_str, end=end_str, adjust="qfq")
+                # T-250 daily 全量键：强制刷新必须三类齐清——
+                #   ① 新全量行 daily_full_{t}_qfq（精确键，经 clear_cache）
+                #   ② 新覆盖区间行 daily_fullcov_{t}_qfq 及全量行其他复权变体（前缀批清）
+                #   ③ 旧形态区间键 daily_{t}_{start}_{end}_{adj}（前缀批清，兼容历史落盘）
+                # 漏清 ①② 会 daily_full 快路径继续命中刷新前的旧序列（假刷新）。
+                cache_key = _build_cache_key("daily_full", symbol=ticker, adjust="qfq")
                 pattern = f"daily_{ticker}_%"
+                extra_patterns = (f"daily_full_{ticker}_%", f"daily_fullcov_{ticker}_%")
             else:
                 cache_key = _build_cache_key("kline", period=kline_period, symbol=ticker, start=start_str, end=end_str, adjust="qfq")
                 pattern = f"kline_{kline_period}_{ticker}_%"
+                extra_patterns = ()
             # clear_cache 返回实际删除行数；此处只清精确匹配的那条
             deleted = fetcher.clear_cache(table_name="daily_cache", cache_key=cache_key)
             # 再按前缀批量清同标的的其他日期区间缓存。
@@ -1646,6 +1653,9 @@ def render_stock_picker() -> None:
             try:
                 cur = conn.execute("DELETE FROM daily_cache WHERE cache_key LIKE ?", (pattern,))
                 deleted += max(cur.rowcount or 0, 0)
+                for extra in extra_patterns:  # T-250：新全量行/覆盖行前缀一并批清
+                    cur = conn.execute("DELETE FROM daily_cache WHERE cache_key LIKE ?", (extra,))
+                    deleted += max(cur.rowcount or 0, 0)
                 conn.commit()
             except Exception as e:  # noqa: BLE001 - 需兜底并向用户明示，不能静默
                 batch_failed = True

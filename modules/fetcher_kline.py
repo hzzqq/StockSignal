@@ -75,7 +75,9 @@ from modules.fetcher_core import (  # noqa: F401
     _daily_interval_covers,
     _daily_slice_by_window,
     _daily_date_str,
+    _legacy_daily_cache_key,
     CACHE_NO_EXPIRE_SECONDS,
+    DAILY_TTL_HOURS_TODAY,
 )
 
 # 代理 IP 池（免费，best-effort 抗封禁）：仅当 SS_PROXY_POOL=1 时启用。
@@ -231,6 +233,13 @@ class KlineMixin:
         L5 旧缓存兜底命中时 ``source=cache_fallback / is_stale=True``，调用方据此
         如实标注「数据截至 X 日」而非拿旧数据当新数据。不传（默认 None）行为零变化。
 
+        T-250 daily 缓存治本（按 标的+复权 存全量，读取时按日期切片）：
+        - 读：双读兼容——先查全量键 ``daily_full_{symbol}_{adjust}``（请求窗口被
+          覆盖区间完整罩住时切片直返，换日期区间不再回源），miss 再反查旧形态
+          区间键（既有缓存继续命中），双双 miss 才进四源竞速；
+        - 写：LIVE 成功后旧区间键照写（向后兼容），并经 _write_daily_full 与既有
+          全量序列按 date 增量合并（绝不整段覆盖丢旧行），cov 只记实际包含区间。
+
         性能优化（v2）：
         - BaoStock 走连接池（每次查询不复登），13s -> 3s
         - 股票存在性预检改为只在 BaoStock 不可用时跑
@@ -246,7 +255,10 @@ class KlineMixin:
                 meta_out.update({"source": source, "is_stale": is_stale,
                                  "as_of": _df_last_date(df)})
 
-        cache_key = _build_cache_key("daily", symbol=symbol, start=start, end=end, adjust=adjust)
+        # 旧形态区间键一律经兼容反查构造（与 _build_cache_key("daily",...) 逐字节
+        # 一致，见 tests/test_cache_key_normalization.py AST 守卫），不再直接调
+        # 单一真源的 "daily" 类型——该类型仅作双读兼容回查存在。
+        cache_key = _legacy_daily_cache_key(symbol, start, end, adjust)
         # L0 key 必须带库身份：多实例（测试 tmp 库 / 多 data dir）同 key 不得串库
         l0_key = f"{getattr(self, 'db_path', id(self))}|{cache_key}"
 
@@ -290,7 +302,7 @@ class KlineMixin:
             # 跳过四源竞速（换任何日期区间都命中同一把 daily_full 键，不再回源）。
             # 诚实红线：cov 残缺 / 无界请求 / 未覆盖 → 一律回源，绝不拿残缺序列冒充完整区间。
             today_str = now_cst_str("%Y-%m-%d")
-            max_age_hours = 6 if end == today_str else None
+            max_age_hours = DAILY_TTL_HOURS_TODAY if end == today_str else None
             cov = self._read_cache(
                 conn, "daily_cache",
                 _build_cache_key("daily_fullcov", symbol=symbol, adjust=adjust),
@@ -371,6 +383,17 @@ class KlineMixin:
                 stale = self._read_stale_cache(conn, "daily_cache", _build_cache_key("daily_prefix", symbol=symbol),
                                                adjust=adjust, start=start, end=end,
                                                min_rows=60)
+                if stale is None:
+                    # T-250：旧前缀 LIKE 扫描不覆盖新全量键形态（daily_full_{sym}_{adj}
+                    # 不匹配 daily_{sym} 前缀）；全量行是真实抓取过的序列，作为兜底
+                    # 同样按窗口切片 + min_rows=60 门槛，is_stale 如实标注。
+                    stale_full = self._read_cache(conn, "daily_cache",
+                                                  _build_cache_key("daily_full", symbol=symbol, adjust=adjust),
+                                                  max_age_seconds=CACHE_NO_EXPIRE_SECONDS)
+                    if isinstance(stale_full, pd.DataFrame) and not stale_full.empty:
+                        stale_sliced = _daily_slice_by_window(stale_full, start, end)
+                        if len(stale_sliced) >= 60:
+                            stale = stale_sliced
                 if stale is not None:
                     logger.debug(f"[StockFetcher] L5-缓存兜底 OK {symbol}")
                     _fetcher_mod.observe_cache_fallback("L5", True,
