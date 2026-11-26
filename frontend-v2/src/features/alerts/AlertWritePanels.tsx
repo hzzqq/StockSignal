@@ -343,16 +343,16 @@ function MarketAlertPanel() {
           />
           仅看未读
         </label>
-        <Button type="button" variant="secondary" size="sm" onClick={() => readAllM.mutate()}>
-          全部标记已读
+        <Button type="button" variant="secondary" size="sm" disabled={readAllM.isPending} onClick={() => readAllM.mutate()}>
+          {readAllM.isPending ? '处理中…' : '全部标记已读'}
         </Button>
       </div>
 
       {admin && (
         <div className="space-y-2 rounded-tile border border-sf-line p-3">
           <div className="flex items-center gap-3">
-            <Button type="button" variant="secondary" size="sm" onClick={() => scanM.mutate()}>
-              立即扫描
+            <Button type="button" variant="secondary" size="sm" disabled={scanM.isPending} onClick={() => scanM.mutate()}>
+              {scanM.isPending ? '扫描中…' : '立即扫描'}
             </Button>
             {scanM.isSuccess && scanM.data && (
               <span className="text-label text-sf-ink-2">本次新增 {scanM.data.inserted} 条</span>
@@ -374,8 +374,8 @@ function MarketAlertPanel() {
                 rows={6}
                 className="[&_textarea]:font-mono"
               />
-              <Button type="button" variant="primary" size="sm" onClick={handleUpdateConfig}>
-                保存配置
+              <Button type="button" variant="primary" size="sm" disabled={updateConfigM.isPending} onClick={handleUpdateConfig}>
+                {updateConfigM.isPending ? '保存中…' : '保存配置'}
               </Button>
               {configQ.data && (
                 <pre className="whitespace-pre-wrap text-label text-sf-ink-3">
@@ -418,9 +418,10 @@ function MarketAlertPanel() {
                   variant="secondary"
                   size="sm"
                   aria-label={`标记已读 ${m.id}`}
+                  disabled={readM.isPending}
                   onClick={() => readM.mutate({ id: m.id })}
                 >
-                  标记已读
+                  {readM.isPending ? '处理中…' : '标记已读'}
                 </Button>
               </div>
             </li>

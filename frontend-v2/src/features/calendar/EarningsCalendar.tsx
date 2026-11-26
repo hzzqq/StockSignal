@@ -7,6 +7,7 @@ import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { EarningsFinancialModal } from './EarningsFinancialModal'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 import { Select } from '@/shared/ui/Field'
+import { Button } from '@/shared/ui/Button'
 
 const MARKETS = ['沪深京', '沪市', '深市'] as const
 const PERIODS = ['2026年报', '2025年报', '2024年报', '2023年报'] as const
@@ -139,7 +140,24 @@ export function EarningsCalendar() {
                           : undefined
                       }
                     >
-                      <td className="py-2 pr-3 text-sf-ink">{String(code)}</td>
+                      <td className="py-2 pr-3 text-sf-ink">
+                        {clickable ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`查看 ${String(name)} 财报详情`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedCode(String(code))
+                              setSelectedName(String(name) !== '—' ? String(name) : undefined)
+                            }}
+                          >
+                            {String(code)}
+                          </Button>
+                        ) : (
+                          String(code)
+                        )}
+                      </td>
                       <td className="py-2 pr-3 text-sf-ink">{String(name)}</td>
                       <td className="py-2 pr-3 text-sf-ink-2">{String(rep)}</td>
                       <td className="py-2 pr-3 text-sf-ink-2">{disc}</td>

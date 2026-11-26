@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { Button } from '@/shared/ui/Button'
 import { useXingchen } from './useXingchen'
 import type { ChatSession } from './useXingchen'
 
@@ -23,12 +24,16 @@ export function ConversationSidebar() {
     createSession,
     openConversation,
     deleteSession,
+    deleteError,
+    clearDeleteError,
     exportSession,
     renameSession,
   } = useXingchen()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [hint, setHint] = useState<RenameHint | null>(null)
+  // 删除就地二次确认：记录正在确认的会话 id，避免误触即删
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null)
   // Enter 保存会触发输入卸载，blur 可能随之而来；用 ref 防重复提交 / Esc 后误保存
   const finishedRef = useRef(false)
 
@@ -81,6 +86,24 @@ export function ConversationSidebar() {
           ＋ 新对话
         </button>
       </div>
+
+      {deleteError && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-2 border-b border-sf-line bg-sf-danger-soft px-3 py-2 text-label text-sf-danger"
+        >
+          <span>{deleteError}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label="关闭错误提示"
+            onClick={clearDeleteError}
+          >
+            知道了
+          </Button>
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
         {order.length === 0 ? (
@@ -144,7 +167,7 @@ export function ConversationSidebar() {
                     ✎
                   </button>
                 </div>
-                <div className="mt-1 flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+                <div className="mt-1 flex items-center gap-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 group-focus-within:opacity-100">
                   <button
                     type="button"
                     onClick={() => exportSession(id, 'markdown')}
@@ -159,14 +182,40 @@ export function ConversationSidebar() {
                   >
                     JSON
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => deleteSession(id)}
-                    aria-label="删除对话"
-                    className="ml-auto rounded border border-sf-line px-1.5 py-0.5 text-xs text-sf-warn hover:border-sf-warn"
-                  >
-                    🗑
-                  </button>
+                  {confirmingDeleteId === id ? (
+                    <div className="ml-auto flex items-center gap-1">
+                      <span className="text-xs text-sf-ink-2">确认删除？</span>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        size="sm"
+                        aria-label="确认删除对话"
+                        onClick={() => {
+                          setConfirmingDeleteId(null)
+                          void deleteSession(id)
+                        }}
+                      >
+                        确认删除
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setConfirmingDeleteId(null)}
+                      >
+                        取消
+                      </Button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingDeleteId(id)}
+                      aria-label="删除对话"
+                      className="ml-auto rounded border border-sf-line px-1.5 py-0.5 text-xs text-sf-warn hover:border-sf-warn"
+                    >
+                      🗑
+                    </button>
+                  )}
                 </div>
                 {hint?.id === id && (
                   <div

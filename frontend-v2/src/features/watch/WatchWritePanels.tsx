@@ -227,12 +227,13 @@ function WatchlistPanel() {
                   variant="danger"
                   size="sm"
                   aria-label={`删除自选股 ${item.stock_code}`}
+                  disabled={del.isPending}
                   onClick={() => {
                     resetMessages()
                     del.mutate({ id: item.id }, { onSuccess: () => setNotice(`已删除 ${item.stock_code}`) })
                   }}
                 >
-                  删除
+                  {del.isPending ? '删除中…' : '删除'}
                 </Button>
               </li>
             ))}
@@ -363,12 +364,13 @@ function JunkStockPanel() {
                   variant="danger"
                   size="sm"
                   aria-label={`删除垃圾股 ${item.stock_code}`}
+                  disabled={del.isPending}
                   onClick={() => {
                     resetMessages()
                     del.mutate({ id: item.id }, { onSuccess: () => setNotice(`已删除 ${item.stock_code}`) })
                   }}
                 >
-                  删除
+                  {del.isPending ? '删除中…' : '删除'}
                 </Button>
               </li>
             ))}
@@ -481,6 +483,7 @@ function UserScorePanel() {
                   variant="danger"
                   size="sm"
                   aria-label={`删除打分 ${item.stock_code}`}
+                  disabled={del.isPending}
                   onClick={() => {
                     resetMessages()
                     del.mutate({ code: item.stock_code }, {
@@ -488,7 +491,7 @@ function UserScorePanel() {
                     })
                   }}
                 >
-                  删除
+                  {del.isPending ? '删除中…' : '删除'}
                 </Button>
               </li>
             ))}

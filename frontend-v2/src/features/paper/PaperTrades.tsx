@@ -84,7 +84,7 @@ export function PaperTrades() {
                 <div className="max-h-64 overflow-auto">
                   <table className="w-full text-body">
                     <thead>
-                      <tr className="text-label text-sf-ink-3 text-left">
+                      <tr className="text-label text-sf-ink-3 text-left sticky top-0 bg-sf-surface z-10">
                         <th className="py-1">时间</th>
                         <th className="py-1">代码</th>
                         <th className="py-1">名称</th>

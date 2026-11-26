@@ -36,6 +36,8 @@ export function LadderResonance() {
         isError={ladder.isError}
         error={ladder.error}
         isEmpty={!!ladder.data && ladder.data.length === 0}
+        onRetry={() => ladder.refetch()}
+        retrying={ladder.isRefetching}
       >
         {ladder.data ? <LadderBody history={ladder.data} /> : null}
       </QueryState>

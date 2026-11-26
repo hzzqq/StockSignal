@@ -9,7 +9,14 @@ export function DecisionPanel() {
   return (
     <div className="space-y-4">
       <SectionTitle as="h2">今日决策面板</SectionTitle>
-      <QueryState isLoading={q.isLoading} isError={q.isError} error={q.error} isEmpty={!q.data}>
+      <QueryState
+        isLoading={q.isLoading}
+        isError={q.isError}
+        error={q.error}
+        isEmpty={!q.data}
+        onRetry={() => q.refetch()}
+        retrying={q.isRefetching}
+      >
         {q.data && <SnapshotView snapshot={q.data} />}
       </QueryState>
     </div>

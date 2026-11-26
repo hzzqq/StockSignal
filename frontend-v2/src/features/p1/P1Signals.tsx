@@ -50,6 +50,8 @@ export function P1Signals() {
         isEmpty={entries.length === 0}
         emptyLabel="暂无 P1 信号文件"
         emptyHint="data/p1_signals/ 下未找到 signal_*.json"
+        onRetry={() => q.refetch()}
+        retrying={q.isRefetching}
       >
         <div className="space-y-4">
           {entries.map(([name, sig]) => (

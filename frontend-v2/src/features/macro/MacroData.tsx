@@ -91,6 +91,8 @@ export function MacroData() {
         isEmpty={isEmpty}
         emptyLabel="宏观数据暂不可用"
         emptyHint="全部指标取数失败（离线或接口受限）；后端已逐指标诚实降级，未编造数值"
+        onRetry={() => q.refetch()}
+        retrying={q.isRefetching}
       >
         {d ? (
           <div className="space-y-6">

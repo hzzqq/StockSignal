@@ -87,4 +87,20 @@ describe('EarningsCalendar 四态 + 诚实降级', () => {
     renderWithClient(<EarningsCalendar />)
     await expect(screen.findByText('该市场/报告期暂无披露日历数据')).resolves.toBeTruthy()
   })
+
+  it('代码单元格提供原生按钮入口：键盘可达财报弹窗（aria-label 与「展开 ▾」区分）', async () => {
+    mocked.mockResolvedValue(okData)
+    renderWithClient(<EarningsCalendar />)
+    await screen.findByText(/沪深京 · 2025年报/)
+    fireEvent.click(screen.getByRole('button', { name: '展开 ▾' }))
+    expect(await screen.findByRole('table')).toBeTruthy()
+    // 原生 button 入口：可被 Tab 聚焦、读屏按名称识别
+    const detailBtn = screen.getByLabelText(/查看.*财报详情/)
+    expect(detailBtn.tagName).toBe('BUTTON')
+    expect(detailBtn.getAttribute('aria-label')).toBe('查看 浦发银行 财报详情')
+    fireEvent.click(detailBtn)
+    // 弹窗打开：dialog 可见文案
+    expect(await screen.findByRole('dialog')).toBeTruthy()
+    expect(screen.getByText(/· 财报详情/)).toBeTruthy()
+  })
 })

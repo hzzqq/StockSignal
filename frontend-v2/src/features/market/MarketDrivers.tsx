@@ -182,6 +182,8 @@ export function MarketDrivers() {
         isEmpty={!!data && (!data.available || totalIndicators(data) === 0)}
         emptyLabel="暂无市场驱动力数据"
         emptyHint={data?.reason ?? data?.note ?? '端点未返回可用指标，未做任何填充'}
+        onRetry={() => q.refetch()}
+        retrying={q.isRefetching}
       >
         {data ? <MarketDriversBody data={data} onDownload={downloadCsv} /> : null}
       </QueryState>

@@ -65,6 +65,8 @@ export function TradingAccount() {
         isEmpty={isEmpty}
         emptyLabel="暂无本地模拟账本"
         emptyHint="未找到 data/paper_<user>.json（无模拟交易记录）；V2 只读概览不创建账本"
+        onRetry={() => q.refetch()}
+        retrying={q.isRefetching}
       >
         {d ? (
           <div className="space-y-6">

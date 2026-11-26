@@ -144,12 +144,15 @@ interface XingchenState {
   runningTaskId: string | null
   runningMsgId: string | null
   booting: boolean
+  /** 删除会话失败时的可见错误（侧栏 role="alert" 展示，可手动清除）。 */
+  deleteError: string | null
 
   setStyle: (s: XcStyle) => void
   setMode: (m: 'quick' | 'research') => void
   setModel: (m?: string) => void
   createSession: (title?: string) => string
-  deleteSession: (id: string) => void
+  deleteSession: (id: string) => Promise<void>
+  clearDeleteError: () => void
   setActive: (id: string) => void
   renameSession: (id: string, title: string) => Promise<RenameSessionResult>
   openConversation: (convId: number) => Promise<void>
@@ -206,6 +209,7 @@ export const useXingchenStore = create<XingchenState>((set, get) => ({
   runningTaskId: null,
   runningMsgId: null,
   booting: false,
+  deleteError: null,
 
   setStyle: (s) => set({ style: s }),
   setMode: (m) => set({ mode: m }),
@@ -229,17 +233,41 @@ export const useXingchenStore = create<XingchenState>((set, get) => ({
     return id
   },
 
-  deleteSession: (id) => {
+  deleteSession: async (id) => {
     const s = get().sessions[id]
-    if (s?.convId != null) void deleteConversation(s.convId).catch(() => {})
+    if (!s) return
+    // 记录原始位置/激活项，供后端删除失败时精确回滚（避免前后端状态分叉）
+    const originalIndex = get().order.indexOf(id)
+    const originalActiveId = get().activeId
+    let postDeleteActiveId = originalActiveId
+    // 乐观本地删除：成功路径行为与旧实现一致
     set((st) => {
       const sessions = { ...st.sessions }
       delete sessions[id]
       const order = st.order.filter((x) => x !== id)
       const activeId = st.activeId === id ? order[order.length - 1] ?? '' : st.activeId
-      return { sessions, order, activeId }
+      postDeleteActiveId = activeId
+      return { sessions, order, activeId, deleteError: null }
     })
+    // 本地会话无后端记录：直接删除完成，不调后端
+    if (s.convId == null) return
+    try {
+      await deleteConversation(s.convId)
+    } catch {
+      // 后端删除失败：把会话插回原 order 位置并暴露可见错误，绝不静默吞
+      set((st) => {
+        if (st.sessions[id]) return { deleteError: '删除失败，请重试' }
+        const sessions = { ...st.sessions, [id]: s }
+        const order = [...st.order]
+        order.splice(originalIndex < 0 ? order.length : originalIndex, 0, id)
+        // 用户若已在等待期间主动切换会话，则尊重新选择，不强行还原
+        const activeId = st.activeId === postDeleteActiveId ? originalActiveId : st.activeId
+        return { sessions, order, activeId, deleteError: '删除失败，请重试' }
+      })
+    }
   },
+
+  clearDeleteError: () => set({ deleteError: null }),
 
   setActive: (id) => {
     if (get().sessions[id]) set({ activeId: id })
@@ -647,6 +675,7 @@ export function resetXingchen(): void {
     runningTaskId: null,
     runningMsgId: null,
     booting: false,
+    deleteError: null,
   })
 }
 
@@ -668,6 +697,8 @@ export function useXingchen() {
   const createSession = useXingchenStore((s) => s.createSession)
   const setActive = useXingchenStore((s) => s.setActive)
   const deleteSession = useXingchenStore((s) => s.deleteSession)
+  const deleteError = useXingchenStore((s) => s.deleteError)
+  const clearDeleteError = useXingchenStore((s) => s.clearDeleteError)
   const renameSession = useXingchenStore((s) => s.renameSession)
   const openConversation = useXingchenStore((s) => s.openConversation)
   const bootstrap = useXingchenStore((s) => s.bootstrap)
@@ -693,6 +724,8 @@ export function useXingchen() {
     createSession,
     setActive,
     deleteSession,
+    deleteError,
+    clearDeleteError,
     renameSession,
     openConversation,
     bootstrap,

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 
 vi.mock('@/api/chat', () => ({
   submitAiConsult: vi.fn(),
@@ -41,16 +41,59 @@ describe('ConversationSidebar', () => {
     expect(useXingchenStore.getState().order.length).toBe(1)
   })
 
-  it('点击删除 → 移除会话并调用 deleteConversation', () => {
+  it('点击删除 → 就地二次确认后移除会话并调用 deleteConversation', () => {
     const st = useXingchenStore.getState()
     const id = st.createSession('待删')
     useXingchenStore.setState((s) => ({
       sessions: { ...s.sessions, [id]: { ...s.sessions[id], convId: 3 } },
     }))
     render(<ConversationSidebar />)
-    const del = screen.getAllByLabelText('删除对话')[0]
-    fireEvent.click(del)
+    // 单击只进入确认态，绝不立即删除
+    fireEvent.click(screen.getAllByLabelText('删除对话')[0])
+    expect(useXingchenStore.getState().sessions[id]).toBeDefined()
+    expect(screen.getByLabelText('确认删除对话')).toBeTruthy()
+    // 确认按钮才真正执行删除
+    fireEvent.click(screen.getByLabelText('确认删除对话'))
+    expect(deleteConversation).toHaveBeenCalledWith(3)
     expect(useXingchenStore.getState().sessions[id]).toBeUndefined()
+  })
+
+  it('删除确认态点「取消」→ 不删除会话', () => {
+    const id = useXingchenStore.getState().createSession('保留')
+    render(<ConversationSidebar />)
+    fireEvent.click(screen.getAllByLabelText('删除对话')[0])
+    fireEvent.click(screen.getByText('取消'))
+    expect(screen.queryByLabelText('确认删除对话')).toBeNull()
+    expect(useXingchenStore.getState().sessions[id]).toBeDefined()
+    expect(deleteConversation).not.toHaveBeenCalled()
+  })
+
+  it('后端删除失败 → 会话回滚到原 order 位置并显示错误提示', async () => {
+    const st = useXingchenStore.getState()
+    const a = st.createSession('会话A')
+    const id = st.createSession('会话B')
+    const c = st.createSession('会话C')
+    useXingchenStore.setState((s) => ({
+      sessions: { ...s.sessions, [id]: { ...s.sessions[id], convId: 9 } },
+      activeId: id,
+    }))
+    vi.mocked(deleteConversation).mockRejectedValue(new Error('后端 500'))
+    render(<ConversationSidebar />)
+    fireEvent.click(screen.getAllByLabelText('删除对话')[1])
+    fireEvent.click(screen.getByLabelText('确认删除对话'))
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain('删除失败，请重试')
+    })
+    const state = useXingchenStore.getState()
+    expect(state.sessions[id]).toBeDefined()
+    expect(state.order).toEqual([a, id, c])
+    expect(state.activeId).toBe(id)
+
+    // 错误提示可手动关闭（clearDeleteError 入口）
+    fireEvent.click(screen.getByLabelText('关闭错误提示'))
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(useXingchenStore.getState().deleteError).toBeNull()
   })
 
   it('导出 MD → 调 exportConversationMarkdown（带 convId）', () => {

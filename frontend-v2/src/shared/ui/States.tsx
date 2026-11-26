@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { EmptyStateModern } from './EmptyStateModern'
+import { Button } from './Button'
 
 /**
  * 轻量卡片流 · 加载 / 空 / 错误 三态。
@@ -44,7 +45,16 @@ export function EmptyState({ label = '暂无数据', hint }: { label?: string; h
 }
 
 /** 错误态（解析失败 / 网络错误 / 鉴权过期）。 */
-export function ErrorState({ message }: { message: string }) {
+export function ErrorState({
+  message,
+  onRetry,
+  retrying = false,
+}: {
+  message: string
+  /** 可选页内重试；不传时与历史渲染完全一致（零视觉回归）。 */
+  onRetry?: () => void
+  retrying?: boolean
+}) {
   return (
     <div
       role="alert"
@@ -52,6 +62,17 @@ export function ErrorState({ message }: { message: string }) {
     >
       <span aria-hidden="true" className="mt-1.5 w-1.5 h-1.5 shrink-0 rounded-full bg-sf-warn" />
       <span>{message}</span>
+      {onRetry && (
+        <Button
+          variant="secondary"
+          size="sm"
+          className="ml-auto shrink-0"
+          onClick={onRetry}
+          disabled={retrying}
+        >
+          {retrying ? '重试中…' : '重试'}
+        </Button>
+      )}
     </div>
   )
 }
@@ -65,6 +86,8 @@ export function QueryState({
   children,
   emptyLabel,
   emptyHint,
+  onRetry,
+  retrying,
 }: {
   isLoading: boolean
   isError: boolean
@@ -73,11 +96,13 @@ export function QueryState({
   children: ReactNode
   emptyLabel?: string
   emptyHint?: ReactNode
+  onRetry?: () => void
+  retrying?: boolean
 }) {
   if (isLoading) return <Loading />
   if (isError) {
     const msg = error instanceof Error ? error.message : '加载失败'
-    return <ErrorState message={msg} />
+    return <ErrorState message={msg} onRetry={onRetry} retrying={retrying} />
   }
   if (isEmpty) return <EmptyStateModern title={emptyLabel ?? '暂无数据'} description={emptyHint} />
   return <>{children}</>

@@ -69,6 +69,8 @@ export function FundFlow() {
         isEmpty={allUnavailable}
         emptyLabel="资金流向数据暂不可用"
         emptyHint="北向 / 行业 / 大盘主力 / 融资融券取数均失败（离线或接口受限）；后端已逐块诚实降级"
+        onRetry={() => q.refetch()}
+        retrying={q.isRefetching}
       >
         {d ? (
           <div className="space-y-6">
