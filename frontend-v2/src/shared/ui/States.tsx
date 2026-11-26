@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { EmptyStateModern } from './EmptyStateModern'
 
 /**
  * 轻量卡片流 · 加载 / 空 / 错误 三态。
@@ -78,6 +79,6 @@ export function QueryState({
     const msg = error instanceof Error ? error.message : '加载失败'
     return <ErrorState message={msg} />
   }
-  if (isEmpty) return <EmptyState label={emptyLabel} hint={emptyHint} />
+  if (isEmpty) return <EmptyStateModern title={emptyLabel ?? '暂无数据'} description={emptyHint} />
   return <>{children}</>
 }

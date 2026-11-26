@@ -49,4 +49,15 @@ describe('EmptyStateModern · 层次化空态', () => {
     expect(container.querySelector('svg')).toBeNull()
     expect(screen.getByRole('status').className).toContain('my-4')
   })
+
+  it('description 支持 ReactNode（契约从 string 放宽的守卫）', () => {
+    render(
+      <EmptyStateModern
+        title="暂无数据"
+        description={<span>详见 <strong>真实数据源</strong></span>}
+      />,
+    )
+    expect(screen.getByText('真实数据源').tagName).toBe('STRONG')
+    expect(screen.getByRole('status').querySelector('p')!.textContent).toBe('详见 真实数据源')
+  })
 })

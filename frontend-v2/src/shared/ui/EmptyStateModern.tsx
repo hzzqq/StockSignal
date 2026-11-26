@@ -6,7 +6,7 @@ import type { ReactNode } from 'react'
  */
 export interface EmptyStateModernProps {
   title: string
-  description?: string
+  description?: ReactNode
   action?: ReactNode
   icon?: ReactNode
   className?: string
