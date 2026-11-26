@@ -705,10 +705,10 @@ function ExtremeSignalView({ s }: { s: MarketTemperature['extreme_signal'] }) {
       )}
 
       {s.triggered && s.hits && s.hits.length > 0 && (
-        <table className="w-full text-xs text-sf-ink mt-3">
+        <table className="w-full text-body text-sf-ink mt-3">
           <caption className="sr-only">极端区触发指标明细</caption>
           <thead>
-            <tr className="text-sf-ink-3 border-b border-sf-line">
+            <tr className="text-label text-sf-ink-3 border-b border-sf-line">
               <th className="text-left py-1.5 pr-3">指标</th>
               <th className="text-right py-1.5 pr-3">当前值</th>
               <th className="text-right py-1.5 pr-3">阈值</th>
@@ -718,7 +718,7 @@ function ExtremeSignalView({ s }: { s: MarketTemperature['extreme_signal'] }) {
           </thead>
           <tbody>
             {s.hits.map((h) => (
-              <tr key={h.key} className="border-b border-sf-line/60">
+              <tr key={h.key} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                 <td className="py-1.5 pr-3">{h.name}</td>
                 <td className="py-1.5 pr-3 text-right tabular-nums">{fmtNum(h.value)}</td>
                 <td className="py-1.5 pr-3 text-right tabular-nums">{fmtNum(h.threshold)}</td>

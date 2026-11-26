@@ -118,12 +118,12 @@ export function InflectionScan() {
                         </thead>
                         <tbody>
                           {events.map((e, i) => (
-                            <tr key={`${e.dim}-${e.date}-${i}`} className="border-b border-sf-line/60">
+                            <tr key={`${e.dim}-${e.date}-${i}`} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                               <td className="py-2 pr-3 text-sf-ink">{show(e.date)}</td>
                               <td className="py-2 pr-3 text-sf-ink-2">{show(e.label)}</td>
                               <td className="py-2 pr-3 text-sf-ink-2">{show(e.type)}</td>
-                              <td className="py-2 pr-3 text-sf-ink-2">{show(e.extreme)}</td>
-                              <td className="py-2 pr-3 text-sf-ink-2">{show(e.current)}</td>
+                              <td className="py-2 pr-3 text-sf-ink-2 tabular-nums">{show(e.extreme)}</td>
+                              <td className="py-2 pr-3 text-sf-ink-2 tabular-nums">{show(e.current)}</td>
                             </tr>
                           ))}
                         </tbody>

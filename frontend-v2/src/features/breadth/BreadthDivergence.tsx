@@ -220,7 +220,7 @@ export function BreadthDivergence() {
                     </thead>
                     <tbody>
                       {query.data.calendar.years.map((year, i) => (
-                        <tr key={year}>
+                        <tr key={year} className="hover:bg-sf-surface-2">
                           <td className="px-1 text-sf-ink-3">{year}</td>
                           {query.data.calendar.z[i]?.map((v, j) => (
                             <td key={j} className={CELL_CLS} style={heatStyle(v)}>

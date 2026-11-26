@@ -122,10 +122,10 @@ export function SimilarDays() {
                       {rows.map((r) => (
                         <tr key={r.date} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                           <td className="py-2 pr-3 text-sf-ink">{r.date}</td>
-                          <td className="py-2 pr-3 text-sf-ink-2">{show(r.dist)}</td>
-                          <td className="py-2 pr-3 text-sf-ink-2">{show(r.fwd?.['5'], '%')}</td>
-                          <td className="py-2 pr-3 text-sf-ink-2">{show(r.fwd?.['10'], '%')}</td>
-                          <td className="py-2 pr-3 text-sf-ink-2">{show(r.fwd?.['20'], '%')}</td>
+                          <td className="py-2 pr-3 text-sf-ink-2 tabular-nums">{show(r.dist)}</td>
+                          <td className="py-2 pr-3 text-sf-ink-2 tabular-nums">{show(r.fwd?.['5'], '%')}</td>
+                          <td className="py-2 pr-3 text-sf-ink-2 tabular-nums">{show(r.fwd?.['10'], '%')}</td>
+                          <td className="py-2 pr-3 text-sf-ink-2 tabular-nums">{show(r.fwd?.['20'], '%')}</td>
                         </tr>
                       ))}
                     </tbody>

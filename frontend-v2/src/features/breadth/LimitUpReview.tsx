@@ -139,11 +139,11 @@ export function LimitUpReview() {
                           <td className="py-1.5 pr-3 text-sf-ink">{r.name}</td>
                           <td className="py-1.5 pr-3 text-sf-ink-2">{r.code}</td>
                           <td className="py-1.5 pr-3 text-sf-ink-2">{r.industry}</td>
-                          <td className="py-1.5 pr-3 text-right text-sf-ink">{r.boards}</td>
-                          <td className="py-1.5 pr-3 text-right text-sf-ink-2">
+                          <td className="py-1.5 pr-3 text-right text-sf-ink tabular-nums">{r.boards}</td>
+                          <td className="py-1.5 pr-3 text-right text-sf-ink-2 tabular-nums">
                             {r.seal != null ? r.seal.toFixed(0) : '—'}
                           </td>
-                          <td className="py-1.5 pr-3 text-right text-sf-ink-2">
+                          <td className="py-1.5 pr-3 text-right text-sf-ink-2 tabular-nums">
                             {r.amount != null ? r.amount.toFixed(0) : '—'}
                           </td>
                           <td className="py-1.5 pr-3 text-sf-ink-2">{r.first_seal_band}</td>
@@ -183,20 +183,20 @@ export function LimitUpReview() {
                         <tr key={l.code} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                           <td className="py-1.5 pr-3 text-sf-ink">{l.name}</td>
                           <td className="py-1.5 pr-3 text-sf-ink-2">{l.code}</td>
-                          <td className="py-1.5 pr-3 text-right text-sf-ink">{l.boards}</td>
-                          <td className="py-1.5 pr-3 text-right font-medium text-sf-ink">
+                          <td className="py-1.5 pr-3 text-right text-sf-ink tabular-nums">{l.boards}</td>
+                          <td className="py-1.5 pr-3 text-right font-medium text-sf-ink tabular-nums">
                             {l.score != null ? l.score.toFixed(1) : '—'}
                           </td>
-                          <td className="py-1.5 pr-3 text-right text-sf-ink-2">
+                          <td className="py-1.5 pr-3 text-right text-sf-ink-2 tabular-nums">
                             {l.s_height != null ? l.s_height.toFixed(1) : '—'}
                           </td>
-                          <td className="py-1.5 pr-3 text-right text-sf-ink-2">
+                          <td className="py-1.5 pr-3 text-right text-sf-ink-2 tabular-nums">
                             {l.s_seal != null ? l.s_seal.toFixed(1) : '—'}
                           </td>
-                          <td className="py-1.5 pr-3 text-right text-sf-ink-2">
+                          <td className="py-1.5 pr-3 text-right text-sf-ink-2 tabular-nums">
                             {l.s_ind != null ? l.s_ind.toFixed(1) : '—'}
                           </td>
-                          <td className="py-1.5 pr-3 text-right text-sf-ink-2">
+                          <td className="py-1.5 pr-3 text-right text-sf-ink-2 tabular-nums">
                             {l.s_amt != null ? l.s_amt.toFixed(1) : '—'}
                           </td>
                         </tr>
