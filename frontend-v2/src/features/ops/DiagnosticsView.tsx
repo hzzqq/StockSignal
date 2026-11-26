@@ -6,7 +6,7 @@ import type { EndpointProbeResult } from '@/api/schemas/diagnostics'
 import type { DiagnosticsFreshnessRow, DiagnosticsProbe } from '@/api/schemas/diagnostics'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
-import { QueryState } from '@/shared/ui/States'
+import { QueryState, Loading } from '@/shared/ui/States'
 import { fmtNum } from '@/lib/format'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
@@ -326,7 +326,7 @@ function FreshnessTable({ rows }: { rows: DiagnosticsFreshnessRow[] }) {
 }
 
 function ProbeBody({ probe, pending, mocked }: { probe: DiagnosticsProbe; pending: boolean; mocked: boolean }) {
-  if (pending) return <p className="text-body text-sf-ink-3">正在真实探网，请稍候…</p>
+  if (pending) return <Loading label="正在真实探网，请稍候…" />
   if (probe === null) return <p className="text-body text-sf-ink-3">尚未探测（默认零网络）。</p>
   if (!probe.available) {
     return <p className="text-body text-sf-warn">探测不可用：{probe.reason ?? '未知原因'}</p>

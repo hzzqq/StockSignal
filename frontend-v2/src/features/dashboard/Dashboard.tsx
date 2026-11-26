@@ -2,8 +2,8 @@ import { Link } from '@tanstack/react-router'
 import { useDailySnapshot, useP1Signals, useWebApps } from '@/lib/queries'
 import { SnapshotView } from '@/features/decision/SnapshotView'
 import { IndexQuotes } from '@/features/stock/components/IndexQuotes'
-import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
+import { QueryState } from '@/shared/ui/States'
 import { fmtNum } from '@/lib/format'
 import { ProjectIntro } from './ProjectIntro'
 
@@ -45,15 +45,14 @@ export function Dashboard() {
 
       <IndexQuotes />
 
-      {snapQ.data ? (
-        <SnapshotView snapshot={snapQ.data} />
-      ) : (
-        <Card>
-          <div className="py-6 text-center text-sf-ink-3">
-            {snapQ.isError ? '决策快照加载失败' : '加载中…'}
-          </div>
-        </Card>
-      )}
+      <QueryState
+        isLoading={snapQ.isLoading}
+        isError={snapQ.isError}
+        error={snapQ.error}
+        isEmpty={!snapQ.data}
+      >
+        {snapQ.data ? <SnapshotView snapshot={snapQ.data} /> : null}
+      </QueryState>
     </div>
   )
 }

@@ -60,7 +60,9 @@ describe('Dashboard · 首页概览 · 多查询聚合 + 诚实占位', () => {
     p1Mock.mockRejectedValue(new Error('P1 挂了'))
     webMock.mockRejectedValue(new Error('作品挂了'))
     renderWithClient(<Dashboard />)
-    await expect(screen.findByText('决策快照加载失败')).resolves.toBeTruthy()
+    // QueryState → ErrorState：role=alert + 后端真实错误原文（不吞、不伪装成空态）
+    await expect(screen.findByRole('alert')).resolves.toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toContain('快照挂了')
     expect(screen.getByText('加载失败')).toBeTruthy() // P1 Stat 的 sub
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(4)
     expect(screen.queryByText('权威数据日')).toBeNull()

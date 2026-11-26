@@ -58,8 +58,8 @@ describe('CompareView 逐股 4 态降级 + 字段数', () => {
     // empty：000003 无指标字段 → '—'
     expect((await screen.findAllByText('—')).length).toBeGreaterThanOrEqual(3)
 
-    // loading：000009 在途 → '加载中…'
-    expect((await screen.findAllByText('加载中…')).length).toBeGreaterThanOrEqual(3)
+    // loading：000009 在途 → Skeleton 的 sr-only「加载中」（role=status）
+    expect((await screen.findAllByText('加载中')).length).toBeGreaterThanOrEqual(3)
   })
 
   it('全部无指标字段时显示「暂无对比数据」', async () => {

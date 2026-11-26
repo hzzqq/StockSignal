@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import { Card } from '@/shared/ui/Card'
 import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
+import { Skeleton } from '@/shared/ui/Skeleton'
 import { EChart } from '@/shared/charts/EChart'
 import type { EChartsOption } from 'echarts'
 import { CHART } from '@/shared/charts/palette'
@@ -275,7 +276,7 @@ function CompareTable({
                 if (st.isLoading) {
                   return (
                     <td key={p.code} className="py-1.5 pr-3">
-                      <span role="status" className="text-sf-ink-3">加载中…</span>
+                      <Skeleton rows={1} variant="text" />
                     </td>
                   )
                 }
