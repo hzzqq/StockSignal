@@ -3,7 +3,7 @@ import type { EChartsOption } from 'echarts'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { Stat } from '@/shared/ui/Stat'
-import { EmptyState } from '@/shared/ui/States'
+import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
 import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { DIRECTION_HEX, DIRECTION_INK, type PriceDomain } from './common'
 import { intradayAvg, parseIntradayRows } from './klineMath'
@@ -37,7 +37,7 @@ export function IntradayChart({ rows, prevClose, priceDomain, height = 340 }: In
 
   if (model === null) {
     return (
-      <EmptyState label="分时图暂无数据可绘制" hint="rows 为空数组，未做补零或日期兜底" />
+      <EmptyStateModern title="分时图暂无数据可绘制" description="rows 为空数组，未做补零或日期兜底" />
     )
   }
 

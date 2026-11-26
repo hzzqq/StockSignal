@@ -3,7 +3,8 @@ import type { EChartsOption } from 'echarts'
 import { useBreadthAnalytics, useBreadthZSeries } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
-import { Loading, ErrorState, EmptyState } from '@/shared/ui/States'
+import { Loading, ErrorState } from '@/shared/ui/States'
+import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { Select } from '@/shared/ui/Field'
@@ -86,13 +87,13 @@ export function InflectionScan() {
       {q.isError && (
         <ErrorState message={q.error instanceof Error ? q.error.message : '拐点扫描结果加载失败'} />
       )}
-      {!q.isLoading && !q.isError && !d && <EmptyState label="暂无拐点扫描结果" />}
+      {!q.isLoading && !q.isError && !d && <EmptyStateModern title="暂无拐点扫描结果" />}
 
       {d && (
         <>
           <SectionState section={sec} label="拐点扫描">
             {dims.length === 0 ? (
-              <EmptyState label="无可用广度维度生成拐点扫描" hint="数据不足或维度被数据闸门剔除" />
+              <EmptyStateModern title="无可用广度维度生成拐点扫描" description="数据不足或维度被数据闸门剔除" />
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -129,7 +130,7 @@ export function InflectionScan() {
                       </table>
                     </div>
                   ) : (
-                    <EmptyState label="近 20 交易日未检测到显著拐点" hint="或历史数据不足" />
+                    <EmptyStateModern title="近 20 交易日未检测到显著拐点" description="或历史数据不足" />
                   )}
                   <p className="mt-2 text-xs text-sf-ink-3">
                     共 {events.length} 个事件；触底反转 = 自 &lt;−2 回升越过 −1，触顶回落 = 自 &gt;+2 回落越过 +1。
@@ -157,7 +158,7 @@ export function InflectionScan() {
                     />
                   )}
                   {zq.data && !zq.data.available && (
-                    <EmptyState label="该维度暂无 z-score 轨迹" hint={zq.data.reason ?? '历史数据不足'} />
+                    <EmptyStateModern title="该维度暂无 z-score 轨迹" description={zq.data.reason ?? '历史数据不足'} />
                   )}
                   {zq.data?.available && zq.data.dates.length > 0 && (
                     <>
@@ -174,7 +175,7 @@ export function InflectionScan() {
                     </>
                   )}
                   {zq.data?.available && zq.data.dates.length === 0 && (
-                    <EmptyState label="该维度无足够历史生成 z-score 轨迹" />
+                    <EmptyStateModern title="该维度无足够历史生成 z-score 轨迹" />
                   )}
                 </Card>
               </>

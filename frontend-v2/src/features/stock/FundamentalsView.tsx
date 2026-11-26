@@ -5,7 +5,8 @@ import type { Fundamentals, FundamentalsPerf, Financials } from '@/api/schemas/s
 import { useFundamentals, useFinancialsReport } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
-import { QueryState, EmptyState } from '@/shared/ui/States'
+import { QueryState } from '@/shared/ui/States'
+import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
 import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { fmtNum } from '@/lib/format'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
@@ -165,7 +166,7 @@ function FundamentalsBody({
 
       <Card title="业绩核心指标（9 项）">
         {perf === null ? (
-          <EmptyState label="暂无绩效指标" hint="perf 整体未取到，未做补零" />
+          <EmptyStateModern title="暂无绩效指标" description="perf 整体未取到，未做补零" />
         ) : (
           <ul className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {PERF_KEYS.map((k) => (
@@ -213,9 +214,9 @@ function FundamentalsBody({
             {hasFinite(finRows, metric) ? (
               <FinancialTrendChart rows={finRows} metric={metric} />
             ) : (
-              <EmptyState
-                label={`「${metric}」在当前财报 rows 中无有效数值`}
-                hint="null / 缺失期不绘图、不补零"
+              <EmptyStateModern
+                title={`「${metric}」在当前财报 rows 中无有效数值`}
+                description="null / 缺失期不绘图、不补零"
               />
             )}
             {!hasFinite(finRows, `${metric}_同比`) && (

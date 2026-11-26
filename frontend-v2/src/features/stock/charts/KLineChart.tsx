@@ -3,7 +3,7 @@ import type { EChartsOption } from 'echarts'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { Stat } from '@/shared/ui/Stat'
-import { EmptyState } from '@/shared/ui/States'
+import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
 import { DIRECTION_HEX, DIRECTION_INK, type PriceDomain } from './common'
 import { macdSeries, parseKlineRows, rollingMean } from './klineMath'
 
@@ -35,7 +35,7 @@ export function KLineChart({ rows, priceDomain, height = 520 }: KLineChartProps)
   const model = useMemo(() => buildKlineModel(rows), [rows])
 
   if (model === null) {
-    return <EmptyState label="K 线图暂无数据可绘制" hint="rows 为空数组，未做补零或日期兜底" />
+    return <EmptyStateModern title="K 线图暂无数据可绘制" description="rows 为空数组，未做补零或日期兜底" />
   }
 
   const option = buildKlineOption(model, priceDomain)

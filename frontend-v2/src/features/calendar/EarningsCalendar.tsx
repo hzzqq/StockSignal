@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useEarningsCalendar } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
-import { Loading, EmptyState, ErrorState } from '@/shared/ui/States'
+import { Loading, ErrorState } from '@/shared/ui/States'
+import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
 import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { EarningsFinancialModal } from './EarningsFinancialModal'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
@@ -93,10 +94,10 @@ export function EarningsCalendar() {
         <ErrorState message={q.error instanceof Error ? q.error.message : '披露日历加载失败'} />
       )}
       {q.data && q.data.unavailable && (
-        <EmptyState label="财报披露日历暂时取不到" hint={q.data.note} />
+        <EmptyStateModern title="财报披露日历暂时取不到" description={q.data.note ?? undefined} />
       )}
       {q.data && !q.data.unavailable && rows.length === 0 && (
-        <EmptyState label="该市场/报告期暂无披露日历数据" hint={q.data.note} />
+        <EmptyStateModern title="该市场/报告期暂无披露日历数据" description={q.data.note ?? undefined} />
       )}
       {q.data && !q.data.unavailable && rows.length > 0 && (
         <CollapsibleCard

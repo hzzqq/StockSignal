@@ -2,7 +2,8 @@ import type { EChartsOption } from 'echarts'
 import { useBreadthAnalytics } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
-import { Loading, ErrorState, EmptyState } from '@/shared/ui/States'
+import { Loading, ErrorState } from '@/shared/ui/States'
+import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { AnalyticsHeader, DataBoundary, SectionState, show } from './shared'
@@ -63,7 +64,7 @@ export function SimilarDays() {
       {q.isError && (
         <ErrorState message={q.error instanceof Error ? q.error.message : '历史相似日统计加载失败'} />
       )}
-      {!q.isLoading && !q.isError && !d && <EmptyState label="暂无历史相似日统计" />}
+      {!q.isLoading && !q.isError && !d && <EmptyStateModern title="暂无历史相似日统计" />}
 
       {d && (
         <>
@@ -131,7 +132,7 @@ export function SimilarDays() {
                   </table>
                 </div>
               ) : (
-                <EmptyState label="暂无相似日样本" />
+                <EmptyStateModern title="暂无相似日样本" />
               )}
             </Card>
           </SectionState>

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useMarketSentiment } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
-import { Loading, EmptyState, ErrorState } from '@/shared/ui/States'
+import { Loading, ErrorState } from '@/shared/ui/States'
+import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
 import { SectionTitle } from '@/shared/ui/EmphasisText'
 import { Select } from '@/shared/ui/Field'
 
@@ -67,7 +68,7 @@ export function MarketSentiment() {
       )}
 
       {data && !data.available && (
-        <EmptyState label="市场情绪数据暂时取不到" hint={data.reason ?? data.note} />
+        <EmptyStateModern title="市场情绪数据暂时取不到" description={data.reason ?? data.note ?? undefined} />
       )}
 
       {data && data.available && (

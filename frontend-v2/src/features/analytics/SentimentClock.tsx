@@ -3,7 +3,8 @@ import type { EChartsOption } from 'echarts'
 import { useBreadthAnalytics } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
-import { Loading, ErrorState, EmptyState } from '@/shared/ui/States'
+import { Loading, ErrorState } from '@/shared/ui/States'
+import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { AnalyticsHeader, DataBoundary, SectionState, show, showNum, showPct } from './shared'
@@ -102,7 +103,7 @@ export function SentimentClock() {
       {q.isError && (
         <ErrorState message={q.error instanceof Error ? q.error.message : '离线广度统计加载失败'} />
       )}
-      {!q.isLoading && !q.isError && !d && <EmptyState label="暂无离线广度统计" />}
+      {!q.isLoading && !q.isError && !d && <EmptyStateModern title="暂无离线广度统计" />}
 
       {d && (
         <>
@@ -140,7 +141,7 @@ export function SentimentClock() {
                   </p>
                 </>
               ) : (
-                <EmptyState label="暂无足够广度历史生成时序图" />
+                <EmptyStateModern title="暂无足够广度历史生成时序图" />
               )}
             </SectionState>
           </Card>

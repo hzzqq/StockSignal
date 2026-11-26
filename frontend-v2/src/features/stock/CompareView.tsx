@@ -2,7 +2,7 @@ import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 import { useEffect, useMemo, useState } from 'react'
 import { useQueries } from '@tanstack/react-query'
 import { Card } from '@/shared/ui/Card'
-import { EmptyState } from '@/shared/ui/States'
+import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
 import { EChart } from '@/shared/charts/EChart'
 import type { EChartsOption } from 'echarts'
 import { CHART } from '@/shared/charts/palette'
@@ -218,9 +218,9 @@ export function CompareView({ search }: CompareViewProps) {
         <>
           <Card title="通用对比表（列=代码，行=字段）">
             {!perCode.some((p) => p.isLoading) && fields.length === 0 ? (
-              <EmptyState
-                label="暂无对比数据"
-                hint="所有个股均无可用指标字段（取数失败或返回空）"
+              <EmptyStateModern
+                title="暂无对比数据"
+                description="所有个股均无可用指标字段（取数失败或返回空）"
               />
             ) : (
               <CompareTable rows={rows} perCode={perCode} fields={fields} />

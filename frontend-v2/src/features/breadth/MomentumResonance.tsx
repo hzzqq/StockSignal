@@ -1,6 +1,7 @@
 import { useMomentumBreadth } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
-import { Loading, EmptyState, ErrorState } from '@/shared/ui/States'
+import { Loading, ErrorState } from '@/shared/ui/States'
+import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /** 62 动量×广度共振矩阵（v2 native /momentum-resonance）：离线广度统计真页面。
@@ -27,7 +28,7 @@ export function MomentumResonance() {
       )}
 
       {data && !data.available && (
-        <EmptyState label="暂无可用的广度历史" hint={data.reason ?? data.note} />
+        <EmptyStateModern title="暂无可用的广度历史" description={data.reason ?? data.note ?? undefined} />
       )}
 
       {data && data.available && (

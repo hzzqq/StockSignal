@@ -5,7 +5,8 @@ import { DIM_KEYS, type DimKey, type SixDim } from '@/api/schemas/stock'
 import { useSixDim } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
-import { QueryState, EmptyState } from '@/shared/ui/States'
+import { QueryState } from '@/shared/ui/States'
+import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { fmtNum } from '@/lib/format'
@@ -73,7 +74,7 @@ export function SixDimView() {
       </div>
 
       {!valid ? (
-        <EmptyState label="请输入 6 位数字股票代码" hint="当前输入不合法，未发起请求" />
+        <EmptyStateModern title="请输入 6 位数字股票代码" description="当前输入不合法，未发起请求" />
       ) : (
         <QueryState
           isLoading={query.isLoading}

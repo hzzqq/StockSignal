@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useSnapshotDates, useSnapshot } from '@/lib/queries'
 import { SnapshotView } from '@/features/decision/SnapshotView'
-import { EmptyState, ErrorState, Loading } from '@/shared/ui/States'
+import { ErrorState, Loading } from '@/shared/ui/States'
+import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
 import { Card } from '@/shared/ui/Card'
 import { ApiError } from '@/api/client'
 import type { DailySnapshot } from '@/api/schemas/read'
@@ -89,9 +90,9 @@ export function DataExport() {
       )}
       {showEmpty && (
         <Card>
-          <EmptyState
-            label="该日期无归档快照"
-            hint={notFound ? 'data/snapshots 中无该日期归档' : undefined}
+          <EmptyStateModern
+            title="该日期无归档快照"
+            description={notFound ? 'data/snapshots 中无该日期归档' : undefined}
           />
         </Card>
       )}

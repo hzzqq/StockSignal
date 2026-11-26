@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useLimitUpReview } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
-import { Loading, EmptyState, ErrorState } from '@/shared/ui/States'
+import { Loading, ErrorState } from '@/shared/ui/States'
+import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 const DATE_RE = /^\d{8}$/
@@ -216,7 +217,7 @@ export function LimitUpReview() {
               )}
             </Card>
           ) : (
-            <EmptyState label="涨停池暂时取不到（联网不可用）" hint={data.pool.reason ?? '东财涨停池数据源不可达'} />
+            <EmptyStateModern title="涨停池暂时取不到（联网不可用）" description={data.pool.reason ?? '东财涨停池数据源不可达'} />
           )}
 
           {/* 连板梯队 */}
@@ -241,7 +242,7 @@ export function LimitUpReview() {
                 )}
               </>
             ) : (
-              <EmptyState label="连板梯队暂时取不到" hint={data.ladder.reason} />
+              <EmptyStateModern title="连板梯队暂时取不到" description={data.ladder.reason ?? undefined} />
             )}
           </Card>
 

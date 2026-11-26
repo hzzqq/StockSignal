@@ -2,7 +2,8 @@ import type { EChartsOption } from 'echarts'
 import { useBreadthAnalytics } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
-import { Loading, ErrorState, EmptyState } from '@/shared/ui/States'
+import { Loading, ErrorState } from '@/shared/ui/States'
+import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
 import { AnalyticsHeader, DataBoundary, SectionState, show } from './shared'
@@ -66,7 +67,7 @@ export function RegimeDuration() {
       {q.isError && (
         <ErrorState message={q.error instanceof Error ? q.error.message : '温度持续期统计加载失败'} />
       )}
-      {!q.isLoading && !q.isError && !d && <EmptyState label="暂无温度持续期统计" />}
+      {!q.isLoading && !q.isError && !d && <EmptyStateModern title="暂无温度持续期统计" />}
 
       {d && (
         <>
@@ -103,7 +104,7 @@ export function RegimeDuration() {
                   </p>
                 </>
               ) : (
-                <EmptyState label="暂无温度档位定义" />
+                <EmptyStateModern title="暂无温度档位定义" />
               )}
             </Card>
 
@@ -143,7 +144,7 @@ export function RegimeDuration() {
                   </p>
                 </>
               ) : (
-                <EmptyState label="历史中无完整「冰点→回归中性」样本可供统计" />
+                <EmptyStateModern title="历史中无完整「冰点→回归中性」样本可供统计" />
               )}
             </Card>
           </SectionState>

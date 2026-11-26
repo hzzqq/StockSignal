@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { BreadthAnalytics } from '@/api/schemas/read'
 import { Card } from '@/shared/ui/Card'
-import { EmptyState } from '@/shared/ui/States'
+import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /**
@@ -72,9 +72,9 @@ export function SectionState({
 }) {
   if (!section || !section.available) {
     return (
-      <EmptyState
-        label={`${label}暂无数据`}
-        hint={section?.reason ?? '该段统计不可用（其余段不受影响）'}
+      <EmptyStateModern
+        title={`${label}暂无数据`}
+        description={section?.reason ?? '该段统计不可用（其余段不受影响）'}
       />
     )
   }

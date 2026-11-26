@@ -10,7 +10,8 @@ import {
 } from '@/api/exportBundle'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
-import { EmptyState, ErrorState, Loading, QueryState } from '@/shared/ui/States'
+import { ErrorState, Loading, QueryState } from '@/shared/ui/States'
+import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
 import { Markdown } from '@/features/xingchen/Markdown'
 import { EChart } from '@/shared/charts/EChart'
 import { CHART } from '@/shared/charts/palette'
@@ -115,9 +116,9 @@ function RoundtableReport() {
       {meta.isLoading ? <Loading label="加载圆桌报告…" /> : null}
       {meta.isError ? <ErrorState message={meta.error instanceof Error ? meta.error.message : '圆桌报告加载失败'} /> : null}
       {meta.data && !meta.data.available ? (
-        <EmptyState
-          label="静态报告交付物缺失"
-          hint={meta.data.reason ?? 'MD / HTML 均不可用，未做任何填充'}
+        <EmptyStateModern
+          title="静态报告交付物缺失"
+          description={meta.data.reason ?? 'MD / HTML 均不可用，未做任何填充'}
         />
       ) : null}
       {meta.data?.available ? (
@@ -153,7 +154,7 @@ function RoundtableReport() {
             </button>
           </div>
           {!formatAvailable ? (
-            <EmptyState label="该格式交付物缺失" hint="未返回样例内容" />
+            <EmptyStateModern title="该格式交付物缺失" description="未返回样例内容" />
           ) : content.isLoading ? (
             <Loading label="加载报告原文…" />
           ) : content.isError ? (
