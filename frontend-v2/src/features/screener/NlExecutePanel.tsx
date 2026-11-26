@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNlScreenExecute } from '@/lib/queriesBatchD'
 import { Card } from '@/shared/ui/Card'
+import { Button } from '@/shared/ui/Button'
 import { CollapsibleCard } from '@/shared/ui/CollapsibleCard'
 import { Select } from '@/shared/ui/Field'
 import { fmtNum } from '@/lib/format'
@@ -16,8 +17,6 @@ import { fmtNum } from '@/lib/format'
 const LABEL_CLS = 'block text-label text-sf-ink-3'
 const INPUT_CLS =
   'mt-1 rounded-tile border border-sf-line bg-sf-surface px-2.5 py-1.5 text-body text-sf-ink outline-none focus:border-sf-accent'
-const BTN_CLS =
-  'rounded-tile border border-sf-line px-3 py-1.5 text-label text-sf-ink-2 hover:text-sf-accent disabled:opacity-50'
 const SCOPES = [
   { value: 'local_api', label: '本地 API 池' },
   { value: 'akspot', label: '实时行情快照' },
@@ -83,9 +82,9 @@ export function NlExecutePanel() {
             />
           </label>
         </div>
-        <button type="submit" disabled={!query.trim() || ex.isPending} className={BTN_CLS}>
+        <Button type="submit" variant="primary" size="sm" disabled={!query.trim() || ex.isPending}>
           {ex.isPending ? '执行中…' : '🚀 执行筛选'}
-        </button>
+        </Button>
         {ex.isError && (
           <p className="text-label text-sf-danger">执行请求失败：{errText(ex.error)}</p>
         )}

@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Button } from '@/shared/ui/Button'
 import { QueryState } from '@/shared/ui/States'
 import { Card } from '@/shared/ui/Card'
 import { Select, Textarea } from '@/shared/ui/Field'
@@ -88,8 +89,6 @@ function describeAlert(a: PriceAlert): string {
 const inputCls =
   'mt-1 w-full rounded-tile border border-sf-line bg-sf-surface px-2.5 py-1.5 text-body text-sf-ink outline-none focus:border-sf-accent'
 const labelCls = 'block text-label text-sf-ink-3'
-const btnCls =
-  'rounded-tile border border-sf-line px-3 py-1.5 text-label text-sf-ink-2 hover:text-sf-accent disabled:opacity-50'
 
 function PriceAlertPanel() {
   const listQ = usePriceAlerts()
@@ -232,9 +231,9 @@ function PriceAlertPanel() {
         )}
 
         <div className="flex items-center gap-3">
-          <button type="submit" disabled={createM.isPending} className={btnCls}>
+          <Button type="submit" variant="primary" size="sm" disabled={createM.isPending}>
             {createM.isPending ? '创建中…' : '创建预警'}
-          </button>
+          </Button>
           {stockCode && <span className="text-label text-sf-ink-3">已选代码：{stockCode}</span>}
         </div>
         {formError && <ErrorText message={formError} />}
@@ -266,22 +265,24 @@ function PriceAlertPanel() {
                 <span>{a.active ? '启用中' : '已停用'}</span>
               </div>
               <div className="mt-2 flex gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
+                  size="sm"
                   aria-label={`${a.active ? '停用' : '启用'}预警 ${a.id}`}
                   onClick={() => toggleM.mutate({ id: a.id })}
-                  className={btnCls}
                 >
                   {a.active ? '停用' : '启用'}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="danger"
+                  size="sm"
                   aria-label={`删除预警 ${a.id}`}
                   onClick={() => deleteM.mutate({ id: a.id })}
-                  className={btnCls}
                 >
                   删除
-                </button>
+                </Button>
               </div>
             </li>
           ))}
@@ -342,17 +343,17 @@ function MarketAlertPanel() {
           />
           仅看未读
         </label>
-        <button type="button" onClick={() => readAllM.mutate()} className={btnCls}>
+        <Button type="button" variant="secondary" size="sm" onClick={() => readAllM.mutate()}>
           全部标记已读
-        </button>
+        </Button>
       </div>
 
       {admin && (
         <div className="space-y-2 rounded-tile border border-sf-line p-3">
           <div className="flex items-center gap-3">
-            <button type="button" onClick={() => scanM.mutate()} className={btnCls}>
+            <Button type="button" variant="secondary" size="sm" onClick={() => scanM.mutate()}>
               立即扫描
-            </button>
+            </Button>
             {scanM.isSuccess && scanM.data && (
               <span className="text-label text-sf-ink-2">本次新增 {scanM.data.inserted} 条</span>
             )}
@@ -373,9 +374,9 @@ function MarketAlertPanel() {
                 rows={6}
                 className="[&_textarea]:font-mono"
               />
-              <button type="button" onClick={handleUpdateConfig} className={btnCls}>
+              <Button type="button" variant="primary" size="sm" onClick={handleUpdateConfig}>
                 保存配置
-              </button>
+              </Button>
               {configQ.data && (
                 <pre className="whitespace-pre-wrap text-label text-sf-ink-3">
                   runtime_overrides：{JSON.stringify(configQ.data.runtime_overrides)}
@@ -412,14 +413,15 @@ function MarketAlertPanel() {
                 <span>时间：{m.created_at === null ? '—' : m.created_at}</span>
               </div>
               <div className="mt-2">
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
+                  size="sm"
                   aria-label={`标记已读 ${m.id}`}
                   onClick={() => readM.mutate({ id: m.id })}
-                  className={btnCls}
                 >
                   标记已读
-                </button>
+                </Button>
               </div>
             </li>
           ))}

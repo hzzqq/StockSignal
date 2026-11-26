@@ -5,6 +5,7 @@ import { mocksEnabled } from '@/api/diagnostics'
 import { probeKind, BUSINESS_DEGRADED_CODES } from '@/api/schemas/diagnostics'
 import type { ProbeKind } from '@/api/schemas/diagnostics'
 import { Card } from '@/shared/ui/Card'
+import { Button } from '@/shared/ui/Button'
 import { QueryState } from '@/shared/ui/States'
 import { Select } from '@/shared/ui/Field'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
@@ -259,14 +260,15 @@ export function DataSourceView({ initialPath = '' }: { initialPath?: string }) {
                 className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-1.5 text-body text-sf-ink"
               />
             </label>
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               onClick={() => void load(selected, query)}
               disabled={!selected || loading}
-              className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-1.5 text-label text-sf-ink hover:border-sf-accent disabled:opacity-50"
             >
               {loading ? '读取中…' : '重新读取'}
-            </button>
+            </Button>
             <span className="text-label text-sf-ink-3">
               共 {paths.length} 个可查看端点{needsParams ? ' · 当前端点需参数，已填示例值' : ''}
             </span>

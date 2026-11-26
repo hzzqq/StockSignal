@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { usePatternScan } from './usePatternScan'
 import { Card } from '@/shared/ui/Card'
+import { Button } from '@/shared/ui/Button'
 import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 import type { PatternItem } from '@/api/schemas/patternScan'
@@ -103,17 +104,18 @@ export function PatternScan() {
             )}
           </div>
 
-          <button
+          <Button
             type="submit"
+            variant="primary"
+            size="sm"
             disabled={!codes || running}
-            className="rounded-tile border border-sf-line px-3 py-1.5 text-label text-sf-ink-2 hover:text-sf-accent disabled:opacity-50"
           >
             {phase === 'submitting'
               ? '提交中…'
               : phase === 'polling'
                 ? `扫描中…（后台任务运行${progress > 0 ? `，已完成约 ${Math.round(progress)}%` : ''}）`
                 : '开始形态扫描'}
-          </button>
+          </Button>
         </form>
       </Card>
 
@@ -130,20 +132,22 @@ export function PatternScan() {
             「重新查询结果」接续查看（不重复提交）。
           </p>
           <div className="mt-2 flex gap-2">
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               onClick={requery}
-              className="rounded-tile border border-sf-line px-3 py-1.5 text-label text-sf-ink-2 hover:text-sf-accent"
             >
               重新查询结果
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="danger"
+              size="sm"
               onClick={reset}
-              className="rounded-tile border border-sf-line px-3 py-1.5 text-label text-sf-ink-2 hover:text-sf-accent"
             >
               放弃本次，重新填写
-            </button>
+            </Button>
           </div>
         </Card>
       )}

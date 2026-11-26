@@ -6,6 +6,7 @@ import {
 } from '@/lib/queriesPatternPaper'
 import { usePaperTrades } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
+import { Button } from '@/shared/ui/Button'
 import { Select } from '@/shared/ui/Field'
 import { StockSearchInput } from '@/shared/ui/StockSearchInput'
 
@@ -20,8 +21,6 @@ import { StockSearchInput } from '@/shared/ui/StockSearchInput'
  */
 const INPUT_CLS =
   'mt-1 w-full rounded-tile border border-sf-line bg-sf-surface px-2.5 py-1.5 text-body text-sf-ink outline-none focus:border-sf-accent'
-const BTN_CLS =
-  'rounded-tile border border-sf-line px-3 py-1.5 text-label text-sf-ink-2 hover:text-sf-accent disabled:opacity-50'
 const LABEL_CLS = 'block text-label text-sf-ink-3'
 
 function firstError(e: unknown): string | null {
@@ -87,9 +86,9 @@ export function PaperWritePanels() {
                 onChange={(e) => setQty(e.target.value)} className={INPUT_CLS} />
             </label>
           </div>
-          <button type="submit" disabled={addM.isPending} className={BTN_CLS}>
+          <Button type="submit" variant="primary" size="sm" disabled={addM.isPending}>
             {addM.isPending ? '记录中…' : '记录模拟成交'}
-          </button>
+          </Button>
           {notice && !addError && <span className="ml-2 text-label text-sf-ink-2">{notice}</span>}
           {addError && <span className="ml-2 text-label text-sf-danger">保存失败：{addError}</span>}
         </form>
@@ -110,8 +109,10 @@ export function PaperWritePanels() {
                   {' '}{String(t.qty ?? '')} 股 @ {String(t.price ?? '')}
                 </span>
                 {typeof t.id === 'number' && Number.isInteger(t.id) ? (
-                  <button
+                  <Button
                     type="button"
+                    variant="danger"
+                    size="sm"
                     disabled={delM.isPending}
                     onClick={() => {
                       setNotice(null)
@@ -120,10 +121,9 @@ export function PaperWritePanels() {
                         onSuccess: () => setNotice(`已删除记录 ${t.id}`),
                       })
                     }}
-                    className={BTN_CLS}
                   >
                     删除
-                  </button>
+                  </Button>
                 ) : (
                   <span className="text-label text-sf-ink-3">历史记录无 id，不可删</span>
                 )}
@@ -135,18 +135,19 @@ export function PaperWritePanels() {
       </Card>
 
       <Card title="重置模拟账本">
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="sm"
           disabled={resetM.isPending}
           onClick={() => {
             setNotice(null)
             resetM.reset()
             resetM.mutate(undefined, { onSuccess: () => setNotice('模拟账本已重置') })
           }}
-          className={BTN_CLS}
         >
           {resetM.isPending ? '重置中…' : '重置为初始资金'}
-        </button>
+        </Button>
         {resetError && <span className="ml-2 text-label text-sf-danger">重置失败：{resetError}</span>}
       </Card>
     </div>

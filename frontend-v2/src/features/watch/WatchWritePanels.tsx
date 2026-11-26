@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
 import { QueryState } from '@/shared/ui/States'
 import { StockSearchInput } from '@/shared/ui/StockSearchInput'
@@ -34,8 +35,6 @@ import {
 const inputCls =
   'mt-1 w-full rounded-tile border border-sf-line bg-sf-surface px-2.5 py-1.5 text-body text-sf-ink outline-none focus:border-sf-accent'
 const labelCls = 'block text-label text-sf-ink-3'
-const btnCls =
-  'rounded-tile border border-sf-line px-3 py-1.5 text-label text-sf-ink-2 hover:text-sf-accent disabled:opacity-50'
 
 function firstError(errors: unknown[]): string | null {
   for (const e of errors) {
@@ -183,9 +182,9 @@ function WatchlistPanel() {
               {`已选：${selName ?? code.trim()}（${code.trim()}）`}
             </p>
           )}
-          <button type="submit" disabled={add.isPending} className={btnCls}>
+          <Button type="submit" variant="primary" size="sm" disabled={add.isPending}>
             {add.isPending ? '添加中…' : '加入自选股'}
-          </button>
+          </Button>
         </form>
 
         <div className="space-y-2 rounded-tile border border-sf-line p-3">
@@ -193,16 +192,16 @@ function WatchlistPanel() {
             批量添加（代码，逗号分隔）
             <input value={batchText} onChange={(e) => setBatchText(e.target.value)} className={inputCls} />
           </label>
-          <button type="button" onClick={handleBatchAdd} disabled={addBatch.isPending} className={btnCls}>
+          <Button type="button" variant="secondary" size="sm" onClick={handleBatchAdd} disabled={addBatch.isPending}>
             {addBatch.isPending ? '批量添加中…' : '批量添加'}
-          </button>
+          </Button>
           <label className={labelCls}>
             批量删除（列表中的数字 id，逗号分隔）
             <input value={idText} onChange={(e) => setIdText(e.target.value)} className={inputCls} />
           </label>
-          <button type="button" onClick={handleBatchDelete} disabled={delBatch.isPending} className={btnCls}>
+          <Button type="button" variant="secondary" size="sm" onClick={handleBatchDelete} disabled={delBatch.isPending}>
             {delBatch.isPending ? '批量删除中…' : '批量删除'}
-          </button>
+          </Button>
         </div>
 
         {err && <Hint text={err} isError />}
@@ -223,17 +222,18 @@ function WatchlistPanel() {
                 {item.stock_name && <span className="text-sf-ink-2">{item.stock_name}</span>}
                 {item.note && <span className="text-label text-sf-ink-3">{item.note}</span>}
                 <span className="text-label text-sf-ink-3">id={item.id}</span>
-                <button
+                <Button
                   type="button"
+                  variant="danger"
+                  size="sm"
                   aria-label={`删除自选股 ${item.stock_code}`}
                   onClick={() => {
                     resetMessages()
                     del.mutate({ id: item.id }, { onSuccess: () => setNotice(`已删除 ${item.stock_code}`) })
                   }}
-                  className={btnCls}
                 >
                   删除
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -326,9 +326,9 @@ function JunkStockPanel() {
               {`已选：${selName ?? code.trim()}（${code.trim()}）`}
             </p>
           )}
-          <button type="submit" disabled={add.isPending} className={btnCls}>
+          <Button type="submit" variant="primary" size="sm" disabled={add.isPending}>
             {add.isPending ? '添加中…' : '加入回避池'}
-          </button>
+          </Button>
         </form>
 
         <div className="space-y-2 rounded-tile border border-sf-line p-3">
@@ -336,9 +336,9 @@ function JunkStockPanel() {
             批量删除（数字 id，逗号分隔）
             <input value={idText} onChange={(e) => setIdText(e.target.value)} className={inputCls} />
           </label>
-          <button type="button" onClick={handleBatchDelete} disabled={delBatch.isPending} className={btnCls}>
+          <Button type="button" variant="secondary" size="sm" onClick={handleBatchDelete} disabled={delBatch.isPending}>
             {delBatch.isPending ? '批量删除中…' : '批量删除'}
-          </button>
+          </Button>
         </div>
 
         {err && <Hint text={err} isError />}
@@ -358,17 +358,18 @@ function JunkStockPanel() {
                 <span className="font-medium text-sf-ink">{item.stock_code}</span>
                 {item.stock_name && <span className="text-sf-ink-2">{item.stock_name}</span>}
                 {item.note && <span className="text-label text-sf-ink-3">{item.note}</span>}
-                <button
+                <Button
                   type="button"
+                  variant="danger"
+                  size="sm"
                   aria-label={`删除垃圾股 ${item.stock_code}`}
                   onClick={() => {
                     resetMessages()
                     del.mutate({ id: item.id }, { onSuccess: () => setNotice(`已删除 ${item.stock_code}`) })
                   }}
-                  className={btnCls}
                 >
                   删除
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -452,9 +453,9 @@ function UserScorePanel() {
               />
             </label>
           </div>
-          <button type="submit" disabled={upsert.isPending} className={btnCls}>
+          <Button type="submit" variant="primary" size="sm" disabled={upsert.isPending}>
             {upsert.isPending ? '保存中…' : '保存打分'}
-          </button>
+          </Button>
         </form>
 
         {err && <Hint text={err} isError />}
@@ -475,8 +476,10 @@ function UserScorePanel() {
                 {item.stock_name && <span className="text-sf-ink-2">{item.stock_name}</span>}
                 <span className="text-sf-ink">{item.score} 分</span>
                 <span className="text-label text-sf-ink-3">更新：{item.updated_at === null ? '—' : item.updated_at}</span>
-                <button
+                <Button
                   type="button"
+                  variant="danger"
+                  size="sm"
                   aria-label={`删除打分 ${item.stock_code}`}
                   onClick={() => {
                     resetMessages()
@@ -484,10 +487,9 @@ function UserScorePanel() {
                       onSuccess: () => setNotice(`已删除 ${item.stock_code} 的打分`),
                     })
                   }}
-                  className={btnCls}
                 >
                   删除
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
