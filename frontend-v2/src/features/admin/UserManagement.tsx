@@ -3,7 +3,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { listUsers, createUser, updateUser, deleteUser, listLogs } from '@/api/admin'
 import type { PublicUser, AdminLog } from '@/api/schemas/admin'
 import { Card } from '@/shared/ui/Card'
-import { QueryState, EmptyState } from '@/shared/ui/States'
+import { QueryState } from '@/shared/ui/States'
+import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
+import { Button } from '@/shared/ui/Button'
+import { useToast } from '@/shared/ui/Toast'
 import { Select } from '@/shared/ui/Field'
 import { getCurrentUser } from '@/lib/auth'
 
@@ -30,9 +33,9 @@ export function UserManagement() {
     return (
       <div className="flow">
         <h2 className="text-lg font-semibold">用户管理</h2>
-        <EmptyState
-          label="无访问权限"
-          hint="用户管理为管理员专属功能。当前账号不是管理员，或登录信息已失效（请重新登录）。"
+        <EmptyStateModern
+          title="无访问权限"
+          description="用户管理为管理员专属功能。当前账号不是管理员，或登录信息已失效（请重新登录）。"
         />
       </div>
     )
@@ -51,21 +54,17 @@ export function UserManagement() {
           ['create', '创建用户'],
           ['logs', '操作日志'],
         ] as [Tab, string][]).map(([key, label]) => (
-          <button
+          <Button
             key={key}
             type="button"
             role="tab"
             aria-selected={tab === key}
             onClick={() => setTab(key)}
-            className={[
-              'px-3 py-1.5 rounded-tile text-label border transition-colors',
-              tab === key
-                ? 'text-sf-ink border-sf-accent bg-sf-surface-2'
-                : 'text-sf-ink-2 border-sf-line hover:bg-sf-surface-2',
-            ].join(' ')}
+            variant={tab === key ? 'secondary' : 'ghost'}
+            size="sm"
           >
             {label}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -158,27 +157,27 @@ function ListTab({ me }: { me: PublicUser }) {
                       <td className="py-1.5 pr-3">{u.is_active ? '正常' : '停用'}</td>
                       <td className="py-1.5 pr-3 tabular-nums">{String(u.created_at).slice(0, 10)}</td>
                       <td className="py-1.5 text-right whitespace-nowrap">
-                        <button
+                        <Button
                           type="button"
                           onClick={() => setEditing(u)}
-                          className="text-label text-sf-accent hover:underline mr-3"
+                          variant="ghost"
+                          size="sm"
                           aria-label={`编辑用户 ${u.username}`}
+                          className="mr-3 text-sf-accent hover:underline"
                         >
                           编辑
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
                           onClick={() => setDeleting(u)}
                           disabled={!canDelete}
                           title={isSelf ? '不能删除自己' : isRootAdmin ? '不能删除初始管理员' : '删除用户'}
-                          className={[
-                            'text-label',
-                            canDelete ? 'text-sf-danger hover:underline' : 'text-sf-ink-3 cursor-not-allowed',
-                          ].join(' ')}
                           aria-label={`删除用户 ${u.username}`}
+                          variant="danger"
+                          size="sm"
                         >
                           删除
-                        </button>
+                        </Button>
                       </td>
                     </tr>
                   )
@@ -189,27 +188,29 @@ function ListTab({ me }: { me: PublicUser }) {
         </QueryState>
 
         <div className="flex items-center justify-between mt-3">
-          <button
+          <Button
             type="button"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1}
-            className="text-label px-3 py-1.5 rounded-tile border border-sf-line disabled:opacity-40"
+            variant="secondary"
+            size="sm"
             aria-label="上一页"
           >
             上一页
-          </button>
+          </Button>
           <span className="text-label text-sf-ink-3">
             第 {page} / {pages || 1} 页
           </span>
-          <button
+          <Button
             type="button"
             onClick={() => setPage((p) => Math.min(Math.max(pages, 1), p + 1))}
             disabled={page >= pages}
-            className="text-label px-3 py-1.5 rounded-tile border border-sf-line disabled:opacity-40"
+            variant="secondary"
+            size="sm"
             aria-label="下一页"
           >
             下一页
-          </button>
+          </Button>
         </div>
       </Card>
 
@@ -229,14 +230,13 @@ function EditModal({ user, me, onClose }: { user: PublicUser; me: PublicUser; on
   const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [okMsg, setOkMsg] = useState<string | null>(null)
+  const { push } = useToast()
 
   const roleBlocked = user.id === me.id && role !== 'admin'
   const activeBlocked = user.id === me.id && !active
 
   async function onSave() {
     setErr(null)
-    setOkMsg(null)
     if (roleBlocked || activeBlocked) {
       setErr('不能取消自己的管理员角色，也不能停用自己')
       return
@@ -248,7 +248,7 @@ function EditModal({ user, me, onClose }: { user: PublicUser; me: PublicUser; on
         is_active: active,
         ...(password ? { password } : {}),
       })
-      setOkMsg('更新成功')
+      push('更新成功', 'ok')
       await qc.invalidateQueries({ queryKey: ['admin', 'users'] })
       onClose()
     } catch (e) {
@@ -294,7 +294,6 @@ function EditModal({ user, me, onClose }: { user: PublicUser; me: PublicUser; on
         {err && (
           <div role="alert" className="text-sf-danger text-body">{err}</div>
         )}
-        {okMsg && <div role="status" className="text-sf-ok text-body">{okMsg}</div>}
         {roleBlocked && (
           <div role="alert" className="text-sf-warn text-label">不能取消自己的管理员角色。</div>
         )}
@@ -302,24 +301,25 @@ function EditModal({ user, me, onClose }: { user: PublicUser; me: PublicUser; on
           <div role="alert" className="text-sf-warn text-label">不能停用自己的账号。</div>
         )}
         <div className="flex gap-2">
-          <button
+          <Button
             type="button"
             onClick={onSave}
             disabled={saving || roleBlocked || activeBlocked}
-            className="flex-1 py-2 rounded-tile font-bold text-white disabled:opacity-50"
-            style={{ background: 'linear-gradient(90deg, var(--color-brand-1), var(--color-brand-2))' }}
+            variant="primary"
+            className="flex-1"
             aria-label="保存"
           >
             {saving ? '保存中…' : '保存'}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={onClose}
-            className="flex-1 py-2 rounded-tile border border-sf-line text-sf-ink-2"
+            variant="ghost"
+            className="flex-1"
             aria-label="取消"
           >
             取消
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>
@@ -354,24 +354,25 @@ function DeleteConfirm({ user, onClose }: { user: PublicUser; onClose: () => voi
         </p>
         {err && <div role="alert" className="text-sf-danger text-body">{err}</div>}
         <div className="flex gap-2">
-          <button
+          <Button
             type="button"
             onClick={onConfirm}
             disabled={saving}
-            className="flex-1 py-2 rounded-tile font-bold text-white disabled:opacity-50"
-            style={{ background: 'linear-gradient(90deg, var(--color-sf-danger, #e5484d), #c93b40)' }}
+            variant="danger"
+            className="flex-1"
             aria-label="确认删除"
           >
             {saving ? '删除中…' : '确认删除'}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={onClose}
-            className="flex-1 py-2 rounded-tile border border-sf-line text-sf-ink-2"
+            variant="ghost"
+            className="flex-1"
             aria-label="取消"
           >
             取消
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>
@@ -386,14 +387,13 @@ function CreateTab() {
   const [role, setRole] = useState<'user' | 'admin'>('user')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [okMsg, setOkMsg] = useState<string | null>(null)
+  const { push } = useToast()
 
   const canCreate = username.trim().length > 0 && password.length > 0
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErr(null)
-    setOkMsg(null)
     if (!canCreate) {
       setErr('用户名和密码不能为空')
       return
@@ -401,7 +401,7 @@ function CreateTab() {
     setSaving(true)
     try {
       await createUser({ username: username.trim(), password, role })
-      setOkMsg(`用户 ${username.trim()} 创建成功`)
+      push(`用户 ${username.trim()} 创建成功`, 'ok')
       setUsername('')
       setPassword('')
       setRole('user')
@@ -452,17 +452,15 @@ function CreateTab() {
         </Select>
 
         {err && <div role="alert" className="text-sf-danger text-body">{err}</div>}
-        {okMsg && <div role="status" className="text-sf-ok text-body">{okMsg}</div>}
 
-        <button
+        <Button
           type="submit"
           disabled={!canCreate || saving}
           aria-label="创建用户"
-          className="py-2 px-4 rounded-tile font-bold text-white disabled:opacity-50"
-          style={{ background: 'linear-gradient(90deg, var(--color-brand-1), var(--color-brand-2))' }}
+          variant="primary"
         >
           {saving ? '创建中…' : '创建用户'}
-        </button>
+        </Button>
       </form>
     </Card>
   )
@@ -513,25 +511,27 @@ function LogsTab() {
       </QueryState>
 
       <div className="flex items-center justify-between mt-3">
-        <button
+        <Button
           type="button"
           onClick={() => setPage((p) => Math.max(1, p - 1))}
           disabled={page <= 1}
-          className="text-label px-3 py-1.5 rounded-tile border border-sf-line disabled:opacity-40"
+          variant="secondary"
+          size="sm"
           aria-label="上一页"
         >
           上一页
-        </button>
+        </Button>
         <span className="text-label text-sf-ink-3">第 {page} / {pages || 1} 页</span>
-        <button
+        <Button
           type="button"
           onClick={() => setPage((p) => Math.min(Math.max(pages, 1), p + 1))}
           disabled={page >= pages}
-          className="text-label px-3 py-1.5 rounded-tile border border-sf-line disabled:opacity-40"
+          variant="secondary"
+          size="sm"
           aria-label="下一页"
         >
           下一页
-        </button>
+        </Button>
       </div>
     </Card>
   )
@@ -553,14 +553,15 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-title font-medium text-sf-ink-2">{title}</h3>
-          <button
+          <Button
             type="button"
             onClick={onClose}
             aria-label="关闭"
-            className="text-sf-ink-3 hover:text-sf-ink text-label"
+            variant="ghost"
+            size="sm"
           >
             关闭
-          </button>
+          </Button>
         </div>
         {children}
       </div>

@@ -4,6 +4,7 @@ import type { EChartsOption } from 'echarts'
 import type { Portfolio as PortfolioData, PositionAllocation } from '@/api/schemas/read'
 import { usePortfolio, usePositionAllocation } from '@/lib/queries'
 import { addPortfolioPosition, deletePortfolioPosition, recordPortfolioSell } from '@/api/portfolioWrite'
+import { Button } from '@/shared/ui/Button'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { ErrorState, QueryState } from '@/shared/ui/States'
@@ -48,28 +49,31 @@ export function Portfolio() {
     <div className="flow">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <SectionTitle as="h2">持仓中心</SectionTitle>
-        <div className="flex gap-1 rounded-tile bg-sf-surface-2 p-1 text-xs">
-          <button
+        <div className="flex gap-1 rounded-tile bg-sf-surface-2 p-1">
+          <Button
             type="button"
+            variant={view === 'positions' ? 'primary' : 'ghost'}
+            size="sm"
             onClick={() => setView('positions')}
-            className={`rounded-tile px-3 py-1.5 ${view === 'positions' ? 'bg-sf-accent text-sf-ink' : 'text-sf-ink-3'}`}
           >
             持仓
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant={view === 'attribution' ? 'primary' : 'ghost'}
+            size="sm"
             onClick={() => setView('attribution')}
-            className={`rounded-tile px-3 py-1.5 ${view === 'attribution' ? 'bg-sf-accent text-sf-ink' : 'text-sf-ink-3'}`}
           >
             收益归因
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant={view === 'landing' ? 'primary' : 'ghost'}
+            size="sm"
             onClick={() => setView('landing')}
-            className={`rounded-tile px-3 py-1.5 ${view === 'landing' ? 'bg-sf-accent text-sf-ink' : 'text-sf-ink-3'}`}
           >
             决策落地
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -157,10 +161,9 @@ function PortfolioWritePanel({ positions }: {
             className="w-full rounded-tile border border-sf-line px-2 py-1 text-xs" />
           <input aria-label="买入备注" value={addNote} onChange={(e) => setAddNote(e.target.value)}
             placeholder="备注（选填）" className="w-full rounded-tile border border-sf-line px-2 py-1 text-xs" />
-          <button type="submit" disabled={addMut.isPending}
-            className="w-fit rounded-tile bg-sf-accent px-3 py-1.5 text-xs text-white disabled:opacity-50">
+          <Button type="submit" variant="primary" size="sm" disabled={addMut.isPending} className="w-fit">
             {addMut.isPending ? '写入中…' : '添加持仓'}
-          </button>
+          </Button>
         </form>
 
         <form
@@ -193,10 +196,9 @@ function PortfolioWritePanel({ positions }: {
             className="w-full rounded-tile border border-sf-line px-2 py-1 text-xs" />
           <input aria-label="卖出备注" value={sellNote} onChange={(e) => setSellNote(e.target.value)}
             placeholder="备注（选填）" className="w-full rounded-tile border border-sf-line px-2 py-1 text-xs" />
-          <button type="submit" disabled={sellMut.isPending}
-            className="w-fit rounded-tile bg-sf-accent px-3 py-1.5 text-xs text-white disabled:opacity-50">
+          <Button type="submit" variant="primary" size="sm" disabled={sellMut.isPending} className="w-fit">
             {sellMut.isPending ? '写入中…' : '记录卖出'}
-          </button>
+          </Button>
         </form>
       </div>
       <p className="text-label text-sf-ink-3 mt-3">
@@ -222,15 +224,16 @@ function DeletePositionButton({ index, ticker }: { index: number; ticker: string
   })
   return (
     <span className="inline-flex flex-col items-end">
-      <button
+      <Button
         type="button"
+        variant="danger"
+        size="sm"
         aria-label={`删除 ${ticker} 持仓记录`}
         disabled={mut.isPending}
         onClick={() => mut.mutate(index)}
-        className="rounded-tile border border-sf-line px-2 py-0.5 text-label text-sf-ink-2 hover:text-sf-accent disabled:opacity-50"
       >
         {mut.isPending ? '删除中' : '删除'}
-      </button>
+      </Button>
       {error ? <span role="alert" className="text-label text-sf-danger">{error}</span> : null}
     </span>
   )
@@ -415,16 +418,17 @@ function LandingView({ source, setSource }: { source: AllocSource; setSource: (s
         系统不会自动下单，也绝不写入你的持仓记录（只读不碰）。数据源 = 当日归档快照，无快照不实时臆算。
       </div>
 
-      <div className="flex gap-1 rounded-tile bg-sf-surface-2 p-1 text-xs self-start">
+      <div className="flex gap-1 rounded-tile bg-sf-surface-2 p-1 self-start">
         {(Object.keys(SOURCE_LABELS) as AllocSource[]).map((s) => (
-          <button
+          <Button
             key={s}
             type="button"
+            variant={source === s ? 'primary' : 'ghost'}
+            size="sm"
             onClick={() => setSource(s)}
-            className={`rounded-tile px-3 py-1.5 ${source === s ? 'bg-sf-accent text-sf-ink' : 'text-sf-ink-3'}`}
           >
             {SOURCE_LABELS[s]}
-          </button>
+          </Button>
         ))}
       </div>
 

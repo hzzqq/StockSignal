@@ -324,7 +324,7 @@ export function Theme() {
                       <td className="py-1.5 pr-3 text-right opacity-50">{i + 1}</td>
                       <td className="py-1.5 pr-3">
                         <b>{e.name ?? '—'}</b>
-                        <span className="opacity-50 text-[11px]"> {e.code ?? ''}</span>
+                        <span className="opacity-50 text-label"> {e.code ?? ''}</span>
                       </td>
                       <td className="py-1.5 pr-3 text-right font-medium">{typeof e.score === 'number' ? e.score : '—'}</td>
                       <td className="py-1.5 pr-3" style={{ color: e.dir_color ?? CHART.ink2 }}>{e.direction ?? '—'}</td>

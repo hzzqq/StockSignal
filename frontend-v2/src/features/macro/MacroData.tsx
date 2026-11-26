@@ -208,7 +208,7 @@ function RegionBlock({ title, rows }: { title: string; rows: [string, MacroIndic
                 <tr key={key} className="border-b border-sf-line/60 hover:bg-sf-surface-2">
                   <td className="py-1.5 pr-3">
                     <div>{ind.name ?? key}</div>
-                    {ind.desc && <div className="text-sf-ink-3 text-[11px]">{ind.desc}</div>}
+                    {ind.desc && <div className="text-sf-ink-3 text-label">{ind.desc}</div>}
                   </td>
                   <td className="py-1.5 pr-3 text-right font-medium">{fmtVal(ind.value, ind.unit)}</td>
                   <td className="py-1.5 pr-3 text-right" style={chg ? { color: dirColor(chg.dir) } : undefined}>

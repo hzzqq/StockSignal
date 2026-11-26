@@ -58,15 +58,7 @@ export function Backtest() {
 
       {/* 控制区 */}
       <Card title="回测参数">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-          <label className="text-xs text-sf-ink-3 flex flex-col gap-1">
-            标的代码（6 位）
-            <input
-              className="rounded-tile bg-sf-surface-2 border border-sf-line px-2 py-1.5 text-sm text-sf-ink"
-              value={form.ticker}
-              onChange={(e) => setForm((f) => ({ ...f, ticker: e.target.value.trim() }))}
-            />
-          </label>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           <label className="text-xs text-sf-ink-3 flex flex-col gap-1">
             起始日期
             <input
@@ -100,7 +92,8 @@ export function Backtest() {
         <div className="mt-3 w-72">
           <StockSearchInput
             value={form.ticker}
-            label="搜索标的（代码 / 名称 / 首字母）"
+            label="标的代码 / 搜索（代码 / 名称 / 首字母）"
+            onTextChange={(text) => setForm((f) => ({ ...f, ticker: text.trim() }))}
             onSelect={(code) => setForm((f) => ({ ...f, ticker: code }))}
           />
         </div>

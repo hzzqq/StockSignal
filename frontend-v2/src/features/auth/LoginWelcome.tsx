@@ -19,6 +19,7 @@
  * 演示账号徽章展示的是**真实可用的演示账号**（与后端 seed 一致）。
  */
 import type { ReactNode } from 'react'
+import { Button } from '@/shared/ui/Button'
 
 /** 渐变文字：品牌色 → 品牌色2 横切（等价 v1 的 .ss-grad）；不支持 clip 时回落品牌纯色，文字始终可见。 */
 function GradText({ children }: { children: ReactNode }) {
@@ -114,7 +115,8 @@ export function LoginWelcome({ onLogin }: { onLogin: () => void }) {
         </div>
 
         {/* 主按钮：品牌渐变（v1 同款 hover 上浮 + 发光阴影） */}
-        <button
+        <Button
+          variant="primary"
           type="button"
           onClick={onLogin}
           className="w-full rounded-tile py-3 px-4 text-[1rem] font-bold text-white border-0 cursor-pointer transition-transform"
@@ -124,7 +126,7 @@ export function LoginWelcome({ onLogin }: { onLogin: () => void }) {
           }}
         >
           🔑 去登录
-        </button>
+        </Button>
       </div>
 
       <div className="text-center text-[0.75rem] text-sf-ink-2 mt-8">

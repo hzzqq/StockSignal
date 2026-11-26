@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { communityHandlers, resetCommunityMock } from '@/mocks/handlersCommunity'
+import { ToastProvider } from '@/shared/ui/Toast'
 import { AccountPanel } from './AccountPanel'
 
 /**
@@ -52,7 +53,9 @@ function mkClient() {
 function renderView() {
   return render(
     <QueryClientProvider client={mkClient()}>
-      <AccountPanel />
+      <ToastProvider>
+        <AccountPanel />
+      </ToastProvider>
     </QueryClientProvider>,
   )
 }

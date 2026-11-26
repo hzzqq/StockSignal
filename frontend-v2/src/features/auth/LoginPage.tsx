@@ -5,6 +5,7 @@ import { clearAuth } from '@/app/guards'
 import { NAV, UTILITY_PATHS } from '@/nav/nav'
 import { MarketBriefing } from './MarketBriefing'
 import { LoginWelcome } from './LoginWelcome'
+import { Button } from '@/shared/ui/Button'
 
 /**
  * 登录页（沿用第一版 v1 的双态设计）。
@@ -123,8 +124,10 @@ export function LoginPage() {
             aria-label="登录或注册"
           >
             {(['login', 'register'] as const).map((m) => (
-              <button
+              <Button
                 key={m}
+                variant="ghost"
+                size="sm"
                 type="button"
                 role="tab"
                 aria-selected={mode === m}
@@ -133,7 +136,7 @@ export function LoginPage() {
                   setError(null)
                   setNotice(null)
                 }}
-                className={`flex-1 py-1.5 rounded-tile border-0 cursor-pointer text-label font-semibold ${
+                className={`flex-1 py-1.5 rounded-tile border-0 cursor-pointer font-semibold ${
                   mode === m ? 'text-white' : 'text-sf-ink-2 bg-transparent hover:text-sf-ink'
                 }`}
                 style={
@@ -143,7 +146,7 @@ export function LoginPage() {
                 }
               >
                 {m === 'login' ? '登录' : '注册'}
-              </button>
+              </Button>
             ))}
           </div>
 
@@ -217,7 +220,8 @@ export function LoginPage() {
               </p>
             )}
 
-            <button
+            <Button
+              variant="primary"
               type="submit"
               disabled={loading}
               className="w-full py-2.5 rounded-tile font-bold text-white border-0 cursor-pointer disabled:opacity-50"
@@ -226,13 +230,15 @@ export function LoginPage() {
               }}
             >
               {loading ? (isRegister ? '注册中…' : '登录中…') : isRegister ? '立即注册' : '立即登录'}
-            </button>
+            </Button>
           </form>
 
           {/* 演示账号一键填充（登录模式专用） */}
           {!isRegister && (
             <div className="flex gap-2 flex-wrap mt-3.5">
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 type="button"
                 onClick={() => {
                   setUsername('demo')
@@ -242,8 +248,10 @@ export function LoginPage() {
                 className="rounded-tile px-3 py-1.5 text-label border border-sf-line bg-sf-surface-2 text-sf-ink-2 hover:border-sf-accent"
               >
                 🧪 一键填演示账号
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
                 type="button"
                 onClick={() => {
                   setUsername('admin')
@@ -253,8 +261,10 @@ export function LoginPage() {
                 className="rounded-tile px-3 py-1.5 text-label border border-sf-line bg-sf-surface-2 text-sf-ink-2 hover:border-sf-accent"
               >
                 🔧 管理员
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
                 type="button"
                 onClick={() => {
                   setUsername('')
@@ -264,7 +274,7 @@ export function LoginPage() {
                 className="rounded-tile px-3 py-1.5 text-label border border-sf-line bg-sf-surface-2 text-sf-ink-2 hover:border-sf-accent"
               >
                 🧹 清空输入
-              </button>
+              </Button>
             </div>
           )}
 

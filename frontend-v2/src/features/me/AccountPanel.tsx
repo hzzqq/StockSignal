@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Card } from '@/shared/ui/Card'
+import { Button } from '@/shared/ui/Button'
 import { ErrorState, QueryState } from '@/shared/ui/States'
 import { Textarea } from '@/shared/ui/Field'
+import { useToast } from '@/shared/ui/Toast'
 import { SettingsInputSchema, AvatarInputSchema } from '@/api/schemas/community'
 import {
   useMe,
@@ -31,6 +33,7 @@ export function AccountPanel() {
   const settingsM = useSaveSettings()
   const avatarM = useSaveAvatar()
   const logoutM = useLogout()
+  const { push } = useToast()
 
   const [settingsText, setSettingsText] = useState('')
   const [settingsError, setSettingsError] = useState<string | null>(null)
@@ -69,7 +72,10 @@ export function AccountPanel() {
       return
     }
     setSettingsError(null)
-    settingsM.mutate({ settings: parsed.data.settings })
+    settingsM.mutate(
+      { settings: parsed.data.settings },
+      { onSuccess: () => push('设置已保存', 'ok') },
+    )
   }
 
   function onAvatarFile(e: ChangeEvent<HTMLInputElement>) {
@@ -88,7 +94,7 @@ export function AccountPanel() {
         return
       }
       setAvatarError(null)
-      avatarM.mutate({ avatar: parsed.data.avatar })
+      avatarM.mutate({ avatar: parsed.data.avatar }, { onSuccess: () => push('头像已保存', 'ok') })
     }
     reader.onerror = () => setAvatarError('头像读取失败')
     reader.readAsDataURL(file)
@@ -177,15 +183,16 @@ export function AccountPanel() {
             className="[&_textarea]:font-mono"
           />
           <div className="flex items-center gap-2">
-            <button
+            <Button
+              variant="primary"
+              size="sm"
               type="button"
               onClick={submitSettings}
               disabled={settingsM.isPending}
-              className="rounded-tile bg-sf-accent px-3 py-1.5 text-body text-white disabled:opacity-60"
+              className="rounded-tile px-3 py-1.5 text-body text-white disabled:opacity-60"
             >
               {settingsM.isPending ? '保存中…' : '保存设置'}
-            </button>
-            {settingsM.isSuccess && <span className="text-xs text-sf-ok">设置已保存</span>}
+            </Button>
           </div>
           {settingsError && <ErrorState message={settingsError} />}
           {settingsM.isError && <ErrorState message={errMsg(settingsM.error)} />}
@@ -202,7 +209,8 @@ export function AccountPanel() {
             onChange={onAvatarFile}
             className="sr-only"
           />
-          <button
+          <Button
+            variant="secondary"
             type="button"
             onClick={() => avatarInputRef.current?.click()}
             className="flex w-full cursor-pointer flex-col items-center gap-1 rounded-tile border border-dashed border-sf-line p-4 text-center transition-colors hover:border-sf-accent"
@@ -222,9 +230,8 @@ export function AccountPanel() {
               </svg>
             </span>
             <span className="text-xs text-sf-ink-2">点击选择头像图片</span>
-          </button>
+          </Button>
           <p className="text-xs text-sf-ink-3">仅接受 data:image/ 开头的图片，体积 ≤3MB。</p>
-          {avatarM.isSuccess && <span className="text-xs text-sf-ok">头像已保存</span>}
           {avatarError && <ErrorState message={avatarError} />}
           {avatarM.isError && <ErrorState message={errMsg(avatarM.error)} />}
         </div>
@@ -232,14 +239,16 @@ export function AccountPanel() {
 
       <Card title="退出登录">
         <div className="space-y-2">
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             type="button"
             onClick={submitLogout}
             disabled={logoutM.isPending}
             className="rounded-tile border border-sf-line px-3 py-1.5 text-body text-sf-ink-2 hover:text-sf-danger disabled:opacity-60"
           >
             {logoutM.isPending ? '登出中…' : '退出登录'}
-          </button>
+          </Button>
           {logoutM.isError && <ErrorState message={errMsg(logoutM.error)} />}
         </div>
       </Card>

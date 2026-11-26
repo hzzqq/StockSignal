@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { UserManagement } from './UserManagement'
+import { ToastProvider } from '@/shared/ui/Toast'
 import { getCurrentUser } from '@/lib/auth'
 import { listUsers, createUser, updateUser, deleteUser, listLogs } from '@/api/admin'
 import type { PublicUser } from '@/api/schemas/admin'
@@ -35,7 +36,9 @@ function client() {
 function renderUM() {
   return render(
     <QueryClientProvider client={client()}>
-      <UserManagement />
+      <ToastProvider>
+        <UserManagement />
+      </ToastProvider>
     </QueryClientProvider>,
   )
 }

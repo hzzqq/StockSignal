@@ -7,6 +7,8 @@ import { V1_PAGES_TOTAL } from '@/features/catalog/v1Pages.generated'
 import { ThemeToggle } from '@/shared/ui/ThemeToggle'
 import { Card } from '@/shared/ui/Card'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
+import { Button } from '@/shared/ui/Button'
+import { useToast } from '@/shared/ui/Toast'
 
 /**
  * 设置（/settings）：侧边栏底部固定入口，全部为**真实生效**的本地设置。
@@ -30,9 +32,9 @@ interface HealthResult {
 
 export function SettingsView() {
   const navigate = useNavigate()
+  const { push } = useToast()
   const [density, setDensityState] = useState<Density>(getDensity)
   const [v1Base, setV1BaseState] = useState(getV1Base)
-  const [savedV1, setSavedV1] = useState(false)
   const [health, setHealth] = useState<HealthResult | null>(null)
   const [testing, setTesting] = useState(false)
   const mocked = mocksEnabled()
@@ -45,7 +47,7 @@ export function SettingsView() {
   function saveV1Base() {
     setV1Base(v1Base)
     setV1BaseState(getV1Base())
-    setSavedV1(true)
+    push(`已保存：${v1Base}`, 'ok')
   }
 
   async function testBackend() {
@@ -103,19 +105,17 @@ export function SettingsView() {
             <span className="text-body text-sf-ink-2 w-24 shrink-0">表格密度</span>
             <div role="radiogroup" aria-label="表格密度" className="flex items-center gap-1">
               {(['comfortable', 'compact'] as Density[]).map((d) => (
-                <button
+                <Button
                   key={d}
                   type="button"
                   role="radio"
                   aria-checked={density === d}
                   onClick={() => changeDensity(d)}
-                  className={[
-                    'px-2 py-1 rounded-tile text-label border transition-colors',
-                    density === d ? 'text-sf-ink border-sf-accent bg-sf-surface-2' : 'text-sf-ink-2 border-sf-line',
-                  ].join(' ')}
+                  variant={density === d ? 'secondary' : 'ghost'}
+                  size="sm"
                 >
                   {d === 'compact' ? '紧凑' : '标准'}
-                </button>
+                </Button>
               ))}
             </div>
             <span className="text-label text-sf-ink-3">
@@ -146,14 +146,15 @@ export function SettingsView() {
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-body text-sf-ink-2 w-24 shrink-0">API 地址</span>
             <code className="text-label font-mono text-sf-ink">{BASE}</code>
-            <button
+            <Button
               type="button"
               onClick={() => void testBackend()}
               disabled={testing}
-              className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-1.5 text-label text-sf-ink hover:border-sf-accent disabled:opacity-50"
+              variant="secondary"
+              size="sm"
             >
               {testing ? '检测中…' : '测试连通性'}
-            </button>
+            </Button>
             {health ? (
               <span role="status" className={!health.simulated && health.httpStatus !== null && health.httpStatus < 400 ? 'text-label text-sf-ok' : 'text-label text-sf-warn'}>
                 HTTP {health.httpStatus ?? '—'} · {health.latencyMs} ms · {health.detail}
@@ -167,18 +168,13 @@ export function SettingsView() {
                 type="url"
                 aria-label="v1 服务地址"
                 value={v1Base}
-                onChange={(e) => { setV1BaseState(e.target.value); setSavedV1(false) }}
+                onChange={(e) => setV1BaseState(e.target.value)}
                 className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-1.5 text-body text-sf-ink"
               />
             </label>
-            <button
-              type="button"
-              onClick={saveV1Base}
-              className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-1.5 text-label text-sf-ink hover:border-sf-accent"
-            >
+            <Button type="button" onClick={saveV1Base} variant="primary" size="sm">
               保存
-            </button>
-            {savedV1 ? <span role="status" className="text-label text-sf-ok">已保存：{v1Base}</span> : null}
+            </Button>
             <span className="text-label text-sf-ink-3">用于「仅 v1」功能的直达链接</span>
           </div>
         </div>
@@ -189,13 +185,9 @@ export function SettingsView() {
           <span className="text-label text-sf-ink-3">
             本前端只保存登录 token、不缓存用户名；如需切换账号请退出后重新登录。
           </span>
-          <button
-            type="button"
-            onClick={onLogout}
-            className="rounded-tile border border-sf-line bg-sf-surface-2 px-3 py-1.5 text-label text-sf-ink hover:border-sf-accent"
-          >
+          <Button type="button" onClick={onLogout} variant="secondary" size="sm">
             退出登录
-          </button>
+          </Button>
         </div>
       </Card>
 

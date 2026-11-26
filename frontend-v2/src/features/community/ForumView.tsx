@@ -14,6 +14,8 @@ import {
   useAddComment,
 } from '@/lib/queriesCommunity'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
+import { Button } from '@/shared/ui/Button'
+import { useToast } from '@/shared/ui/Toast'
 
 
 function StockTag({
@@ -27,13 +29,9 @@ function StockTag({
 }) {
   if (!code) return null
   return (
-    <button
-      type="button"
-      onClick={() => onOpen(code)}
-      className="rounded-full border border-sf-line bg-sf-surface-2 px-2 py-0.5 text-label text-sf-accent hover:border-sf-accent"
-    >
+    <Button type="button" onClick={() => onOpen(code)} variant="secondary" size="sm">
       {name || code}（{code}）→ 个股研究
-    </button>
+    </Button>
   )
 }
 
@@ -52,13 +50,15 @@ function PostRow({
         <Avatar name={p.username} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start gap-2">
-            <button
+            <Button
               type="button"
               onClick={() => onOpenPost(p.id)}
-              className="text-left text-body font-semibold text-sf-ink hover:text-sf-accent"
+              variant="ghost"
+              size="sm"
+              className="h-auto justify-start whitespace-normal text-left font-semibold text-sf-ink"
             >
               {p.title}
-            </button>
+            </Button>
             <StockTag code={p.stock_code} name={p.stock_name} onOpen={onOpenStock} />
           </div>
           {p.excerpt && <p className="mt-1 line-clamp-2 text-label text-sf-ink-3">{p.excerpt}</p>}
@@ -111,6 +111,7 @@ function Avatar({ name }: { name: string }) {
 
 export function ForumView() {
   const navigate = useNavigate()
+  const { push } = useToast()
 
   const [stockCode, setStockCode] = useState('')
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -157,6 +158,7 @@ export function ForumView() {
           setContent('')
           setPostStockCode('')
           setPostStockName('')
+          push('发布成功', 'ok')
         },
       },
     )
@@ -170,7 +172,12 @@ export function ForumView() {
     if (selectedId === null) return
     commentM.mutate(
       { postId: selectedId, content: commentText },
-      { onSuccess: () => setCommentText('') },
+      {
+        onSuccess: () => {
+          setCommentText('')
+          push('评论成功', 'ok')
+        },
+      },
     )
   }
 
@@ -208,13 +215,14 @@ export function ForumView() {
                   />
                 </div>
                 {stockCode && (
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setStockCode('')}
-                    className="rounded-tile border border-sf-line px-3 py-1.5 text-label text-sf-ink-2 hover:text-sf-accent"
+                    variant="ghost"
+                    size="sm"
                   >
                     清除筛选
-                  </button>
+                  </Button>
                 )}
                 <span className="pb-1 text-label text-sf-ink-3">
                   当前筛选：{stockCode === '' ? '全部' : stockCode}
@@ -282,15 +290,15 @@ export function ForumView() {
                     已关联：{postStockName || postStockCode}（{postStockCode}）
                   </p>
                 )}
-                <button
+                <Button
                   type="button"
                   onClick={submitCreate}
                   disabled={createM.isPending}
-                  className="w-full rounded-tile bg-sf-accent px-3 py-2 text-body text-white disabled:opacity-60"
+                  variant="primary"
+                  className="w-full"
                 >
                   {createM.isPending ? '发布中…' : '发布帖子'}
-                </button>
-                {createM.isSuccess && <p className="text-label text-sf-ok">发布成功</p>}
+                </Button>
                 {createM.isError && <ErrorState message={errMsg(createM.error)} />}
               </div>
             </Card>
@@ -312,13 +320,15 @@ export function ForumView() {
       ) : (
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
           <div className="flow">
-            <button
+            <Button
               type="button"
               onClick={backToList}
-              className="w-fit rounded-tile border border-sf-line px-3 py-1.5 text-label text-sf-ink-2 hover:text-sf-accent"
+              variant="ghost"
+              size="sm"
+              className="w-fit"
             >
               ← 返回帖子列表
-            </button>
+            </Button>
 
             <QueryState
               isLoading={detailQ.isLoading}
@@ -350,41 +360,45 @@ export function ForumView() {
                     </p>
 
                     <div className="flex flex-wrap items-center gap-2 border-t border-sf-line pt-3">
-                      <button
+                      <Button
                         type="button"
                         onClick={submitLike}
                         disabled={likeM.isPending}
-                        className="rounded-tile border border-sf-line px-3 py-1.5 text-label text-sf-ink-2 hover:text-sf-accent disabled:opacity-60"
+                        variant="secondary"
+                        size="sm"
                       >
                         {likeM.isPending ? '点赞中…' : `点赞（${detailQ.data.likes}）`}
-                      </button>
+                      </Button>
                       {!confirmingDelete && (
-                        <button
+                        <Button
                           type="button"
                           onClick={() => setConfirmingDelete(true)}
-                          className="rounded-tile border border-sf-line px-3 py-1.5 text-label text-sf-ink-2 hover:text-sf-danger"
+                          variant="danger"
+                          size="sm"
                         >
                           删除帖子
-                        </button>
+                        </Button>
                       )}
                       {confirmingDelete && (
                         <>
                           <span className="text-label text-sf-ink-2">确认删除该帖子？</span>
-                          <button
+                          <Button
                             type="button"
                             onClick={submitDelete}
                             disabled={deleteM.isPending}
-                            className="rounded-tile border border-sf-line px-3 py-1.5 text-label text-sf-danger disabled:opacity-60"
+                            variant="danger"
+                            size="sm"
                           >
                             确认删除
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
                             onClick={() => setConfirmingDelete(false)}
-                            className="rounded-tile border border-sf-line px-3 py-1.5 text-label text-sf-ink-2"
+                            variant="ghost"
+                            size="sm"
                           >
                             取消
-                          </button>
+                          </Button>
                         </>
                       )}
                     </div>
@@ -427,15 +441,15 @@ export function ForumView() {
                         onChange={(e) => setCommentText(e.target.value)}
                         rows={3}
                       />
-                      <button
+                      <Button
                         type="button"
                         onClick={submitComment}
                         disabled={commentM.isPending}
-                        className="rounded-tile bg-sf-accent px-3 py-1.5 text-body text-white disabled:opacity-60"
+                        variant="primary"
+                        size="sm"
                       >
                         {commentM.isPending ? '发表中…' : '发表评论'}
-                      </button>
-                      {commentM.isSuccess && <span className="text-label text-sf-ok">评论成功</span>}
+                      </Button>
                     </div>
                   </div>
                 </Card>
