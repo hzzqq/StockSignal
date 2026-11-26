@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ToastProvider } from '@/shared/ui/Toast'
 import {
   applyTheme,
   readPref,
@@ -89,7 +90,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }
 
-/** 全局 Providers：主题上下文包住 TanStack Query 客户端（原有配置不变）。 */
+/** 全局 Providers：主题上下文包住 TanStack Query 客户端与全局 Toast（原有配置不变）。 */
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(
     () =>
@@ -108,7 +109,9 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <ThemeProvider>
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <ToastProvider>{children}</ToastProvider>
+      </QueryClientProvider>
     </ThemeProvider>
   )
 }

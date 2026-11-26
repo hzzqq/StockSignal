@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { classifyIntent } from './intent'
+import { classifyIntent, extractTopic } from './intent'
 
 describe('classifyIntent（规则引擎）', () => {
   it('研判类：带代码 → analyze + 追问 chips', () => {
@@ -61,5 +61,37 @@ describe('classifyIntent（规则引擎）', () => {
       expect(r.needsParam).toBe(true)
       expect(r.paramPrompts.length).toBeGreaterThan(0)
     }
+  })
+})
+
+describe('extractTopic（诚实抽取：宁可抽不出也不误抽）', () => {
+  it('6 位代码优先', () => {
+    expect(extractTopic('600519 现在能买吗')).toBe('600519')
+  })
+
+  it('中文股票名：「通富微电」两问句均抽出实体', () => {
+    expect(extractTopic('通富微电之后怎么走')).toBe('通富微电')
+    expect(extractTopic('通富微电怎么看')).toBe('通富微电')
+  })
+
+  it('后缀白名单命中：歌尔股份值得买吗 → 歌尔股份', () => {
+    expect(extractTopic('歌尔股份值得买吗')).toBe('歌尔股份')
+  })
+
+  it('纯寒暄不抽实体', () => {
+    expect(extractTopic('你好')).toBeUndefined()
+    expect(extractTopic('谢谢')).toBeUndefined()
+  })
+
+  it('泛泛提问不误抽伪实体', () => {
+    // 「大盘」是既有 ENTITY_KEYWORDS 的语义正确命中；守卫点是绝不误抽「今天大盘」这类句子片段
+    expect(extractTopic('今天大盘怎么样')).toBe('大盘')
+    expect(extractTopic('今天大盘怎么样')).not.toBe('今天大盘')
+    expect(extractTopic('随便聊聊')).toBeUndefined()
+    expect(extractTopic('怎么充电比较快')).toBeUndefined()
+  })
+
+  it('不在词表/后缀覆盖的名字宁可放弃，不硬抽（中际旭创 → undefined）', () => {
+    expect(extractTopic('今天能买中际旭创吗')).toBeUndefined()
   })
 })

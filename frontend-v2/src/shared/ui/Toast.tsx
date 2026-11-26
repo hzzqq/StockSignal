@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState, createContext } from 'react'
+import type { ReactNode } from 'react'
 
 /**
- * 精致层次档 · 轻量 Toast（页面级局部状态，不引入全局 Context Provider）。
+ * 精致层次档 · 轻量 Toast（全局 Provider 版）。
  * tone 只用 sf-ok / sf-warn / sf-danger / sf-accent 状态令牌，绝不用涨跌色。
+ *
+ * 用法：应用根部（providers.tsx）挂一次 <ToastProvider>（自带 ToastViewport 渲染），
+ * 任意页面组件内 const { push } = useToast(); push('消息', 'ok') 即可。
+ * 兼容性：无 Provider 时 useToast 返回 no-op（toasts 恒空、push/dismiss 静默丢弃），
+ * 纯组件单测 / renderToStaticMarkup 等场景不崩、不吐 toast——有意选择 no-op 而非 throw，
+ * 因为 toast 是纯增强型反馈，缺失 Provider 不应让页面渲染失败。
  */
 export type ToastTone = 'ok' | 'warn' | 'danger' | 'info'
 
@@ -20,7 +27,8 @@ export interface UseToast {
 
 const TIMEOUT_MS = 4000
 
-export function useToast(): UseToast {
+/** 内部状态实现：Provider 持有，页面只读。 */
+function useToastStore(): UseToast {
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>())
   const seq = useRef(0)
@@ -54,6 +62,31 @@ export function useToast(): UseToast {
   )
 
   return { toasts, push, dismiss }
+}
+
+/** 无 Provider 时的默认值：全 no-op（见文件头注释）。 */
+const NOOP_TOAST_API: UseToast = {
+  toasts: [],
+  push: () => '',
+  dismiss: () => {},
+}
+
+const ToastContext = createContext<UseToast>(NOOP_TOAST_API)
+
+/** 全局 Toast Provider：持有状态，并在根部代渲染 ToastViewport（页面无需再挂）。 */
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const store = useToastStore()
+  return (
+    <ToastContext.Provider value={store}>
+      {children}
+      <ToastViewport toasts={store.toasts} onDismiss={store.dismiss} />
+    </ToastContext.Provider>
+  )
+}
+
+/** 消费全局 Toast：必须在 <ToastProvider> 内调用，否则得到 no-op（不崩、不显示）。 */
+export function useToast(): UseToast {
+  return useContext(ToastContext)
 }
 
 const TONE_CLASS: Record<

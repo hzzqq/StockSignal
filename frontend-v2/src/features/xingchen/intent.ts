@@ -102,7 +102,10 @@ export const DIMENSIONS: Record<XcIntentKind, { label: string; desc: string }[]>
   ],
 }
 
-/** 从问题抽取标的主题（6 位代码或命中实体关键词）。命中不到返回 undefined（诚实不编造）。 */
+/**
+ * 从问题抽取标的主题：6 位代码 → 实体关键词 → 中文公司名候选（保守启发式）。
+ * 命中不到返回 undefined（诚实不编造，宁可抽不出也不误抽）。
+ */
 export function extractTopic(question: string): string | undefined {
   const q = (question || '').trim()
   const code = q.match(/\b\d{6}\b/)
@@ -110,8 +113,52 @@ export function extractTopic(question: string): string | undefined {
   for (const k of ENTITY_KEYWORDS) {
     if (q.includes(k)) return k
   }
+  return extractChineseName(q)
+}
+
+/** 连续中文串（候选实体切分单元）。 */
+const HAN_RUN_RE = /[\u4e00-\u9fff]+/g
+
+/** 候选实体首部需剥掉的口水/称谓/时地域动词前缀（迭代剥到稳定）。 */
+const LEADING_FILLER_RE =
+  /^(?:请问|您看|你觉得|你想|我想|我想知道|我想了解|帮我|帮忙|帮忙看看|看看|说说|谈谈|讲讲|聊聊|分析一下|分析下|分析|评估|研判|解读|介绍一下|介绍下|查一下|查下|现在|目前|最近|今天|明天|当前|这个|那个|再|又|也|都|就|买|卖|加仓|减仓|建仓|上车)+/
+
+/** 候选实体尾部需剥掉的连接词/疑问/动宾后缀（迭代剥到稳定；长词在前防吞半截）。 */
+const TRAILING_FILLER_RE =
+  /(?:之后|以后|然后|接下来|怎么样|怎么看|怎么走|怎么办|如何看待|如何|走势|前景|机会|风险|估值|行情|表现|值得买吗|能买吗|值得买|能买|还能涨|会涨|会跌|能不能|的话|吗|呢|吧|嘛|了|的|啊|呀)+$/
+
+/** 真实股票名几乎不含的虚词/指代字（含任一即判非实体，防把句子片段当名字）。 */
+const STOP_CHARS_RE = /[我你您他她它们这那哪吗呢吧嘛啊呀了的是和与跟对把被就都很还才刚要想问请]/
+
+/**
+ * 公司名常见后缀白名单（核心串以其结尾才视为候选；不收单字后缀，防误抽）。
+ * 覆盖不到的名字宁可放弃（后端解析兜底），不放宽标准。
+ */
+const NAME_SUFFIX_RE =
+  /(?:微电子|微电|半导体|科技|电子|电器|电气|机械|软件|网络|传媒|通信|通讯|生物|医药|药业|医疗|器械|银行|证券|保险|能源|电力|汽车|钢铁|水泥|化工|化纤|集团|控股|光电|重工|精密|智能|环保|航空|物流|食品|乳业|数码|信息|数据|时代|地产|置业|股份|实业|材料|环境|动力)$/
+
+/**
+ * 保守中文公司名启发式：剥掉首尾口水/疑问词后，核心串须为 2-6 字纯中文、
+ * 不含虚词、以公司名后缀结尾、且长于后缀本身（防「股份」这类裸后缀）。
+ * 通富微电/中兴通讯/歌尔股份类可命中；寒武纪/京东方类放弃（不误抽）。
+ */
+function extractChineseName(q: string): string | undefined {
+  for (const run of q.match(HAN_RUN_RE) ?? []) {
+    let prev = ''
+    let core = run
+    while (core !== prev) {
+      prev = core
+      core = core.replace(LEADING_FILLER_RE, '').replace(TRAILING_FILLER_RE, '')
+    }
+    if (core.length < 2 || core.length > 6) continue
+    if (STOP_CHARS_RE.test(core)) continue
+    const suffix = core.match(NAME_SUFFIX_RE)
+    if (!suffix || core.length <= suffix[0].length) continue
+    return core
+  }
   return undefined
 }
+
 
 const PROCESS_STEPS: Record<XcIntentKind, string[]> = {
   analyze: [

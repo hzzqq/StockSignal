@@ -8,7 +8,7 @@ import { Input, Textarea } from '@/shared/ui/Field'
 import { Skeleton } from '@/shared/ui/Skeleton'
 import { EmptyStateModern } from '@/shared/ui/EmptyStateModern'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
-import { ToastViewport, useToast } from '@/shared/ui/Toast'
+import { useToast } from '@/shared/ui/Toast'
 
 /** 本次会话内刚上传图片的 objectURL 预览项。 */
 interface UploadedPreview {
@@ -43,7 +43,7 @@ export function ReviewNotes() {
   const objectUrlsRef = useRef<string[]>([])
   // 隐藏 file input：上传区可视化外壳点击 / 拖拽时触发同一 input 与校验逻辑
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { toasts, push, dismiss } = useToast()
+  const { push } = useToast()
 
   function clearPreviews() {
     for (const u of objectUrlsRef.current) URL.revokeObjectURL(u)
@@ -262,8 +262,6 @@ export function ReviewNotes() {
           </div>
         </form>
       </Card>
-
-      <ToastViewport toasts={toasts} onDismiss={dismiss} />
     </div>
   )
 }

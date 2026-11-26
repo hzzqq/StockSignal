@@ -7,21 +7,29 @@ import {
   afterEach,
 } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-import { useToast, ToastViewport } from './Toast'
+import { useToast, ToastViewport, ToastProvider } from './Toast'
 import type { ToastItem, UseToast } from './Toast'
 
 let api!: UseToast
 
 function Harness() {
   api = useToast()
-  return <ToastViewport toasts={api.toasts} onDismiss={api.dismiss} />
+  return null
 }
+
+/** 全局版：状态归 ToastProvider 持有，Harness 只消费。 */
+const renderInProvider = () =>
+  render(
+    <ToastProvider>
+      <Harness />
+    </ToastProvider>,
+  )
 
 const toasts = (items: ToastItem[]) => (
   <ToastViewport toasts={items} onDismiss={() => {}} />
 )
 
-describe('Toast · useToast + ToastViewport', () => {
+describe('Toast · ToastProvider + useToast + ToastViewport', () => {
   beforeEach(() => {
     vi.useFakeTimers()
   })
@@ -31,8 +39,8 @@ describe('Toast · useToast + ToastViewport', () => {
     vi.restoreAllMocks()
   })
 
-  it('push 后渲染消息，tone 对应状态色与 role', () => {
-    render(<Harness />)
+  it('Provider 内 push 后渲染消息，tone 对应状态色与 role', () => {
+    renderInProvider()
     act(() => {
       api.push('保存成功', 'ok')
       api.push('磁盘不足', 'warn')
@@ -47,8 +55,8 @@ describe('Toast · useToast + ToastViewport', () => {
     expect(screen.getAllByRole('alert').length).toBe(2)
   })
 
-  it('push 后 4s 自动移除（阈值前后各验一次）', () => {
-    render(<Harness />)
+  it('Provider 内 push 后 4s 自动移除（阈值前后各验一次）', () => {
+    renderInProvider()
     act(() => {
       api.push('稍后消失')
     })
@@ -64,7 +72,7 @@ describe('Toast · useToast + ToastViewport', () => {
   })
 
   it('dismiss 手动移除，且原定时器被清除', () => {
-    render(<Harness />)
+    renderInProvider()
     act(() => {
       api.push('手动关闭', 'danger')
     })
@@ -91,12 +99,44 @@ describe('Toast · useToast + ToastViewport', () => {
 
   it('卸载时清理未触发的定时器', () => {
     const clearSpy = vi.spyOn(globalThis, 'clearTimeout')
-    const { unmount } = render(<Harness />)
+    const { unmount } = renderInProvider()
     act(() => {
       api.push('卸载清理')
     })
     const before = clearSpy.mock.calls.length
     unmount()
     expect(clearSpy.mock.calls.length).toBeGreaterThan(before)
+  })
+
+  it('无 Provider 时 useToast 为 no-op：push/dismiss 不崩、无 toast 渲染', () => {
+    render(<Harness />)
+    act(() => {
+      api.push('无 Provider', 'danger')
+      api.dismiss('toast-1')
+    })
+    expect(api.toasts).toEqual([])
+    expect(screen.queryByText('无 Provider')).toBeNull()
+  })
+
+  it('Provider 集成：子组件 push → 根部 ToastViewport 出现 → 4s 自动消失', () => {
+    function Page() {
+      const { push } = useToast()
+      return (
+        <button type="button" onClick={() => push('集成成功', 'ok')}>
+          触发推送
+        </button>
+      )
+    }
+    render(
+      <ToastProvider>
+        <Page />
+      </ToastProvider>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: '触发推送' }))
+    expect(screen.getByText('集成成功').className).toContain('text-sf-ok')
+    act(() => {
+      vi.advanceTimersByTime(4000)
+    })
+    expect(screen.queryByText('集成成功')).toBeNull()
   })
 })
