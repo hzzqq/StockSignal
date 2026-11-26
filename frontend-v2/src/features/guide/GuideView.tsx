@@ -165,7 +165,7 @@ export function GuideView() {
             </thead>
             <tbody className="text-sf-ink-2">
               {GLOSSARY.map((g) => (
-                <tr key={g.term} className="border-b border-sf-line last:border-0">
+                <tr key={g.term} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
                   <td className="py-1.5 pr-3 text-sf-ink whitespace-nowrap">{g.term}</td>
                   <td className="py-1.5">{g.desc}</td>
                 </tr>

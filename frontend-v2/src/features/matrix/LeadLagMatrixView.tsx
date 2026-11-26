@@ -99,7 +99,7 @@ export function LeadLagMatrixView() {
               </thead>
               <tbody className="text-sf-ink-2">
                 {matrix.rows.map((r) => (
-                  <tr key={`${r.x}-${r.y}`} className="border-b border-sf-line last:border-0">
+                  <tr key={`${r.x}-${r.y}`} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
                     <td className="py-1.5 pr-3">{r.xLabel} → {r.yLabel}</td>
                     <td className="py-1.5 pr-3 tabular-nums">{signedLag(r) > 0 ? `+${signedLag(r)}` : signedLag(r)}</td>
                     <td className="py-1.5 pr-3 tabular-nums">{r.corr.toFixed(3)}</td>

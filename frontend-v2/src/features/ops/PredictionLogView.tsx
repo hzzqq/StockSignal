@@ -296,7 +296,7 @@ function PredictionBody({ rows }: { rows: PredictionLogRow[] }) {
             </thead>
             <tbody className="text-sf-ink-2">
               {recent.map((r) => (
-                <tr key={r.date} className="border-b border-sf-line last:border-0">
+                <tr key={r.date} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
                   <td className="py-1.5 pr-3 tabular-nums">{r.date}</td>
                   <td className="py-1.5 pr-3 text-right tabular-nums">{fmtNum(r.temp)}</td>
                   <td className="py-1.5 pr-3">{r.cycle ?? '—'}</td>

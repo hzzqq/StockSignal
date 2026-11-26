@@ -226,7 +226,7 @@ function StockEventBody({ data }: { data: StockEvent }) {
                 // 仅 http(s) 链接可点击，避免 javascript: 等伪协议。
                 const href = e.url && /^https?:\/\//i.test(e.url) ? e.url : null
                 return (
-                  <tr key={`${e.date ?? 'no-date'}-${i}`} className="border-b border-sf-line align-top">
+                  <tr key={`${e.date ?? 'no-date'}-${i}`} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2 align-top">
                     <td className="py-2 pr-3 whitespace-nowrap font-mono text-label">{fmtNum(e.date)}</td>
                     <td className="py-2 pr-3">
                       {href ? (

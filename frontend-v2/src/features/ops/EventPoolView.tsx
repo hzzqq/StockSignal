@@ -118,7 +118,7 @@ function EventPoolBody({ data }: { data: EventPool }) {
             </thead>
             <tbody className="text-sf-ink-2">
               {rows.map((r) => (
-                <tr key={`${r.rank}-${r.symbol}`} className="border-b border-sf-line last:border-0">
+                <tr key={`${r.rank}-${r.symbol}`} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
                   <td className="py-1.5 pr-3 tabular-nums">{fmtNum(r.rank)}</td>
                   <td className="py-1.5 pr-3 font-mono">{r.symbol}</td>
                   <td className="py-1.5 pr-3 text-right tabular-nums">{fmtNum(r.score)}</td>

@@ -152,7 +152,7 @@ function SyncBody({ data }: { data: P1SyncStatus }) {
               </thead>
               <tbody className="text-sf-ink-2">
                 {rows.map((r) => (
-                  <tr key={r.file ?? r.model_key ?? r.latest_date ?? 'row'} className="border-b border-sf-line last:border-0">
+                  <tr key={r.file ?? r.model_key ?? r.latest_date ?? 'row'} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
                     <td className="py-1.5 pr-3">{r.model_key ?? r.file ?? '—'}</td>
                     <td className="py-1.5 pr-3 tabular-nums">{r.latest_date ?? '—'}</td>
                     <td className="py-1.5 pr-3 text-right tabular-nums">{fmtNum(r.age_days)}</td>
@@ -210,7 +210,7 @@ function RunsBody({ data }: { data: BacktestRuns }) {
             {rows.map((r) => {
               const s = r.summary
               return (
-                <tr key={r.run_id} className="border-b border-sf-line last:border-0">
+                <tr key={r.run_id} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
                   <td className="py-1.5 pr-3 tabular-nums" title={r.run_id}>{r.created_at ?? '—'}</td>
                   <td className="py-1.5 pr-3">
                     {s?.ticker ?? '—'} <span className="text-label text-sf-ink-3">/ {s?.strategy ?? '—'}</span>

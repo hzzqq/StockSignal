@@ -201,7 +201,7 @@ function EarningsHunterBody({ data }: { data: EarningsHunter }) {
               </thead>
               <tbody className="text-sf-ink-2">
                 {data.rows.map((r, i) => (
-                  <tr key={i} className="border-b border-sf-line last:border-0">
+                  <tr key={i} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
                     {cols.map((c) => (
                       <td key={c} className="py-1.5 pr-3 tabular-nums">
                         {fmtNum(r[c])}

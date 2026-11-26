@@ -115,13 +115,13 @@ export function MarketSentiment() {
                     </thead>
                     <tbody>
                       {items.map((it) => (
-                        <tr key={it.key} className="border-b border-sf-line/60">
+                        <tr key={it.key} className="border-b border-sf-line/60 last:border-0 hover:bg-sf-surface-2">
                           <td className="py-1.5 pr-3 text-sf-ink">{it.name}</td>
-                          <td className="py-1.5 pr-3 text-right text-sf-ink">
+                          <td className="py-1.5 pr-3 text-right tabular-nums text-sf-ink">
                             {it.value != null ? it.value.toFixed(2) : '—'}
                           </td>
                           <td className="py-1.5 pr-3 text-right text-sf-ink-2">{it.unit || '—'}</td>
-                          <td className="py-1.5 pr-3 text-right text-sf-ink-2">
+                          <td className="py-1.5 pr-3 text-right tabular-nums text-sf-ink-2">
                             {it.heat != null ? it.heat.toFixed(1) : '—'}
                           </td>
                           <td className="py-1.5 pr-3 text-right">

@@ -100,7 +100,7 @@ export function IntradayChart({ rows, prevClose, priceDomain, height = 340 }: In
             </thead>
             <tbody className="text-sf-ink-2">
               {model.points.map((p, i) => (
-                <tr key={`${p.time}-${i}`} className="border-b border-sf-line last:border-0">
+                <tr key={`${p.time}-${i}`} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
                   <td className="py-1.5 pr-3 tabular-nums">{p.label}</td>
                   <td className="py-1.5 pr-3 tabular-nums">{fmt(p.close)}</td>
                   <td className="py-1.5 pr-3 tabular-nums">{fmt(model.avg[i])}</td>

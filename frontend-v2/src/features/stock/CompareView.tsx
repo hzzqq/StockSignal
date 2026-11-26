@@ -263,7 +263,7 @@ function CompareTable({
         </thead>
         <tbody className="text-sf-ink-2">
           {fields.map((field) => (
-            <tr key={field} className="border-b border-sf-line last:border-0">
+            <tr key={field} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
               <th
                 scope="row"
                 className="text-left py-1.5 pr-3 font-normal text-sf-ink-3 sticky left-0 bg-sf-surface"
@@ -398,7 +398,7 @@ function CompareChart({
           </thead>
           <tbody className="text-sf-ink-2">
             {numericFields.map((field) => (
-              <tr key={field} className="border-b border-sf-line last:border-0">
+              <tr key={field} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
                 <th scope="row" className="text-left py-1.5 pr-3 font-normal text-sf-ink-3">{field}</th>
                 {codes.map((c) => {
                   const v = rows[c]

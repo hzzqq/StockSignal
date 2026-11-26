@@ -225,7 +225,7 @@ function EventBacktestBody({ data }: { data: EventBacktest }) {
               </thead>
               <tbody>
                 {examples.map((ex) => (
-                  <tr key={ex.date} className="border-b border-sf-line/60 text-sf-ink">
+                  <tr key={ex.date} className="border-b border-sf-line/60 last:border-0 text-sf-ink hover:bg-sf-surface-2">
                     <td className="py-1.5 px-2">{ex.date}</td>
                     <td className="text-right py-1.5 px-2 tabular-nums">{fmtNum(ex.metric_value, 2)}</td>
                     <td className="text-right py-1.5 px-2 tabular-nums">{fmtPct(ex.forward_red_day_frac)}</td>

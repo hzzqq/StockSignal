@@ -154,11 +154,11 @@ export function DiagnosticsView() {
                       </thead>
                       <tbody className="text-sf-ink-2">
                         {data.sources.items.length > 0 ? data.sources.items.map((it) => (
-                          <tr key={it.key} className="border-b border-sf-line last:border-0">
+                          <tr key={it.key} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
                             <td className="py-1.5 pr-3">{it.label}</td>
                             <td className={`py-1.5 pr-3 ${statusClass(it.ok)}`}>{it.ok ? '可用' : '不可用'}</td>
                             <td className="py-1.5 pr-3 text-sf-ink-3">{it.detail ?? '—'}</td>
-                            <td className="py-1.5 text-sf-ink-3">
+                            <td className="py-1.5 text-sf-ink-3 tabular-nums">
                               {it.tables && Object.keys(it.tables).length > 0
                                 ? Object.entries(it.tables).map(([k, v]) => `${k} ${fmtNum(v)}`).join(' · ')
                                 : '—'}
@@ -260,7 +260,7 @@ export function DiagnosticsView() {
                       </thead>
                       <tbody className="text-sf-ink-2">
                         {endpointResults.map((r) => (
-                          <tr key={r.path} className="border-b border-sf-line last:border-0">
+                          <tr key={r.path} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
                             <td className="py-1.5 pr-3 font-mono text-label break-all">{r.path}</td>
                             <td className="py-1.5 pr-3 tabular-nums">{r.httpStatus ?? '—'}</td>
                             <td className="py-1.5 pr-3">{r.envelopeStatus ?? '—'}{r.envelopeCode ? ` · ${r.envelopeCode}` : ''}</td>
@@ -312,7 +312,7 @@ function FreshnessTable({ rows }: { rows: DiagnosticsFreshnessRow[] }) {
         </thead>
         <tbody className="text-sf-ink-2">
           {rows.map((r) => (
-            <tr key={r.key} className="border-b border-sf-line last:border-0">
+            <tr key={r.key} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
               <td className="py-1.5 pr-3">{r.name}</td>
               <td className="py-1.5 pr-3 tabular-nums">{r.as_of ?? '—'}</td>
               <td className="py-1.5 pr-3 text-right tabular-nums">{fmtNum(r.lag_days)}</td>

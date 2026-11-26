@@ -117,7 +117,7 @@ function DataRenderer({ data }: { data: unknown }) {
       return (
         <div className="overflow-x-auto">
           <table className="cat-table w-full text-body border-collapse">
-            <tbody>{rows.map((r, i) => <tr key={i}><td className="py-1.5">{cell(r)}</td></tr>)}</tbody>
+            <tbody>{rows.map((r, i) => <tr key={i} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2"><td className="py-1.5">{cell(r)}</td></tr>)}</tbody>
           </table>
         </div>
       )
@@ -134,7 +134,7 @@ function DataRenderer({ data }: { data: unknown }) {
             </thead>
             <tbody className="text-sf-ink-2">
               {rows.map((r, i) => (
-                <tr key={i} className="border-b border-sf-line last:border-0">
+                <tr key={i} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
                   {cols.map((c) => (
                     <td key={c} className="py-1.5 pr-3 align-top break-all">{cell((r as Record<string, unknown>)?.[c])}</td>
                   ))}
@@ -165,7 +165,7 @@ function DataRenderer({ data }: { data: unknown }) {
           </thead>
           <tbody className="text-sf-ink-2">
             {entries.map(([k, v]) => (
-              <tr key={k} className="border-b border-sf-line last:border-0">
+              <tr key={k} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
                 <td className="py-1.5 pr-3 font-mono text-body">{k}</td>
                 <td className="py-1.5 break-all">{cell(v)}</td>
               </tr>
