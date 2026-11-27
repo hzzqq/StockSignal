@@ -88,7 +88,7 @@ except Exception as _pp_err:  # noqa: BLE001
 
 
 # Tier1.1 安全拆分 pilot：纯函数 _safe_json_loads 迁入 modules.fetcher_core，
-# 此处 re-export 保持行为零变化（fetcher.py 内部 509/519/547/1174 行调用不受影响）。
+# 此处 re-export 保持行为零变化（定义见该包 __init__.py，调用方经本组合层导入，旧行号已失效）。
 from modules.fetcher_core import _safe_json_loads  # noqa: F401, I001
 
 from modules.fetcher_base import BaseFetcher, load_config  # noqa: F401

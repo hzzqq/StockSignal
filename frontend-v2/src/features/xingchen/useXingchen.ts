@@ -183,7 +183,7 @@ async function ensureConv(sid: string): Promise<number | null> {
   }
 }
 
-/** 防抖保存本会话的 user/assistant 消息到后端（失败静默）。 */
+/** 防抖保存本会话的 user/assistant 消息到后端：失败仅 console.warn 留痕，不打断用户；下轮防抖会全量补存。 */
 function scheduleSave(sid: string, convId: number): void {
   const existing = saveTimers.get(sid)
   if (existing) clearTimeout(existing)
@@ -194,7 +194,9 @@ function scheduleSave(sid: string, convId: number): void {
     const wire = s.messages
       .filter((m) => m.kind === 'user' || m.kind === 'assistant')
       .map(chatToWire)
-    void saveConversationMessages(convId, wire).catch(() => {})
+    void saveConversationMessages(convId, wire).catch((err) => {
+      console.warn('[xingchen] 会话消息自动保存失败', { sid, convId, err })
+    })
   }, SAVE_DEBOUNCE)
   saveTimers.set(sid, t)
 }

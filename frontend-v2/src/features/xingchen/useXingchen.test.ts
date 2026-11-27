@@ -23,6 +23,7 @@ import {
   listConversations,
   createConversation,
   getConversationMessages,
+  saveConversationMessages,
   deleteConversation,
   exportConversationMarkdown,
   getChatHistory,
@@ -315,6 +316,66 @@ describe('useXingchen 多会话持久化', () => {
     vi.mocked(exportConversationMarkdown).mockResolvedValue('# 对话7\n\n')
     await useXingchenStore.getState().exportSession('s-7', 'markdown')
     expect(exportConversationMarkdown).toHaveBeenCalledWith(7)
+  })
+})
+
+describe('useXingchen 自动保存失败留痕', () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    resetXingchen()
+    vi.mocked(saveConversationMessages).mockReset()
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    warnSpy.mockRestore()
+  })
+
+  it('保存失败 → console.warn 留痕含 sid/convId，不外抛且不泄漏消息正文', async () => {
+    const SECRET = '绝密用户正文G1SECRET'
+    useXingchenStore.setState({
+      sessions: {
+        's-g1': {
+          id: 's-g1',
+          convId: 42,
+          messages: [
+            { id: 'u-g1', kind: 'user', role: 'user', content: SECRET, status: 'done', ts: 1 },
+          ],
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      },
+      order: ['s-g1'],
+      activeId: 's-g1',
+    })
+    vi.mocked(saveConversationMessages).mockRejectedValue(new Error('后端500-保存失败'))
+
+    vi.useFakeTimers()
+    // 「你好」→ needsParam 分支直接 scheduleSave(sid, convId)，convId 复用已建会话
+    await useXingchenStore.getState().submitQuestion('你好')
+    // 推进超过 SAVE_DEBOUNCE(800ms)，触发防抖保存
+    await vi.advanceTimersByTimeAsync(900)
+
+    expect(saveConversationMessages).toHaveBeenCalledTimes(1)
+    expect(saveConversationMessages).toHaveBeenCalledWith(42, expect.any(Array))
+
+    // ① 留痕被调用，且参数含 sid/convId（Error 用 message 取值，对象走 JSON）
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+    const warnText = warnSpy.mock.calls[0]
+      .map((a) => (a instanceof Error ? a.message : typeof a === 'string' ? a : JSON.stringify(a)))
+      .join(' ')
+    expect(warnText).toContain('s-g1')
+    expect(warnText).toContain('42')
+
+    // ② rejection 不外抛：store 状态不受影响，消息仍在
+    const s = useXingchenStore.getState().sessions['s-g1']
+    expect(s).toBeDefined()
+    expect(s.messages.some((m) => m.content === SECRET)).toBe(true)
+
+    // ③ 不把对话正文写进控制台
+    expect(warnText).not.toContain(SECRET)
+    expect(warnText).not.toContain('你好')
   })
 })
 
