@@ -62,7 +62,11 @@ export function SimilarDays() {
 
       {q.isLoading && <Loading label="加载历史相似日统计…" />}
       {q.isError && (
-        <ErrorState message={q.error instanceof Error ? q.error.message : '历史相似日统计加载失败'} />
+        <ErrorState
+          message={q.error instanceof Error ? q.error.message : '历史相似日统计加载失败'}
+          onRetry={() => q.refetch()}
+          retrying={q.isRefetching}
+        />
       )}
       {!q.isLoading && !q.isError && !d && <EmptyStateModern title="暂无历史相似日统计" />}
 

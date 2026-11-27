@@ -24,7 +24,11 @@ export function MomentumResonance() {
 
       {q.isLoading && <Loading label="加载共振矩阵…" />}
       {q.isError && (
-        <ErrorState message={q.error instanceof Error ? q.error.message : '共振矩阵加载失败'} />
+        <ErrorState
+          message={q.error instanceof Error ? q.error.message : '共振矩阵加载失败'}
+          onRetry={() => q.refetch()}
+          retrying={q.isRefetching}
+        />
       )}
 
       {data && !data.available && (

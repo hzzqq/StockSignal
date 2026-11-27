@@ -39,6 +39,8 @@ export function EventPoolView() {
         isEmpty={!pool.data?.pool?.length}
         emptyLabel="事件池为空"
         emptyHint="数据文件缺失或池内无标的，未做任何填充"
+        onRetry={() => pool.refetch()}
+        retrying={pool.isRefetching}
       >
         {pool.data ? <EventPoolBody data={pool.data} /> : null}
       </QueryState>

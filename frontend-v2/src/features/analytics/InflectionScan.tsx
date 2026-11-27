@@ -85,7 +85,11 @@ export function InflectionScan() {
 
       {q.isLoading && <Loading label="加载拐点扫描结果…" />}
       {q.isError && (
-        <ErrorState message={q.error instanceof Error ? q.error.message : '拐点扫描结果加载失败'} />
+        <ErrorState
+          message={q.error instanceof Error ? q.error.message : '拐点扫描结果加载失败'}
+          onRetry={() => q.refetch()}
+          retrying={q.isRefetching}
+        />
       )}
       {!q.isLoading && !q.isError && !d && <EmptyStateModern title="暂无拐点扫描结果" />}
 

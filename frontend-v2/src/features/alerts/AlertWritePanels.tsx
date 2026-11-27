@@ -105,6 +105,8 @@ function PriceAlertPanel() {
   const [volumeRatio, setVolumeRatio] = useState('')
   const [keyword, setKeyword] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
+  // 危险操作就地二次确认：首次点击只置确认态，不改数据。
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null)
 
   function buildRaw(): unknown {
     const base: Record<string, unknown> = { stock_code: stockCode.trim() }
@@ -274,15 +276,38 @@ function PriceAlertPanel() {
                 >
                   {a.active ? '停用' : '启用'}
                 </Button>
-                <Button
-                  type="button"
-                  variant="danger"
-                  size="sm"
-                  aria-label={`删除预警 ${a.id}`}
-                  onClick={() => deleteM.mutate({ id: a.id })}
-                >
-                  删除
-                </Button>
+                {confirmingDeleteId !== a.id ? (
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    aria-label={`删除预警 ${a.id}`}
+                    onClick={() => setConfirmingDeleteId(a.id)}
+                  >
+                    删除
+                  </Button>
+                ) : (
+                  <>
+                    <span className="text-label text-sf-ink-2">确认删除该条预警？删除后不可恢复</span>
+                    <Button
+                      type="button"
+                      variant="danger"
+                      size="sm"
+                      disabled={deleteM.isPending}
+                      onClick={() => deleteM.mutate({ id: a.id })}
+                    >
+                      {deleteM.isPending ? '删除中…' : '确认删除'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setConfirmingDeleteId(null)}
+                    >
+                      取消
+                    </Button>
+                  </>
+                )}
               </div>
             </li>
           ))}

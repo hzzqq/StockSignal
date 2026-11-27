@@ -39,6 +39,8 @@ export function PaperWritePanels() {
   const [price, setPrice] = useState('1500')
   const [qty, setQty] = useState('100')
   const [notice, setNotice] = useState<string | null>(null)
+  // 危险操作就地二次确认：重置模拟账本会清空全部成交记录与盈亏，首击只置确认态。
+  const [confirmingReset, setConfirmingReset] = useState(false)
 
   function submitTrade(e: FormEvent) {
     e.preventDefault()
@@ -135,19 +137,42 @@ export function PaperWritePanels() {
       </Card>
 
       <Card title="重置模拟账本">
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          disabled={resetM.isPending}
-          onClick={() => {
-            setNotice(null)
-            resetM.reset()
-            resetM.mutate(undefined, { onSuccess: () => setNotice('模拟账本已重置') })
-          }}
-        >
-          {resetM.isPending ? '重置中…' : '重置为初始资金'}
-        </Button>
+        {confirmingReset ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-label text-sf-ink-2">确认重置？将清空全部成交记录与盈亏</span>
+            <Button
+              type="button"
+              variant="danger"
+              size="sm"
+              disabled={resetM.isPending}
+              onClick={() => {
+                setNotice(null)
+                resetM.reset()
+                resetM.mutate(undefined, { onSuccess: () => setNotice('模拟账本已重置') })
+              }}
+            >
+              {resetM.isPending ? '重置中…' : '确认重置'}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setConfirmingReset(false)}
+            >
+              取消
+            </Button>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={resetM.isPending}
+            onClick={() => setConfirmingReset(true)}
+          >
+            重置为初始资金
+          </Button>
+        )}
         {resetError && <span className="ml-2 text-label text-sf-danger">重置失败：{resetError}</span>}
       </Card>
     </div>

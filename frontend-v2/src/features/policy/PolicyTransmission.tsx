@@ -83,6 +83,8 @@ export function PolicyTransmission() {
         isEmpty={docsEmpty}
         emptyLabel="政策库暂无原文"
         emptyHint="后端已诚实降级（policy_db_empty），未编造政策标题或日期"
+        onRetry={() => docsQ.refetch()}
+        retrying={docsQ.isRefetching}
       >
         {docs ? (
           <Card title="政策原文清单">

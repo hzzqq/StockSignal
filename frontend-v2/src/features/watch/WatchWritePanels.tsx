@@ -96,6 +96,8 @@ function WatchlistPanel() {
   const [idText, setIdText] = useState('')
   const [localError, setLocalError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  // 危险操作就地二次确认：批量删除按填写的 id 删除，首击只置确认态，不改数据。
+  const [confirmingBatchDelete, setConfirmingBatchDelete] = useState(false)
 
   function resetMessages() {
     setLocalError(null)
@@ -153,6 +155,7 @@ function WatchlistPanel() {
       onSuccess: (data) => {
         setNotice(`已删除 ${data.deleted.length} 只，无权 ${data.forbidden.length} 只，不存在 ${data.not_found.length} 只`)
         setIdText('')
+        setConfirmingBatchDelete(false)
       },
     })
   }
@@ -199,9 +202,21 @@ function WatchlistPanel() {
             批量删除（列表中的数字 id，逗号分隔）
             <input value={idText} onChange={(e) => setIdText(e.target.value)} className={inputCls} />
           </label>
-          <Button type="button" variant="secondary" size="sm" onClick={handleBatchDelete} disabled={delBatch.isPending}>
-            {delBatch.isPending ? '批量删除中…' : '批量删除'}
-          </Button>
+          {confirmingBatchDelete ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-label text-sf-ink-2">确认批量删除？将删除填写的全部 id</span>
+              <Button type="button" variant="danger" size="sm" disabled={delBatch.isPending} onClick={handleBatchDelete}>
+                {delBatch.isPending ? '批量删除中…' : '确认批量删除'}
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmingBatchDelete(false)}>
+                取消
+              </Button>
+            </div>
+          ) : (
+            <Button type="button" variant="secondary" size="sm" onClick={() => setConfirmingBatchDelete(true)} disabled={delBatch.isPending}>
+              {delBatch.isPending ? '批量删除中…' : '批量删除'}
+            </Button>
+          )}
         </div>
 
         {err && <Hint text={err} isError />}
@@ -257,6 +272,8 @@ function JunkStockPanel() {
   const [idText, setIdText] = useState('')
   const [localError, setLocalError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  // 危险操作就地二次确认：批量删除按填写的 id 删除，首击只置确认态，不改数据。
+  const [confirmingBatchDelete, setConfirmingBatchDelete] = useState(false)
 
   function resetMessages() {
     setLocalError(null)
@@ -298,6 +315,7 @@ function JunkStockPanel() {
       onSuccess: (data) => {
         setNotice(`已删除 ${data.deleted.length} 只`)
         setIdText('')
+        setConfirmingBatchDelete(false)
       },
     })
   }
@@ -337,9 +355,21 @@ function JunkStockPanel() {
             批量删除（数字 id，逗号分隔）
             <input value={idText} onChange={(e) => setIdText(e.target.value)} className={inputCls} />
           </label>
-          <Button type="button" variant="secondary" size="sm" onClick={handleBatchDelete} disabled={delBatch.isPending}>
-            {delBatch.isPending ? '批量删除中…' : '批量删除'}
-          </Button>
+          {confirmingBatchDelete ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-label text-sf-ink-2">确认批量删除？将删除填写的全部 id</span>
+              <Button type="button" variant="danger" size="sm" disabled={delBatch.isPending} onClick={handleBatchDelete}>
+                {delBatch.isPending ? '批量删除中…' : '确认批量删除'}
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmingBatchDelete(false)}>
+                取消
+              </Button>
+            </div>
+          ) : (
+            <Button type="button" variant="secondary" size="sm" onClick={() => setConfirmingBatchDelete(true)} disabled={delBatch.isPending}>
+              {delBatch.isPending ? '批量删除中…' : '批量删除'}
+            </Button>
+          )}
         </div>
 
         {err && <Hint text={err} isError />}
