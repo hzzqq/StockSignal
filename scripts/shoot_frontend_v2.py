@@ -151,6 +151,7 @@ ROUTES = (
     ("/xingchen", "xingchen"),                  # 53 星辰 AI 助手（多会话 + 持久化）
     ("/forum", "forum"),                        # 52 股吧社区（parity A，此前漏审计）
     ("/event-backtest", "event_backtest"),      # 事件因子回测（补齐 AppPath 覆盖）
+    ("/stock-events", "stock_events"),          # 23 个股事件追踪（补齐 AppPath 覆盖，与 nav.ts 对齐）
     ("/policy-transmission", "policy_transmission"),  # 政策传导（政策上下文批次补齐 AppPath 覆盖）
     ("/stock/screener", "screener"),            # 31/33/81 选股框架（底部固定入口）
 )

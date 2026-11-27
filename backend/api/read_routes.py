@@ -5720,7 +5720,7 @@ def _se_str(v):
     try:
         if pd.isna(v):
             return None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError):  # ui_audit_exempt: pd.isna 对非标量不可判空，跳过 NaN 判断后照常走 _w4b_str 转字符串，非静默吞异常
         pass
     return _w4b_str(v)
 

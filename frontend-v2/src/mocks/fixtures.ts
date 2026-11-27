@@ -1288,6 +1288,7 @@ export const diagnosticsEndpoints = [
   { path: '/api/v2/read/compare-one', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
   { path: '/api/v2/read/research-deep', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
   { path: '/api/v2/read/stock-intraday', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
+  { path: '/api/v2/read/stock-events', needs_params: true, probe_path: null, required_query: ['code'], sample_query: 'code=600519' },
   { path: '/api/v2/read/factor-analysis', needs_params: false, probe_path: '/api/v2/read/factor-analysis', required_query: [], sample_query: null },
   { path: '/api/v2/read/backtest', needs_params: true, probe_path: null, required_query: ['ticker'], sample_query: 'ticker=600519&start=2024-01-01&end=2024-12-31&strategy=multi_factor' },
   { path: '/api/v2/read/market-panorama', needs_params: false, probe_path: '/api/v2/read/market-panorama', required_query: [], sample_query: null },
