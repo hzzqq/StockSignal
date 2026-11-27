@@ -47,3 +47,38 @@ export function freshnessLabel(level: FreshnessLevel): string {
       return '新鲜度未知'
   }
 }
+
+/** 严重度 rank：ok=0 / warn=1 / stale=2；unknown 表示「无信息」，比较时跳过。 */
+const FRESHNESS_RANK: Record<Exclude<FreshnessLevel, 'unknown'>, number> = {
+  ok: 0,
+  warn: 1,
+  stale: 2,
+}
+
+/**
+ * 取多个等级里「更差」的一档（保守口径）：unknown 不参与比较；全 unknown → unknown。
+ * 用于把「数据滞后天数」与「后端 status」两条独立通道合并，避免 age=0 掩盖 status=stale。
+ */
+export function worstFreshness(...levels: FreshnessLevel[]): FreshnessLevel {
+  let worst: Exclude<FreshnessLevel, 'unknown'> | undefined
+  for (const level of levels) {
+    if (level === 'unknown') continue
+    if (worst === undefined || FRESHNESS_RANK[level] > FRESHNESS_RANK[worst]) worst = level
+  }
+  return worst ?? 'unknown'
+}
+
+/**
+ * 快照鲜度统一判定：age 与 status 取更差者（conservative）。
+ * 用结构化类型而非 import schema，保持 lib 层纯净、不依赖 API 层。
+ */
+export function freshnessOfSnapshot(s: {
+  data_age_days?: number | null
+  data_freshness?: { status?: string } | null
+}): FreshnessLevel {
+  const byAge = typeof s.data_age_days === 'number'
+    ? freshnessLevelFromAge(s.data_age_days)
+    : 'unknown'
+  const byStatus = freshnessFromStatus(s.data_freshness?.status)
+  return worstFreshness(byAge, byStatus)
+}

@@ -1,19 +1,10 @@
 import type { DailySnapshot } from '@/api/schemas/read'
 import { Card } from '@/shared/ui/Card'
 import { FreshnessBadge } from '@/shared/ui/FreshnessBadge'
-import {
-  freshnessLevelFromAge,
-  freshnessFromStatus,
-  type FreshnessLevel,
-} from '@/lib/freshness'
+import { freshnessOfSnapshot } from '@/lib/freshness'
 import { fmtNum } from '@/lib/format'
 import { PositionGauge } from '@/shared/charts/PositionGauge'
 import { ScenarioChart } from '@/shared/charts/ScenarioChart'
-
-function freshnessOf(s: DailySnapshot): FreshnessLevel {
-  if (typeof s.data_age_days === 'number') return freshnessLevelFromAge(s.data_age_days)
-  return freshnessFromStatus(s.data_freshness?.status)
-}
 
 /** 涨跌语义色：A 股红涨绿跌（价格/涨跌域专用，见 tokens.css 红线）。 */
 const UP = 'var(--color-ss-up)'
@@ -105,7 +96,7 @@ export function SnapshotView({ snapshot }: { snapshot: DailySnapshot }) {
   const ef = snapshot.event_factor
   const df = snapshot.data_freshness
   const ind = snapshot.indicators ?? {}
-  const level = freshnessOf(snapshot)
+  const level = freshnessOfSnapshot(snapshot)
 
   return (
     <div className="flow">

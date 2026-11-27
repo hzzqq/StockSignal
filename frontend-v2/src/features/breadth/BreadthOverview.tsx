@@ -16,11 +16,7 @@ import { QueryState } from '@/shared/ui/States'
 import { EChart } from '@/shared/charts/EChart'
 import { ScenarioChart } from '@/shared/charts/ScenarioChart'
 import { CHART } from '@/shared/charts/palette'
-import {
-  freshnessLevelFromAge,
-  freshnessFromStatus,
-  type FreshnessLevel,
-} from '@/lib/freshness'
+import { freshnessOfSnapshot, type FreshnessLevel } from '@/lib/freshness'
 import { fmtNum } from '@/lib/format'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 import { Select } from '@/shared/ui/Field'
@@ -198,10 +194,7 @@ export function BreadthOverview() {
 
 function BreadthBody({ snapshot }: { snapshot: DailySnapshot }) {
   const ind = snapshot.indicators ?? {}
-  const level: FreshnessLevel =
-    typeof snapshot.data_age_days === 'number'
-      ? freshnessLevelFromAge(snapshot.data_age_days)
-      : freshnessFromStatus(snapshot.data_freshness?.status)
+  const level: FreshnessLevel = freshnessOfSnapshot(snapshot)
 
   const breadthOption: EChartsOption = {
     backgroundColor: 'transparent',

@@ -162,4 +162,37 @@ describe('SnapshotView · 决策闭环展示核心 · 诚实红线专项守卫',
     expect(screen.getByText(/— · —/)).toBeTruthy()
     expect(screen.queryByText(/0天/)).toBeNull()
   })
+
+  it('age=0 + status=stale → 「数据陈旧」：age 不得掩盖 stale，卡头禁显「数据新鲜」', () => {
+    const snapshot = {
+      date: '2026-03-01',
+      data_age_days: 0,
+      data_freshness: { status: 'stale' },
+    } as DailySnapshot
+    render(<SnapshotView snapshot={snapshot} />)
+    expect(screen.getByLabelText('数据新鲜度：数据陈旧')).toBeTruthy()
+    expect(screen.queryByLabelText('数据新鲜度：数据新鲜')).toBeNull()
+  })
+
+  it('age=6 + status=ok → 取更差档「数据偏旧」，不被 ok 兜底成新鲜', () => {
+    const snapshot = {
+      date: '2026-03-01',
+      data_age_days: 6,
+      data_freshness: { status: 'ok' },
+    } as DailySnapshot
+    render(<SnapshotView snapshot={snapshot} />)
+    expect(screen.getByLabelText('数据新鲜度：数据偏旧')).toBeTruthy()
+    expect(screen.queryByLabelText('数据新鲜度：数据新鲜')).toBeNull()
+  })
+
+  it('age=2 + status=warn → 取更差档「数据偏旧」，不被 age 的 ok 掩盖', () => {
+    const snapshot = {
+      date: '2026-03-01',
+      data_age_days: 2,
+      data_freshness: { status: 'warn' },
+    } as DailySnapshot
+    render(<SnapshotView snapshot={snapshot} />)
+    expect(screen.getByLabelText('数据新鲜度：数据偏旧')).toBeTruthy()
+    expect(screen.queryByLabelText('数据新鲜度：数据新鲜')).toBeNull()
+  })
 })

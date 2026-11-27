@@ -199,4 +199,16 @@ describe('BreadthOverview · 市场温度计四块（v1 59 迁移）', () => {
     expect(mockedTemp).toHaveBeenNthCalledWith(2, 250)
     expect(select.value).toBe('250')
   })
+
+  it('age=0 + status=stale → 卡头徽标「数据陈旧」，禁显「数据新鲜」（age 不得掩盖 stale）', async () => {
+    vi.mocked(getDailySnapshot).mockResolvedValue({
+      ...snap,
+      data_age_days: 0,
+      data_freshness: { status: 'stale' },
+    })
+    mockedTemp.mockResolvedValue(untriggeredData)
+    renderWithClient(<BreadthOverview />)
+    expect(await screen.findByLabelText('数据新鲜度：数据陈旧')).toBeTruthy()
+    expect(screen.queryByLabelText('数据新鲜度：数据新鲜')).toBeNull()
+  })
 })
