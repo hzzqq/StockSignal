@@ -102,11 +102,14 @@ def _maybe_push(rec: dict) -> None:
         for i, p in enumerate(picks[:3], 1):
             lines.append(f"{i}. {p.get('name', '')}（{p.get('code')}）综合 {p.get('composite', '—')} 分")
         stale = rec.get("data_staleness") or {}
-        if stale.get("stale"):
+        freshness = stale.get("freshness")
+        # 有 freshness 时信权威字段（warn/stale 出警示，ok/unknown 不出）；
+        # 无 freshness 才兼容旧落盘的 stale 布尔——阈值只在 assess_data_staleness 真理源判定。
+        if freshness in ("warn", "stale") or (not freshness and stale.get("stale")):
             lines.append(f"⚠️ {stale.get('note', '行情数据滞后')}")
         lines.append("模拟统计与免责详见「每日荐股」页；不构成投资建议。")
         res = push_text("\n".join(lines))
-        ok = bool(res.get("ok")) if isinstance(res, dict) else False
+        ok = bool(res.get("sent")) if isinstance(res, dict) else False
         logger.info("[recommend_scheduler] 微信推送%s: %s", "成功" if ok else "未成功", res)
     except Exception as e:  # noqa: BLE001 — 推送失败不影响推荐主流程，但必须留痕
         logger.warning("[recommend_scheduler] 微信推送异常: %s", e)
