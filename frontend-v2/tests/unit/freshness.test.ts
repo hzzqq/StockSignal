@@ -10,9 +10,11 @@ import { worstFreshness, freshnessOfSnapshot } from '@/lib/freshness'
 
 describe('freshnessLevelFromAge', () => {
   it('0 天 → ok', () => expect(freshnessLevelFromAge(0)).toBe('ok'))
-  it('≤WARN → ok', () => expect(freshnessLevelFromAge(FRESH_WARN_DAYS)).toBe('ok'))
+  it('WARN-1 → ok', () => expect(freshnessLevelFromAge(FRESH_WARN_DAYS - 1)).toBe('ok'))
+  it('WARN → warn', () => expect(freshnessLevelFromAge(FRESH_WARN_DAYS)).toBe('warn'))
   it('WARN+1 → warn', () => expect(freshnessLevelFromAge(FRESH_WARN_DAYS + 1)).toBe('warn'))
-  it('≤STALE → warn', () => expect(freshnessLevelFromAge(FRESH_STALE_DAYS)).toBe('warn'))
+  it('STALE-1 → warn', () => expect(freshnessLevelFromAge(FRESH_STALE_DAYS - 1)).toBe('warn'))
+  it('STALE → stale', () => expect(freshnessLevelFromAge(FRESH_STALE_DAYS)).toBe('stale'))
   it('STALE+1 → stale', () => expect(freshnessLevelFromAge(FRESH_STALE_DAYS + 1)).toBe('stale'))
   it('null/undefined/负数 → unknown', () => {
     expect(freshnessLevelFromAge(null)).toBe('unknown')

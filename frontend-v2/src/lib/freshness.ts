@@ -4,8 +4,8 @@
  * 重要：本模块**只计算「可见化标签」**，绝不重算仓位或任何决策规则。
  * 仓位真理源唯一在后端 `modules/decision.derive_position`，前端禁止复制。
  * 新鲜度口径以本仓常量对齐：
- *   FRESH_WARN_DAYS = 4  → 超过即「偏旧」
- *   FRESH_STALE_DAYS = 8 → 超过即「陈旧」（对应后端封顶 40% 的同一数据日边界）
+ *   FRESH_WARN_DAYS = 4  → 达到即「偏旧」
+ *   FRESH_STALE_DAYS = 8 → 达到即「陈旧」（对应后端封顶 40% 的同一数据日边界）
  * 判定基于**权威数据日**（快照自带的 date / data_age_days），不用 now() 兜底。
  */
 
@@ -19,9 +19,9 @@ export const FRESH_STALE_DAYS = 8
 export function freshnessLevelFromAge(ageDays: number | undefined | null): FreshnessLevel {
   if (ageDays == null || Number.isNaN(ageDays)) return 'unknown'
   if (ageDays < 0) return 'unknown'
-  if (ageDays <= FRESH_WARN_DAYS) return 'ok'
-  if (ageDays <= FRESH_STALE_DAYS) return 'warn'
-  return 'stale'
+  if (ageDays >= FRESH_STALE_DAYS) return 'stale'
+  if (ageDays >= FRESH_WARN_DAYS) return 'warn'
+  return 'ok'
 }
 
 /** 由后端 data_freshness.status 字符串推导等级（ok/warn/stale）。 */

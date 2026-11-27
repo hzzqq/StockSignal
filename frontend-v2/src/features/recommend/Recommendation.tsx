@@ -28,9 +28,9 @@ function fmtMetaValue(v: unknown): string {
 }
 
 /**
- * 鲜度等级：优先后端权威 freshness；缺失时按 lag_days 自算。
- * 此处刻意不复用 freshnessLevelFromAge —— 后者把恰好 8 天判 warn（既有单测锁定），
- * 而后端口径是 >=8 天即 stale。用同源常量按后端口径判定，消除 8 天分歧。
+ * 鲜度等级：优先后端权威 freshness；缺失时按 lag_days 自算（双通道）。
+ * 此函数保留是因为它还要处理权威 freshness 字段优先的双通道逻辑；
+ * freshnessLevelFromAge 现已与后端 >=4 / >=8 口径一致，仅负责纯 age 分档。
  */
 function stalenessLevel(s?: { lag_days?: number | null; freshness?: string }): FreshnessLevel {
   if (s?.freshness) return freshnessFromStatus(s.freshness)
