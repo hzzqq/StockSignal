@@ -181,6 +181,15 @@ export const DailyRecommendationSchema = z
     reason: z.string().optional(),
     generated_at: z.string().optional(),
     disclaimer: z.string().optional(),
+    data_staleness: z
+      .object({
+        latest: z.string().nullable().optional(),
+        lag_days: z.number().nullable().optional(),
+        stale: z.boolean().optional(),
+        freshness: z.enum(['ok', 'warn', 'stale', 'unknown']).optional(),
+        note: z.string().optional(),
+      })
+      .optional(),
   })
   .catchall(z.unknown())
 export type DailyRecommendation = z.infer<typeof DailyRecommendationSchema>

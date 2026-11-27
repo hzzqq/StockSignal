@@ -1,6 +1,8 @@
 import { useDailyRecommendation, useVirtualUsersSim } from '@/lib/queries'
+import { freshnessFromStatus, FRESH_WARN_DAYS, FRESH_STALE_DAYS, type FreshnessLevel } from '@/lib/freshness'
 import { QueryState } from '@/shared/ui/States'
 import { Card } from '@/shared/ui/Card'
+import { FreshnessBadge } from '@/shared/ui/FreshnessBadge'
 import { SectionTitle, LeadText } from '@/shared/ui/EmphasisText'
 
 /** 后端 meta 键 → 中文说明；未知键原样显示（不吞字段，不臆造说明）。 */
@@ -25,12 +27,29 @@ function fmtMetaValue(v: unknown): string {
   return String(v)
 }
 
+/**
+ * 鲜度等级：优先后端权威 freshness；缺失时按 lag_days 自算。
+ * 此处刻意不复用 freshnessLevelFromAge —— 后者把恰好 8 天判 warn（既有单测锁定），
+ * 而后端口径是 >=8 天即 stale。用同源常量按后端口径判定，消除 8 天分歧。
+ */
+function stalenessLevel(s?: { lag_days?: number | null; freshness?: string }): FreshnessLevel {
+  if (s?.freshness) return freshnessFromStatus(s.freshness)
+  const lag = s?.lag_days
+  if (lag == null || Number.isNaN(lag) || lag < 0) return 'unknown'
+  if (lag >= FRESH_STALE_DAYS) return 'stale'
+  if (lag >= FRESH_WARN_DAYS) return 'warn'
+  return 'ok'
+}
+
 /** 36 每日荐股：展示荐股状态与免责声明；若 unavailable 则如实展示原因（不编造推荐）。 */
 export function Recommendation() {
   const q = useDailyRecommendation()
   const simQ = useVirtualUsersSim()
   const rec = q.data
   const unavailable = rec?.status === 'unavailable'
+  const staleness = rec?.data_staleness
+  // 双通道：优先后端权威 freshness 字段，缺失时按 lag_days 分档（兼容旧格式落盘 JSON）。
+  const level = stalenessLevel(staleness)
 
   return (
     <div className="space-y-4">
@@ -41,6 +60,14 @@ export function Recommendation() {
             {unavailable && rec.reason && <p className="text-body text-sf-warn">{rec.reason}</p>}
             {rec.generated_at && (
               <p className="text-xs text-sf-ink-3 mt-1">generated {rec.generated_at}</p>
+            )}
+            {staleness && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <FreshnessBadge level={level} />
+                {level !== 'ok' && staleness.note && (
+                  <span className="text-xs text-sf-warn">{staleness.note}</span>
+                )}
+              </div>
             )}
             {rec.disclaimer && (
               <p className="text-xs text-sf-ink-3 mt-3 leading-relaxed">{rec.disclaimer}</p>

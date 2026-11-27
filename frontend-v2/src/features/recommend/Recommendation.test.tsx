@@ -76,6 +76,74 @@ describe('Recommendation 四态 + 诚实 unavailable', () => {
     expect(screen.getByText(/荐股数据缺失，不编造推荐/)).toBeTruthy()
   })
 
+  it('data_staleness.freshness=warn → 显示偏旧徽标与后端 note 原文', async () => {
+    mockedRec.mockResolvedValue({
+      status: 'ok',
+      generated_at: '2026-03-01',
+      data_staleness: {
+        latest: '2026-11-21',
+        lag_days: 5,
+        stale: false,
+        freshness: 'warn',
+        note: '行情数据最新 2026-11-21，滞后 5 天（≥4 天，数据偏旧，谨慎参考）',
+      },
+    })
+    renderWithClient(<Recommendation />)
+    expect(await screen.findByText('状态：ok')).toBeTruthy()
+    expect(screen.getByLabelText('数据新鲜度：数据偏旧')).toBeTruthy()
+    expect(screen.getByText(/数据偏旧，谨慎参考/)).toBeTruthy()
+  })
+
+  it('无 freshness 仅 lag_days=5（旧格式落盘）→ 降级仍显示偏旧', async () => {
+    mockedRec.mockResolvedValue({
+      status: 'ok',
+      data_staleness: {
+        latest: '2026-11-21',
+        lag_days: 5,
+        stale: false,
+        note: '行情数据最新 2026-11-21，滞后 5 天（≥4 天，数据偏旧，谨慎参考）',
+      },
+    })
+    renderWithClient(<Recommendation />)
+    expect(await screen.findByText('状态：ok')).toBeTruthy()
+    expect(screen.getByLabelText('数据新鲜度：数据偏旧')).toBeTruthy()
+    expect(screen.getByText(/数据偏旧，谨慎参考/)).toBeTruthy()
+  })
+
+  it('无 freshness 仅 lag_days=8 → 降级按后端口径显示「数据陈旧」（非偏旧）', async () => {
+    mockedRec.mockResolvedValue({
+      status: 'ok',
+      data_staleness: {
+        latest: '2026-11-19',
+        lag_days: 8,
+        stale: true,
+        note: '行情数据最新 2026-11-19，滞后 8 天（≥8 天，数据陈旧）',
+      },
+    })
+    renderWithClient(<Recommendation />)
+    expect(await screen.findByText('状态：ok')).toBeTruthy()
+    expect(screen.getByLabelText('数据新鲜度：数据陈旧')).toBeTruthy()
+    expect(screen.queryByLabelText('数据新鲜度：数据偏旧')).toBeNull()
+    expect(screen.getByText(/滞后 8 天/)).toBeTruthy()
+  })
+
+  it('freshness=ok → 只显示新鲜徽标，不打扰用户（note 不出场）', async () => {
+    mockedRec.mockResolvedValue({
+      status: 'ok',
+      data_staleness: {
+        latest: '2026-11-26',
+        lag_days: 1,
+        stale: false,
+        freshness: 'ok',
+        note: '行情数据最新 2026-11-26，滞后 1 天（数据新鲜）',
+      },
+    })
+    renderWithClient(<Recommendation />)
+    expect(await screen.findByText('状态：ok')).toBeTruthy()
+    expect(screen.getByLabelText('数据新鲜度：数据新鲜')).toBeTruthy()
+    expect(screen.queryByText(/滞后 1 天/)).toBeNull()
+  })
+
   it('模拟统计 ok 渲染为结构化参数（不贴原始 JSON 字符串），截断值不丢字段', async () => {
     mockedRec.mockResolvedValue({ status: 'ok' })
     renderWithClient(<Recommendation />)

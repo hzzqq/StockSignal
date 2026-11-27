@@ -117,6 +117,13 @@ export const recommendation = {
   status: 'unavailable',
   reason: '股票池为空（演示 Mock：数据源不可用）',
   generated_at: '2026-11-05T19:24:04',
+  data_staleness: {
+    latest: '2026-11-21',
+    lag_days: 5,
+    stale: false,
+    freshness: 'warn',
+    note: '行情数据最新 2026-11-21，滞后 5 天（≥4 天，数据偏旧，谨慎参考）',
+  },
   disclaimer:
     '推荐由多算法融合筛选生成，附历史模拟统计，不构成投资建议；方向预测≈随机（4092 交易日回测结论），价值在筛选漏斗+风控方案+成本感知，请独立决策。',
 }
