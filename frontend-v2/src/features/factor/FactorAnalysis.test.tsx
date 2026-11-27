@@ -4,6 +4,7 @@ import type { ReactElement } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { FactorAnalysis } from './FactorAnalysis'
 import type { FactorAnalysis as FactorAnalysisData } from '@/api/schemas/read'
+import { CHART } from '@/shared/charts/palette'
 
 // 隔离真实 API：只替换 getFactorAnalysis；图表组件在 jsdom 不可用，mock 为 null。
 vi.mock('@/api/read', () => ({
@@ -21,6 +22,21 @@ function renderWithClient(ui: ReactElement) {
     defaultOptions: { queries: { retry: false, staleTime: 0 } },
   })
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+}
+
+/** Stat 结构：label div 的下一个兄弟节点即承载 style.color 的数值 div。 */
+function statValueEl(label: string): HTMLElement {
+  const el = screen.getByText(label).nextElementSibling
+  if (!(el instanceof HTMLElement)) throw new Error(`Stat 数值节点缺失: ${label}`)
+  return el
+}
+
+/** jsdom 会把 hex 归一化为 rgb；两种形态都接受，避免对序列化形式做 brittle 断言。 */
+function colorMatches(el: HTMLElement, hex: string): boolean {
+  const actual = el.style.color
+  const n = parseInt(hex.slice(1), 16)
+  const rgb = `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`
+  return actual === hex || actual === rgb
 }
 
 const okData: FactorAnalysisData = {
@@ -79,6 +95,36 @@ describe('FactorAnalysis 三态 + 字段渲染', () => {
       screen.getByText('分层累计收益（因子由大到小分层的净值曲线）'),
     ).toBeTruthy()
     expect(screen.getByText('多空组合累计净值')).toBeTruthy()
+  })
+
+  it('IC 均值/IR 为真实数值时按方向着色（正向对照）', async () => {
+    mocked.mockResolvedValue(okData)
+    renderWithClient(<FactorAnalysis />)
+    expect(await screen.findByText('IC 均值')).toBeTruthy()
+    // ic_mean=0.005、ir=0.16 均为正 → A 股涨色 CHART.up
+    expect(colorMatches(statValueEl('IC 均值'), CHART.up)).toBe(true)
+    expect(colorMatches(statValueEl('IR'), CHART.up)).toBe(true)
+  })
+
+  it('IC 均值/IR 为 null 时显示「—」且无任何方向色（语义诚实）', async () => {
+    mocked.mockResolvedValue({
+      ...okData,
+      ic_summary: { ...okData.ic_summary, ic_mean: null, ir: null },
+    })
+    renderWithClient(<FactorAnalysis />)
+    expect(await screen.findByText('IC 均值')).toBeTruthy()
+    const icMean = statValueEl('IC 均值')
+    const ir = statValueEl('IR')
+    // 缺失值只能显示「—」，不得被当作负值着成 CHART.down（A股跌色）
+    expect(icMean.textContent).toBe('—')
+    expect(ir.textContent).toBe('—')
+    expect(icMean.style.color).toBe('')
+    expect(ir.style.color).toBe('')
+    // 显式再确认：没有沾染任一方向色
+    expect(colorMatches(icMean, CHART.up)).toBe(false)
+    expect(colorMatches(icMean, CHART.down)).toBe(false)
+    expect(colorMatches(ir, CHART.up)).toBe(false)
+    expect(colorMatches(ir, CHART.down)).toBe(false)
   })
 
   it('empty（ic_series 为空）显示暂无因子数据', async () => {

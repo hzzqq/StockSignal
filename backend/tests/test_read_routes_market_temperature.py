@@ -56,6 +56,8 @@ META_EMPTY = {"available": [], "unavailable": [("legu", "乐股快照暂不可�
 
 TEMP_DETAIL = {
     "temp": 63.5,
+    "available": True,
+    "unavailable": [],
     "contributions": [
         {"key": "red_ratio", "name": "红盘占比", "unit": "%", "dir": 1,
          "value": 57.0, "hot": 70.0, "warm": 45.0, "heat": 12.3},
@@ -188,6 +190,7 @@ def test_full_passthrough_default(client, token, monkeypatch):
         "reason": None,
         "indicators_available": ["red_ratio", "limit_up", "limit_down"],
         "indicators_unavailable": [["zt_pool", "涨停池暂不可用"]],
+        "unavailable": [],
     }
     assert data["extreme_signal"] == EXTREME_OK
     assert data["extreme_signal"]["hits"][0]["z"] == 4.36
@@ -322,3 +325,20 @@ def test_extreme_exception_degrades(client, token, monkeypatch):
     assert isinstance(e["reason"], str) and "RuntimeError" in e["reason"]
     assert data["temperature"]["available"] is True
     assert data["analogs"]["available"] is True
+
+
+def test_temperature_no_indicators_exposes_unavailable(client, token, monkeypatch):
+    """detail 无可用指标 -> 端点 available=False + temp=None + unavailable 透传，绝不补 0。"""
+    no_indicator_detail = {
+        "temp": None, "available": False,
+        "unavailable": ["no_indicators"], "contributions": [],
+    }
+    _patch_fakes(monkeypatch, temp_detail=no_indicator_detail)
+    resp = client.get(URL, headers=_auth(token))
+    assert resp.status_code == 200
+    t = resp.get_json()["data"]["temperature"]
+    assert t["available"] is False
+    assert t["temp"] is None
+    assert t["contributions"] == []
+    assert t["unavailable"] == ["no_indicators"]
+    assert t["reason"] == "无可用情绪指标，无法计算市场温度"

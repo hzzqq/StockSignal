@@ -134,6 +134,32 @@ def test_temperature_observation_items_not_scored(monkeypatch):
 
 
 # ─────────────────────────────────────────────────────────────
+#  shepherd_temperature_detail：无指标诚实标注（D1 数据假值修复）
+# ─────────────────────────────────────────────────────────────
+def test_temperature_detail_missing_indicators(monkeypatch):
+    """{} / None / 全 NaN → temp=None + available=False + unavailable=['no_indicators']，
+    绝不用标量函数的 50.0 冒充真实温度（对外展示通道专用）。"""
+    monkeypatch.setattr(shepherd, "get_shepherd_history", lambda days=60: None)
+    for today in ({}, None, {"up_count": float("nan")}):
+        detail = shepherd.shepherd_temperature_detail(today)
+        assert detail["temp"] is None, detail
+        assert detail["available"] is False, detail
+        assert detail["unavailable"] == ["no_indicators"], detail
+        assert detail["contributions"] == [], detail
+
+
+def test_temperature_detail_with_indicators(monkeypatch):
+    """有有效指标 → temp 为 float 且 available=True，unavailable 为空。"""
+    monkeypatch.setattr(shepherd, "get_shepherd_history", lambda days=60: None)
+    detail = shepherd.shepherd_temperature_detail({"up_count": 5000})
+    assert isinstance(detail["temp"], float)
+    assert detail["available"] is True
+    assert detail["unavailable"] == []
+    assert len(detail["contributions"]) == 1
+    assert detail["contributions"][0]["key"] == "up_count"
+
+
+# ─────────────────────────────────────────────────────────────
 #  纯函数口径（视频《如何复盘非常重要》新指标）
 # ─────────────────────────────────────────────────────────────
 def test_limit_pct_for_code():

@@ -12,7 +12,6 @@ P1 组合构建诊断 · 零售端落地组件（A 方向 L1/L2）
 本模块只读取、只渲染，绝不改动生产信号 / pred / ks 执行层。
 """
 import logging
-import os
 from pathlib import Path
 
 import streamlit as st
@@ -27,14 +26,18 @@ except Exception:  # noqa: BLE001
 
 
 def _diag_path() -> Path:
-    root = Path(__file__).resolve().parent.parent
-    env = os.environ.get("P1_SIGNAL_DIR")
-    if env:
-        cand = Path(env) / "portfolio_diag.json"
+    # D2 真理源统一：候选目录解析复用 modules.p1_signal.discover_source_dirs()
+    # （已内建 P1_SIGNAL_DIR 覆盖口），不再在本模块单独读 env / 硬编码默认路径。
+    # 局部 import 保证 monkeypatch modules.p1_signal.discover_source_dirs 生效。
+    from modules.p1_signal import discover_source_dirs  # noqa: PLC0415
+
+    for d in discover_source_dirs():
+        cand = Path(d) / "portfolio_diag.json"
         if cand.exists():
             return cand
-    cand = root / "data" / "p1_signals" / "portfolio_diag.json"
-    return cand
+    # 都不命中 → 回退 StockSignal 自托管目录（保持原行为兼容）
+    return (Path(__file__).resolve().parent.parent
+            / "data" / "p1_signals" / "portfolio_diag.json")
 
 
 @st.cache_data(ttl=TTL_TIERS["fundamental"], show_spinner=False)

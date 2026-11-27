@@ -278,9 +278,9 @@ function FactorBody({ data }: { data: FactorAnalysisData }) {
       {/* IC 汇总 Stat 卡 */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <Stat label="样本期数 n" value={fmt(summary.n, 0)} />
-        <Stat label="IC 均值" value={fmt(summary.ic_mean)} color={typeof summary.ic_mean === 'number' && summary.ic_mean >= 0 ? CHART.up : CHART.down} />
+        <Stat label="IC 均值" value={fmt(summary.ic_mean)} color={typeof summary.ic_mean === 'number' ? (summary.ic_mean >= 0 ? CHART.up : CHART.down) : undefined} />
         <Stat label="IC 标准差" value={fmt(summary.ic_std)} />
-        <Stat label="IR" value={fmt(summary.ir)} color={typeof summary.ir === 'number' && summary.ir >= 0 ? CHART.up : CHART.down} />
+        <Stat label="IR" value={fmt(summary.ir)} color={typeof summary.ir === 'number' ? (summary.ir >= 0 ? CHART.up : CHART.down) : undefined} />
         <Stat label="正 IC 占比" value={fmt(summary.positive_ratio != null ? (summary.positive_ratio as number) * 100 : null, 1)} sub="%" />
         <Stat label="t 值" value={fmt(summary.t_stat)} />
       </div>

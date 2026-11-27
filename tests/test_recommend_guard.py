@@ -57,6 +57,55 @@ def test_staleness_none_mixed_with_valid():
     assert r["stale"] is False and r["latest"] == "2026-10-10"
 
 
+# ══════════════ D2：新鲜度阈值统一（复用 decision 单一真理源） ══════════════
+def test_staleness_warn_band_5_days():
+    """滞后 5 天（4≤lag<8）：stale=False 但 freshness='warn'，note 说「偏旧」。"""
+    from modules.recommend_engine import assess_data_staleness
+
+    r = assess_data_staleness(["2026-10-06"], today="2026-10-11")
+    assert r["lag_days"] == 5
+    assert r["stale"] is False and r["freshness"] == "warn"
+    assert "偏旧" in r["note"]
+
+
+def test_staleness_stale_band_8_days():
+    """滞后 ≥8 天：stale=True，freshness='stale'。"""
+    from modules.recommend_engine import assess_data_staleness
+
+    r = assess_data_staleness(["2026-10-03"], today="2026-10-11")
+    assert r["lag_days"] == 8
+    assert r["stale"] is True and r["freshness"] == "stale"
+
+
+def test_staleness_ok_band_3_days():
+    """滞后 3 天（周末正常间隔）：freshness='ok'。"""
+    from modules.recommend_engine import assess_data_staleness
+
+    r = assess_data_staleness(["2026-10-08"], today="2026-10-11")
+    assert r["lag_days"] == 3
+    assert r["stale"] is False and r["freshness"] == "ok"
+
+
+def test_staleness_no_date_is_unknown():
+    """无日期：freshness='unknown' 且 stale=True。"""
+    from modules.recommend_engine import assess_data_staleness
+
+    r = assess_data_staleness([], today="2026-10-11")
+    assert r["stale"] is True and r["freshness"] == "unknown"
+
+
+def test_staleness_threshold_single_source():
+    """max_lag_days 默认值 = FRESH_STALE_DAYS，阈值取自 decision 单一真理源。"""
+    import inspect
+
+    from modules.decision import FRESH_STALE_DAYS, FRESH_WARN_DAYS
+    from modules.recommend_engine import assess_data_staleness
+
+    sig = inspect.signature(assess_data_staleness)
+    assert sig.parameters["max_lag_days"].default == FRESH_STALE_DAYS
+    assert (FRESH_WARN_DAYS, FRESH_STALE_DAYS) == (4, 8)
+
+
 # ══════════════ T-236：assess_recommend_health ══════════════
 def _make_archive(tmp_path, dates):
     rec_dir = tmp_path / "recommendations"

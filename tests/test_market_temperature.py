@@ -152,3 +152,20 @@ def test_historical_analogs_missing_history(monkeypatch):
     ana = mt.historical_analogs({"red_ratio": 60})
     assert ana["available"] is False
     assert "reason" in ana
+    assert ana["imputed_fields"] == []
+
+
+def test_historical_analogs_imputed_fields(monkeypatch):
+    """今日特征缺失 → imputed_fields 记录缺失特征名，对外 today_metrics 为 None
+    （算法内部合成行用历史末值兜底，绝不对外冒充真实今日值）。"""
+    monkeypatch.setattr("modules.market_temperature.mr.load_breadth_history", _fake_breadth_df)
+    today = {"red_ratio": None, "limit_up": float("nan"), "limit_down": 3}
+    ana = mt.historical_analogs(today, k=3)
+    assert ana["available"] is True
+    assert set(ana["imputed_fields"]) == {"red_ratio", "limit_up"}
+    assert ana["today_metrics"]["red_ratio"] is None
+    assert ana["today_metrics"]["limit_up"] is None
+    assert ana["today_metrics"]["limit_down"] == 3.0
+    # 合成行的历史末值兜底不得泄漏到对外 today_metrics
+    for field in ana["imputed_fields"]:
+        assert ana["today_metrics"][field] is None

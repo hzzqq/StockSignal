@@ -92,31 +92,44 @@ def historical_analogs(today: dict, k: int = 8) -> dict:
 
     做法：把今日实时广度（red_ratio/limit_up/limit_down）追加为历史 df 的最后一行，
     再对末行调用 find_analogs（其内部已排除目标日及邻近窗口，只回看过去）。
-    今日某特征缺失时用历史末值兜底，避免 NaN 污染距离。
+    今日某特征缺失时：对外 today_metrics 该值为 None 并把特征名记入 imputed_fields，
+    绝不用历史末值冒充真实今日值；仅算法内部合成行（喂给 find_analogs 算距离，
+    不对外展示）用历史末值兜底避免 NaN 污染距离。
 
-    :returns: {"available": bool, "today_metrics": {...}, "analogs": [...], "reason": str}
+    :returns: {"available": bool, "today_metrics": {...}, "analogs": [...],
+               "reason": str, "imputed_fields": list}
     """
     try:
         df = mr.load_breadth_history()
     except Exception as e:  # noqa: BLE001
         logger.warning("[market_temperature] 广度历史加载失败: %s", e)
-        return {"available": False, "reason": f"广度历史加载失败：{e}", "analogs": [], "today_metrics": {}}
+        return {"available": False, "reason": f"广度历史加载失败：{e}", "analogs": [], "today_metrics": {}, "imputed_fields": []}
     if df is None or df.empty:
-        return {"available": False, "reason": "广度历史为空", "analogs": [], "today_metrics": {}}
+        return {"available": False, "reason": "广度历史为空", "analogs": [], "today_metrics": {}, "imputed_fields": []}
 
+    imputed_fields = []
     row = {}
     for c in ANALOG_FEATURES:
         v = today.get(c)
         if v is None or (isinstance(v, float) and v != v):
-            v = df[c].iloc[-1] if c in df.columns else 0.0
+            # 诚实口径：缺失就是缺失，对外记 None + 特征名，绝不拿历史末值冒充今日值
+            imputed_fields.append(c)
+            row[c] = None
+            continue
         try:
             row[c] = float(v)
         except (TypeError, ValueError):
-            row[c] = float(df[c].iloc[-1]) if c in df.columns else 0.0
+            imputed_fields.append(c)
+            row[c] = None
 
     new_row = df.iloc[-1:].copy()
     for c in ANALOG_FEATURES:
-        new_row[c] = row[c]
+        # 算法内部合成行（仅喂给 find_analogs 做距离计算，绝不对外展示）：
+        # 缺值时沿用历史末值兜底，避免 NaN 污染距离；对外仍以 row[c]=None 为准。
+        if row[c] is None:
+            new_row[c] = float(df[c].iloc[-1]) if c in df.columns else 0.0
+        else:
+            new_row[c] = row[c]
     # 用今天日期，确保不会与历史某日命中（find_analogs 本就排除目标日，这里只是防御）
     new_row["date"] = pd.Timestamp.now().normalize()
     combined = pd.concat([df, new_row], ignore_index=True)
@@ -126,6 +139,6 @@ def historical_analogs(today: dict, k: int = 8) -> dict:
         analogs = mr.find_analogs(combined, target_idx, k=k)
     except Exception as e:  # noqa: BLE001
         logger.warning("[market_temperature] 类比失败: %s", e)
-        return {"available": False, "reason": f"类比失败：{e}", "analogs": [], "today_metrics": row}
+        return {"available": False, "reason": f"类比失败：{e}", "analogs": [], "today_metrics": row, "imputed_fields": imputed_fields}
 
-    return {"available": True, "today_metrics": row, "analogs": analogs, "reason": ""}
+    return {"available": True, "today_metrics": row, "analogs": analogs, "reason": "", "imputed_fields": imputed_fields}

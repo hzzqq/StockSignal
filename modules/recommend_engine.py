@@ -45,6 +45,7 @@ import pandas as pd
 from modules.stock_risk import DIMENSIONS, RISK_HIGH, RISK_MEDIUM  # noqa: F401
 from modules.risk_gate import apply_risk_gate  # T-245：六维排雷二道闸上提为通用模块（行为一致）
 from modules.technical import detect_bullish_divergence  # R7/T-333：MACD 底背离确认
+from modules.decision import FRESH_STALE_DAYS, FRESH_WARN_DAYS  # D2：新鲜度阈值单一真理源（decision 不 import 本模块，无环）
 
 logger = logging.getLogger(__name__)
 
@@ -257,12 +258,18 @@ def save_recommendation(rec: dict, data_dir: str = None) -> tuple:
     return archive, latest
 
 
-def assess_data_staleness(data_as_of_list, today=None, max_lag_days: int = 5) -> dict:
+def assess_data_staleness(data_as_of_list, today=None,
+                          max_lag_days: int = FRESH_STALE_DAYS) -> dict:
     """T-235：汇总各标的行情最新日，评估荐股依据的数据时效（data-source-staleness-guard 范式）。
 
+    D2 真理源统一：新鲜度阈值不再自抄，直接引用决策层
+    ``modules.decision.FRESH_WARN_DAYS / FRESH_STALE_DAYS``，杜绝「滞后 5~7 天
+    决策层已 warn+封顶 60%，推荐层却仍判及时」的口径冲突。
+
     :param data_as_of_list: 各标的 data_as_of（YYYY-MM-DD 或 None）
-    :param max_lag_days: 自然日滞后阈值（跨一个周末 ≈ 5 天；日线数据周五数据周一拉 lag=3 不算过期）
-    :return: {latest, lag_days, stale, note}；无任何日期 → stale=True（诚实：无数据可考即视为过时）
+    :param max_lag_days: 兼容旧调用方；默认值 = FRESH_STALE_DAYS，判定统一用决策层常量
+    :return: {latest, lag_days, stale, freshness, note}；freshness 取
+             ok / warn / stale / unknown（无任何日期）；stale 布尔兼容旧消费者
     """
     today = today or datetime.now().date()
     if hasattr(today, "strftime"):
@@ -270,16 +277,26 @@ def assess_data_staleness(data_as_of_list, today=None, max_lag_days: int = 5) ->
     dates = sorted({str(d)[:10] for d in (data_as_of_list or []) if d}, reverse=True)
     if not dates:
         return {"latest": None, "lag_days": None, "stale": True,
+                "freshness": "unknown",
                 "note": "无任何行情日期可考（数据源全部不可用）"}
     latest = dates[0]
     try:
         lag = (datetime.strptime(str(today), "%Y-%m-%d") - datetime.strptime(latest, "%Y-%m-%d")).days
     except ValueError:
-        return {"latest": latest, "lag_days": None, "stale": True, "note": "行情日期解析失败"}
-    stale = lag > max_lag_days
-    note = (f"行情数据最新 {latest}，滞后 {lag} 天（>{max_lag_days} 天，荐股依据可能过时）"
-            if stale else f"行情数据最新 {latest}（滞后 {lag} 天，≤{max_lag_days} 天）")
-    return {"latest": latest, "lag_days": lag, "stale": stale, "note": note}
+        return {"latest": latest, "lag_days": None, "stale": True,
+                "freshness": "unknown", "note": "行情日期解析失败"}
+    stale = lag >= FRESH_STALE_DAYS
+    freshness = "stale" if stale else ("warn" if lag >= FRESH_WARN_DAYS else "ok")
+    if stale:
+        note = (f"行情数据最新 {latest}，滞后 {lag} 天"
+                f"（≥{FRESH_STALE_DAYS} 天，荐股依据已过时/陈旧）")
+    elif freshness == "warn":
+        note = (f"行情数据最新 {latest}，滞后 {lag} 天"
+                f"（≥{FRESH_WARN_DAYS} 天，数据偏旧，谨慎参考）")
+    else:
+        note = f"行情数据最新 {latest}（滞后 {lag} 天，数据新鲜）"
+    return {"latest": latest, "lag_days": lag, "stale": stale,
+            "freshness": freshness, "note": note}
 
 
 def load_latest_recommendation(data_dir: str = None) -> dict:

@@ -41,7 +41,9 @@ def shepherd_temperature(today: dict, hist_days: int=60):
     """把今日快照映射为 0-100 综合「牧羊人温度」。
 
     规则：每个可用指标按其在近期历史中的分位打分（高=热 / 高=冷），均值。
-    退化输入返回安全默认 50。
+    退化输入返回安全默认 50。注意：该 50.0 仅作下游决策链/回测的数值占位，
+    不代表真实市场温度；对外展示必须走 shepherd_temperature_detail 的
+    available/temp（无指标时 temp=None + available=False），绝不拿 50 冒充真实温度。
 
     :param hist_days: 分位计算所用的历史回看天数（默认 60；>=2000 取 2007 起长历史）。
                       调用方（如 MCP 工具）可透传用户指定的 days，使温度计真正反映
@@ -68,11 +70,14 @@ def shepherd_temperature(today: dict, hist_days: int=60):
 def shepherd_temperature_detail(today: dict, hist_days: int=60):
     """综合温度 + 各指标贡献明细（供页面渲染分档与贡献条）。
 
-    :returns: {"temp": float, "contributions": [ {key,name,unit,dir,value,hot,warm,heat} ]}
+    :returns: {"temp": float|None, "available": bool, "unavailable": list,
+               "contributions": [ {key,name,unit,dir,value,hot,warm,heat} ]}
               heat 为 0-100 单指标热度分，与 shepherd_temperature 完全同源。
+              无可用指标时 temp=None + available=False + unavailable=['no_indicators']，
+              绝不返回 50.0 冒充真实温度（标量函数的 50.0 仅为决策链占位）。
     """
     if not today:
-        return {'temp': 50.0, 'contributions': []}
+        return {'temp': None, 'available': False, 'unavailable': ['no_indicators'], 'contributions': []}
     try:
         hist = _resolve('get_shepherd_history')(hist_days)
     except Exception as e:
@@ -90,8 +95,16 @@ def shepherd_temperature_detail(today: dict, hist_days: int=60):
         score = _resolve('_indicator_score')(v, th, series)
         subs.append(score)
         contributions.append({'key': k, 'name': th.get('name', k), 'unit': th.get('unit', ''), 'dir': th.get('dir', 1), 'value': float(v), 'hot': th.get('hot'), 'warm': th.get('warm'), 'heat': round(float(score), 1)})
-    temp = float(_resolve('np').mean(subs)) if subs else 50.0
-    return {'temp': temp, 'contributions': contributions}
+    if subs:
+        temp = float(_resolve('np').mean(subs))
+        available = True
+        unavailable = []
+    else:
+        temp = None
+        available = False
+        unavailable = ['no_indicators']
+    return {'temp': temp, 'contributions': contributions,
+            'available': available, 'unavailable': unavailable}
 
 def _zt_pool_detail_cached(date=None):
     """涨停池明细（含 所属行业/连板数/封板资金），TTL 缓存 10 分钟。"""

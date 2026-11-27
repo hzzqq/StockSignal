@@ -3496,13 +3496,18 @@ def portfolio():
             "contribution": _flt(r.get("contribution")),
         })
 
-    total_mv = float(sum((p["market_value"] or 0) for p in positions))
+    # 诚实口径：市值缺失的持仓不参与 total_mv 分母与权重，缺市值者 weight_pct=None
+    # 而非补 0；缺失标注进入返回体 unavailable，绝不伪造占比。
+    valued_positions = [p for p in positions if p["market_value"] is not None]
+    total_mv = float(sum(p["market_value"] for p in valued_positions))
+    missing_mv = len(valued_positions) != len(positions)
     weights = []
     if total_mv > 0:
         for p in positions:
+            mv = p["market_value"]
             weights.append({
                 "ticker": p["ticker"], "name": p["name"],
-                "weight_pct": round((p["market_value"] or 0) / total_mv * 100, 2),
+                "weight_pct": round(mv / total_mv * 100, 2) if mv is not None else None,
             })
 
     curve, curve_available, _ = _build_portfolio_curve(pm, pnl, attr)
@@ -3516,7 +3521,7 @@ def portfolio():
         "curve_available": curve_available,
         "date": None,
         "note": _PF_NOTE,
-        "unavailable": [],
+        "unavailable": (["market_value_missing"] if missing_mv else []),
     }
     return ok(data=_sanitize(data), message="portfolio")
 
@@ -5431,6 +5436,8 @@ def market_temperature():
     键时透出为 data_as_of，缺失则省略该键，禁止 now()/today() 生成日期）；快照不可用
     → 三块全部 available=false + 中文 reason + temp=None + contributions=[]，绝不补 0。
     任一块计算异常 → 仍 200 + 该块诚实降级 + 落日志（不静默吞）。
+    温度无可用指标时 temp=None + available=False + unavailable=['no_indicators']，绝不补 0
+    （标量 shepherd_temperature 的 50.0 仅为决策链占位，不对外展示）。
     """
     hist_days, err = _mt_parse_hist_days(request.args.get("hist_days"))
     if err:
@@ -5454,13 +5461,17 @@ def market_temperature():
     if today is not None:
         try:
             detail = _mt.temperature_contributions(today, hist_days=hist_days)
+            # 诚实口径：detail 的 available 决定端点 available；无指标时 temp=None，
+            # 绝不拿标量函数的 50.0 占位冒充真实温度。
+            available = bool(detail.get('available'))
             temperature = {
-                "available": True,
+                "available": available,
                 "temp": detail.get("temp"),
                 "contributions": detail.get("contributions") or [],
-                "reason": None,
+                "reason": None if available else "无可用情绪指标，无法计算市场温度",
                 "indicators_available": ind_avail,
                 "indicators_unavailable": ind_unavail,
+                "unavailable": detail.get('unavailable') or [],
             }
         except Exception as exc:  # noqa: BLE001 - 计算异常：诚实降级，不 500
             logging.getLogger(__name__).warning(
@@ -5470,6 +5481,7 @@ def market_temperature():
                 "reason": f"温度计算失败：{type(exc).__name__}: {exc}",
                 "indicators_available": ind_avail,
                 "indicators_unavailable": ind_unavail,
+                "unavailable": [],
             }
     else:
         temperature = {
@@ -5477,6 +5489,7 @@ def market_temperature():
             "reason": "实时广度快照不可用，无法计算市场温度",
             "indicators_available": ind_avail,
             "indicators_unavailable": ind_unavail,
+            "unavailable": [],
         }
 
     # ── 2. 极端区信号（sentiment_edge.panic_reversal 完整透传）──

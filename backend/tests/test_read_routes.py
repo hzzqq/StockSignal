@@ -1372,6 +1372,60 @@ def test_portfolio_endpoint(client, token, monkeypatch):
     assert body3["code"] == "compute_error"
 
 
+def test_portfolio_missing_market_value_weight_pct_none(client, token, monkeypatch):
+    """持仓市值缺失：缺市值者 weight_pct=None（不补 0、不参与分母），unavailable 标注。"""
+    import pandas as pd
+    from modules import portfolio as pf_mod
+
+    pnl_df = pd.DataFrame([
+        {"ticker": "600519", "name": "贵州茅台", "buy_date": "2026-01-02", "buy_price": 1700.0,
+         "shares": 100, "remaining_shares": 100, "cost": 170000.0, "current_price": 1800.0,
+         "market_value": 180000.0, "realized_pnl": 0.0, "pnl": 10000.0, "pnl_pct": 5.88},
+        {"ticker": "000001", "name": "平安银行", "buy_date": "2026-01-03", "buy_price": 12.0,
+         "shares": 1000, "remaining_shares": 500, "cost": 6000.0, "current_price": None,
+         "market_value": None, "realized_pnl": 0.0, "pnl": -500.0, "pnl_pct": -8.33},
+    ])
+    attr_df = pd.DataFrame([
+        {"ticker": "600519", "name": "贵州茅台", "pnl": 10000.0, "pnl_pct": 5.88, "contribution": 104.17},
+    ])
+    summary = {"total_cost": 176000.0, "total_market_value": 180000.0, "total_pnl": 9500.0,
+               "total_pnl_pct": 5.4, "position_count": 2}
+
+    class _Fetcher:
+        @staticmethod
+        def get_daily(symbol, start=None, end=None):
+            n = 20
+            idx = pd.date_range("2026-01-01", periods=n, freq="B")
+            return pd.DataFrame({"close": [100.0 + i for i in range(n)]}, index=idx)
+
+    class _FakePM:
+        fetcher = _Fetcher()
+
+        def calc_pnl(self):
+            return pnl_df
+
+        def summary(self):
+            return summary
+
+        def pnl_attribution(self):
+            return attr_df
+
+    monkeypatch.setattr(pf_mod, "PortfolioManager", _FakePM)
+    resp = client.get(
+        "/api/v2/read/portfolio",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    d = resp.get_json()["data"]
+    assert len(d["weights"]) == 2
+    by_ticker = {w["ticker"]: w["weight_pct"] for w in d["weights"]}
+    assert by_ticker["600519"] == 100.0
+    assert by_ticker["000001"] is None  # 缺市值者不补 0
+    assert d["unavailable"] == ["market_value_missing"]
+    # 有市值的标的权重和为 100，不被缺市值者稀释
+    assert sum(v for v in by_ticker.values() if v is not None) == 100.0
+
+
 def test_fund_flow_endpoint(client, token, monkeypatch):
     """fund-flow（35 资金流向）：四块取数充分 -> 200 + status=ok，各块 available=True；
     取数为空 -> 该块 available=False（诚实降级，不 500、不补 0）；异常 -> 仍 200（不 500）。"""
