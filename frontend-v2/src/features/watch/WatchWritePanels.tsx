@@ -81,6 +81,53 @@ function splitIds(raw: string): number[] | null {
   return ids
 }
 
+/**
+ * 单行危险操作就地二次确认（与批量删除 confirmingBatchDelete 同范式）：
+ * 首击不改数据，只切到确认态；确认按钮才执行、在途禁用；取消复位。
+ * aria-label 由调用方原样传入，保留原可访问名。
+ */
+function InlineDeleteConfirm({
+  label,
+  pending,
+  confirming,
+  onRequest,
+  onConfirm,
+  onCancel,
+}: {
+  label: string
+  pending: boolean
+  confirming: boolean
+  onRequest: () => void
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  if (confirming) {
+    return (
+      <span className="flex flex-wrap items-center gap-1.5">
+        <span className="text-label text-sf-ink-2">确认删除 {label}？</span>
+        <Button type="button" variant="danger" size="sm" disabled={pending} onClick={onConfirm}>
+          {pending ? '删除中…' : '确认删除'}
+        </Button>
+        <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={onCancel}>
+          取消
+        </Button>
+      </span>
+    )
+  }
+  return (
+    <Button
+      type="button"
+      variant="danger"
+      size="sm"
+      aria-label={`删除${label}`}
+      disabled={pending}
+      onClick={onRequest}
+    >
+      {pending ? '删除中…' : '删除'}
+    </Button>
+  )
+}
+
 function WatchlistPanel() {
   const q = useWatchlistQuery()
   const add = useAddWatchlist()
@@ -98,6 +145,7 @@ function WatchlistPanel() {
   const [notice, setNotice] = useState<string | null>(null)
   // 危险操作就地二次确认：批量删除按填写的 id 删除，首击只置确认态，不改数据。
   const [confirmingBatchDelete, setConfirmingBatchDelete] = useState(false)
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null)
 
   function resetMessages() {
     setLocalError(null)
@@ -237,19 +285,18 @@ function WatchlistPanel() {
                 {item.stock_name && <span className="text-sf-ink-2">{item.stock_name}</span>}
                 {item.note && <span className="text-label text-sf-ink-3">{item.note}</span>}
                 <span className="text-label text-sf-ink-3">id={item.id}</span>
-                <Button
-                  type="button"
-                  variant="danger"
-                  size="sm"
-                  aria-label={`删除自选股 ${item.stock_code}`}
-                  disabled={del.isPending}
-                  onClick={() => {
-                    resetMessages()
-                    del.mutate({ id: item.id }, { onSuccess: () => setNotice(`已删除 ${item.stock_code}`) })
+                <InlineDeleteConfirm
+                  label={`自选股 ${item.stock_code}`}
+                  pending={del.isPending}
+                  confirming={confirmingDeleteId === item.id}
+                  onRequest={() => { resetMessages(); setConfirmingDeleteId(item.id) }}
+                  onCancel={() => setConfirmingDeleteId(null)}
+                  onConfirm={() => {
+                    del.mutate({ id: item.id }, {
+                      onSuccess: () => { setNotice(`已删除 ${item.stock_code}`); setConfirmingDeleteId(null) },
+                    })
                   }}
-                >
-                  {del.isPending ? '删除中…' : '删除'}
-                </Button>
+                />
               </li>
             ))}
           </ul>
@@ -274,6 +321,7 @@ function JunkStockPanel() {
   const [notice, setNotice] = useState<string | null>(null)
   // 危险操作就地二次确认：批量删除按填写的 id 删除，首击只置确认态，不改数据。
   const [confirmingBatchDelete, setConfirmingBatchDelete] = useState(false)
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<number | null>(null)
 
   function resetMessages() {
     setLocalError(null)
@@ -389,19 +437,18 @@ function JunkStockPanel() {
                 <span className="font-medium text-sf-ink">{item.stock_code}</span>
                 {item.stock_name && <span className="text-sf-ink-2">{item.stock_name}</span>}
                 {item.note && <span className="text-label text-sf-ink-3">{item.note}</span>}
-                <Button
-                  type="button"
-                  variant="danger"
-                  size="sm"
-                  aria-label={`删除垃圾股 ${item.stock_code}`}
-                  disabled={del.isPending}
-                  onClick={() => {
-                    resetMessages()
-                    del.mutate({ id: item.id }, { onSuccess: () => setNotice(`已删除 ${item.stock_code}`) })
+                <InlineDeleteConfirm
+                  label={`垃圾股 ${item.stock_code}`}
+                  pending={del.isPending}
+                  confirming={confirmingDeleteId === item.id}
+                  onRequest={() => { resetMessages(); setConfirmingDeleteId(item.id) }}
+                  onCancel={() => setConfirmingDeleteId(null)}
+                  onConfirm={() => {
+                    del.mutate({ id: item.id }, {
+                      onSuccess: () => { setNotice(`已删除 ${item.stock_code}`); setConfirmingDeleteId(null) },
+                    })
                   }}
-                >
-                  {del.isPending ? '删除中…' : '删除'}
-                </Button>
+                />
               </li>
             ))}
           </ul>
@@ -420,6 +467,7 @@ function UserScorePanel() {
   const [scoreText, setScoreText] = useState('')
   const [localError, setLocalError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [confirmingDeleteCode, setConfirmingDeleteCode] = useState<string | null>(null)
 
   function resetMessages() {
     setLocalError(null)
@@ -508,21 +556,18 @@ function UserScorePanel() {
                 {item.stock_name && <span className="text-sf-ink-2">{item.stock_name}</span>}
                 <span className="text-sf-ink">{item.score} 分</span>
                 <span className="text-label text-sf-ink-3">更新：{item.updated_at === null ? '—' : item.updated_at}</span>
-                <Button
-                  type="button"
-                  variant="danger"
-                  size="sm"
-                  aria-label={`删除打分 ${item.stock_code}`}
-                  disabled={del.isPending}
-                  onClick={() => {
-                    resetMessages()
+                <InlineDeleteConfirm
+                  label={`打分 ${item.stock_code}`}
+                  pending={del.isPending}
+                  confirming={confirmingDeleteCode === item.stock_code}
+                  onRequest={() => { resetMessages(); setConfirmingDeleteCode(item.stock_code) }}
+                  onCancel={() => setConfirmingDeleteCode(null)}
+                  onConfirm={() => {
                     del.mutate({ code: item.stock_code }, {
-                      onSuccess: () => setNotice(`已删除 ${item.stock_code} 的打分`),
+                      onSuccess: () => { setNotice(`已删除 ${item.stock_code} 的打分`); setConfirmingDeleteCode(null) },
                     })
                   }}
-                >
-                  {del.isPending ? '删除中…' : '删除'}
-                </Button>
+                />
               </li>
             ))}
           </ul>
