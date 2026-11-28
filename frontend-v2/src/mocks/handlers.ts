@@ -275,6 +275,7 @@ export const handlers = [
     }
     return ok(fixtures.eventLongList)
   }),
+  http.get('/api/v2/read/thesis-evidence', () => ok(fixtures.thesisEvidence)),
   // 64 投研圆桌静态交付物：meta + md/html 原文（夹具为演示片段，非真实研报）
   http.get('/api/v2/read/roundtable-report', ({ request }) => {
     const fmt = new URL(request.url).searchParams.get('format') || 'meta'

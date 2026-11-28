@@ -1890,3 +1890,83 @@ export const EventLongListSchema = z
   })
   .catchall(z.unknown())
 export type EventLongList = z.infer<typeof EventLongListSchema>
+
+/**
+ * 毕设证据（GET /thesis-evidence）—— 三算法对照实验 / 第6章评估 / SHAP 归因 / 非对称发现。
+ * 诚实红线：负向 verdict 原样透出不美化；缺失数值 null 不补 0；
+ * 实验证据不是生产信号（note 原文展示）。
+ */
+const ThesisFindingSchema = z
+  .object({
+    title: z.string().optional(),
+    advisor: z.string().optional(),
+    verdict: z.string().optional(),
+    verdict_cn: z.string().optional(),
+    direction_hit: z.number().nullable().optional(),
+    direction_hit_baseline: z.number().nullable().optional(),
+    ic: z.number().nullable().optional(),
+    ic_baseline: z.number().nullable().optional(),
+    icir: z.number().nullable().optional(),
+    icir_baseline: z.number().nullable().optional(),
+    sharpe: z.number().nullable().optional(),
+    sharpe_baseline_sign: z.number().nullable().optional(),
+    sharpe_baseline_tanh: z.number().nullable().optional(),
+    turnover: z.number().nullable().optional(),
+    provenance: z.string().optional(),
+  })
+  .catchall(z.unknown())
+
+export const ThesisFindingsSchema = z
+  .object({
+    core_innovation_cn: z.string().optional(),
+    decision_closure_anchor: z
+      .object({ accuracy: z.number().nullable().optional(), n: z.number().nullable().optional(), n_hit: z.number().nullable().optional() })
+      .catchall(z.unknown())
+      .optional(),
+    findings: z.record(z.string(), ThesisFindingSchema).optional(),
+    asymmetric_finding: z
+      .object({
+        defensive_total_pp: z.number().nullable().optional(),
+        offensive_total_pp: z.number().nullable().optional(),
+        annualized_offensive_cost_pp: z.number().nullable().optional(),
+        note: z.string().optional(),
+        provenance: z.string().optional(),
+      })
+      .catchall(z.unknown())
+      .optional(),
+    honest_redline: z.string().optional(),
+    available: z.boolean().optional(),
+    reason: z.string().optional(),
+  })
+  .catchall(z.unknown())
+
+export const ThesisCh6Schema = z
+  .object({
+    available: z.boolean(),
+    metrics: z.record(z.string(), z.unknown()).nullable().optional(),
+    note: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+
+export const ThesisShapSchema = z
+  .object({
+    available: z.boolean(),
+    baseline: z.number().nullable().optional(),
+    adjustments: z.record(z.string(), z.number()).optional(),
+    adjustments_total: z.number().nullable().optional(),
+    final_running: z.number().nullable().optional(),
+    as_of: z.string().nullable().optional(),
+    reason: z.string().nullable().optional(),
+  })
+  .catchall(z.unknown())
+
+export const ThesisEvidenceSchema = z
+  .object({
+    findings: ThesisFindingsSchema,
+    ch6: ThesisCh6Schema,
+    shap_attribution: ThesisShapSchema,
+    note: z.string().optional(),
+  })
+  .catchall(z.unknown())
+export type ThesisEvidence = z.infer<typeof ThesisEvidenceSchema>
+export type ThesisFinding = z.infer<typeof ThesisFindingSchema>

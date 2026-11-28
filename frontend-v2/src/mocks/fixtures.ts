@@ -3784,6 +3784,68 @@ export const eventLongListEmpty = {
   note: '演示数据（MSW）：无信号即空榜，未做任何填充。',
 }
 
+/**
+ * 毕设证据（MSW）：数值取自 modules/experiment_improvements.py::KNOWN_FINDINGS
+ * 与 reports/backtest_decision_closure.json 的已验证真值，非编造；
+ * 但走 MSW 仍是演示通道，note 显式标注，真值以后端 /thesis-evidence 为准。
+ */
+export const thesisEvidence = {
+  findings: {
+    core_innovation_cn: '决策闭环（derive_position 可解释 + 刻度校准）为创新主轴，三算法为诚实实验证据而非生产信号',
+    decision_closure_anchor: { accuracy: 0.491, n: 3507, n_hit: 1722 },
+    findings: {
+      transformer_signal: {
+        title: '#1 纯 Transformer 对照 GRUAttention',
+        advisor: '陈丽琼', verdict: 'modest_positive',
+        verdict_cn: '一致但小幅占优（方向命中 +0.33pp、IC +24%、ICIR +10%），如实标注幅度有限',
+        direction_hit: 0.5130, direction_hit_baseline: 0.5097,
+        ic: 0.0465, ic_baseline: 0.0374, icir: 0.3796, icir_baseline: 0.3462,
+        provenance: 'P1-QuantFactor head-to-head (n=1,583,338, walk-forward 2022–2026), 2026-09-25',
+      },
+      gnn_factor: {
+        title: '#2 GNN 板块-个股传导因子',
+        advisor: '陈丽琼', verdict: 'negative',
+        verdict_cn: '三项全落后 GRU；IC 仅为 GRU 约 1/5，图结构偏置不成立',
+        direction_hit: 0.4948, direction_hit_baseline: 0.5097,
+        ic: 0.0076, ic_baseline: 0.0374, icir: 0.1047, icir_baseline: 0.3462,
+        provenance: 'P1-QuantFactor head-to-head (n=1,583,338), 2026-09-25',
+      },
+      rl_position: {
+        title: '#3 RL 仓位决策',
+        advisor: '刘云翔', verdict: 'negative',
+        verdict_cn: '叠加轻量 Actor-Critic 无正收益增量，动作被压缩低幅区丢失暴露',
+        sharpe: -0.741, sharpe_baseline_sign: 0.997, sharpe_baseline_tanh: 1.145, turnover: 0.026,
+        provenance: 'P1-QuantFactor RL 对照 (w_rl vs w_sign/w_tanh), 2026-09-25',
+      },
+    },
+    asymmetric_finding: {
+      defensive_total_pp: 9.5, offensive_total_pp: -8.0, annualized_offensive_cost_pp: -0.5,
+      note: '闭环是风险缩放器而非收益放大器；有界修正与小步长使进攻侧误判代价可控',
+      provenance: 'StockSignal_毕业论文_完整稿.md §5.4.3（n=4092 交易日, 2007–2026）',
+    },
+    honest_redline: '缺失数据返回 None 不编造；modest/负向如实记录，不包装成碾压式领先',
+  },
+  ch6: {
+    available: true,
+    metrics: {
+      snapshot_count: 41,
+      snapshot_date_range: ['2026-08-31', '2026-11-23'],
+      temperature_min_max: [11.4, 87.0],
+      position_min_max: [5, 82],
+      position_clamp_5_95_ok: true,
+      prediction_count: 41, prediction_scored: 24, prediction_hit_rate: 0.375,
+      note: '样本量小时如实标注，不推断统计显著性',
+    },
+    note: null,
+  },
+  shap_attribution: {
+    available: true,
+    baseline: 50, adjustments: { '方向调节': 8, '周期调节': 5, '梯队调节': 0 },
+    adjustments_total: 13, final_running: 63, as_of: '2026-11-27', reason: null,
+  },
+  note: '演示数据（MSW）：数值取自已验证的论文证据桥，真值以后端 /thesis-evidence 为准；三算法为对照实验证据非生产信号。',
+}
+
 export const publicPicks = {
   stocks: [
     { code: '688519', name: '演示半导体A', pred: 0.1 },

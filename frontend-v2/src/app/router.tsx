@@ -72,6 +72,8 @@ const LazyPolicyTransmission = lazyRouteComponent(() => import('@/features/polic
 const LazyScreener = lazyRouteComponent(() => import('@/features/screener/Screener'), 'Screener')
 // 52 股吧社区 V2 化：后端 /api/forum 完整 CRUD，v1 也是同一套后端（非社区抓取遗留）
 const LazyForumView = lazyRouteComponent(() => import('@/features/community/ForumView'), 'ForumView')
+// 毕设证据页（v1 冻结不迁）：三算法对照 / 第6章评估 / SHAP 归因 / 非对称发现
+const LazyThesisEvidence = lazyRouteComponent(() => import('@/features/thesis/ThesisEvidence'), 'ThesisEvidenceView')
 
 // wrapper 内部按需加载纯组件（它们依赖 route.useSearch()，wrapper 本身必须静态）
 const LazyDataSourceView = lazy(() => import('@/features/catalog/DataSourceView').then((m) => ({ default: m.DataSourceView })))
@@ -509,6 +511,13 @@ const forumRoute = createRoute({
   component: LazyForumView,
 })
 
+// 毕设证据页：v1 冻结不迁，v2 承接毕设全部内容（实验证据非生产信号）
+const thesisRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: '/thesis',
+  component: LazyThesisEvidence,
+})
+
 function FinancialHunterRouteView() {
   const search = financialHunterRoute.useSearch()
   return (
@@ -682,6 +691,7 @@ const routeTree = rootRoute.addChildren([
     marketDriversRoute,
     xingchenRoute,
     forumRoute,
+    thesisRoute,
     dataRoute,
     sixDimRoute,
     researchRoute,

@@ -59,6 +59,8 @@ export type AppPath =
   | '/xingchen'
   // 股吧社区（52 页 V2 化）：后端 /api/forum 完整 CRUD，非 v1「社区抓取」遗留
   | '/forum'
+  // 毕设证据（v1 冻结不迁）：三算法对照 / 第6章评估 / SHAP 归因 / 非对称发现
+  | '/thesis'
 
 export interface NavItem {
   to: AppPath
@@ -144,6 +146,7 @@ export const NAV: NavGroup[] = [
       { to: '/xingchen', label: '星辰 AI 助手', icon: '🌟' },
       { to: '/review-notes', label: '决策问答', icon: '❓' },
       { to: '/forum', label: '股吧社区', icon: '💬' },
+      { to: '/thesis', label: '毕设证据', icon: '🎓' },
     ],
   },
   {

@@ -59,6 +59,7 @@ import type {
   StockEvent,
   EventFactorSignal,
   EventLongList,
+  ThesisEvidence,
 } from '@/api/schemas/read'
 
 /**
@@ -670,5 +671,14 @@ export function useEventLongList(limit = 20): UseQueryResult<EventLongList> {
     queryKey: ['event-long-list', limit],
     queryFn: () => api.getEventLongList(limit),
     staleTime: FIVE_MIN,
+  })
+}
+
+/** 毕设证据聚合：静态研究数据，30min 缓存，页面错误态可重试。 */
+export function useThesisEvidence(): UseQueryResult<ThesisEvidence> {
+  return useQuery({
+    queryKey: ['thesis-evidence'],
+    queryFn: () => api.getThesisEvidence(),
+    staleTime: THIRTY_MIN,
   })
 }

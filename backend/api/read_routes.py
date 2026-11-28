@@ -5905,3 +5905,85 @@ def event_long_list():
         "note": "事件驱动看多榜来自 P1 EV 模型真实 top_long 信号；无信号即空榜，未做任何填充",
     }
     return ok(data=_sanitize(data), message="event-long-list")
+
+
+# ───────────────────── 毕设证据（v2 /thesis 只读聚合，v1 冻结不迁）──────────────────────
+_THESIS_CH6_METRICS = (_ROOT / "thesis" / "素材" / "ch6_eval" / "metrics.json").resolve()
+
+
+@bp.get("/thesis-evidence")
+@jwt_required
+def thesis_evidence():
+    """GET /api/v2/read/thesis-evidence —— 毕设三算法/评估/归因/非对称发现聚合（只读）。
+
+    数据逻辑层全部复用现成函数与已落盘评估文件，本层只做聚合，不重算、不训练、
+    不把实验证据接入生产决策链（test_decision_model_adj 守卫锁死）。字段逐字：
+      - findings: summarize_findings()（三算法 KNOWN_FINDINGS + 非对称发现 + 闭环锚 +
+        core_innovation + honest_redline），负向 verdict 原样透出不美化；
+      - ch6_metrics: thesis/素材/ch6_eval/metrics.json（41 快照 / 37.5%=9/24，样本量小如实标注）；
+      - shap_attribution: 当日快照经 derive_position(explain=True) 的加性归因三段式，
+        baseline + adjustments_total == final_running；快照缺失/异常 → available=False + null，
+        绝不补 0、不臆造。
+    任何子块失败只影响该块，整端点恒 200（绝不 500）。
+    """
+    # ① 三算法 + 非对称 + 闭环锚：复用单一真理源函数
+    try:
+        from modules.experiment_improvements import summarize_findings
+        findings = summarize_findings()
+    except Exception as exc:  # noqa: BLE001 - 证据块降级不影响其余块
+        logging.getLogger(__name__).warning("[thesis-evidence] findings 聚合失败: %s", exc)
+        findings = {"available": False, "reason": f"实验证据加载失败：{exc}"}
+
+    # ② 第6章评估指标：读已落盘 JSON，文件缺失诚实标注
+    ch6_available = False
+    ch6_metrics = None
+    try:
+        if _THESIS_CH6_METRICS.is_file():
+            ch6_metrics = json.loads(_THESIS_CH6_METRICS.read_text(encoding="utf-8"))
+            ch6_available = isinstance(ch6_metrics, dict) and bool(ch6_metrics)
+    except Exception as exc:  # noqa: BLE001 - 评估文件损坏降级
+        logging.getLogger(__name__).warning("[thesis-evidence] ch6 metrics 读取失败: %s", exc)
+        ch6_metrics = None
+    ch6 = {
+        "available": ch6_available,
+        "metrics": ch6_metrics,
+        "note": None if ch6_available else "第6章评估文件缺失或不可解析，未做任何填充",
+    }
+
+    # ③ SHAP 加性归因：从当日快照现成字段实时派生 contributions（不改决策链）
+    shap = {"available": False, "baseline": None, "adjustments": {},
+            "adjustments_total": None, "final_running": None, "reason": None}
+    try:
+        _status, snap = _read_json(_FILE_WHITELIST["daily_snapshot"])
+        if not isinstance(snap, dict) or not snap.get("date"):
+            raise ValueError("决策快照缺失")
+        from modules.decision import derive_position
+        from modules.experiment_improvements import shap_style_attribution
+        pos = derive_position(
+            snap.get("temperature"),
+            score=snap.get("score"),
+            bias=snap.get("bias"),
+            cycle_name=snap.get("cycle"),
+            overall_promo=snap.get("promo_overall"),
+            explain=True,
+        )
+        detail = shap_style_attribution(pos.get("contributions") or [], baseline_split=True)
+        shap.update({
+            "available": detail.get("final_running") is not None,
+            "baseline": detail.get("baseline"),
+            "adjustments": detail.get("adjustments") or {},
+            "adjustments_total": detail.get("adjustments_total"),
+            "final_running": detail.get("final_running"),
+            "as_of": snap.get("date"),
+        })
+    except Exception as exc:  # noqa: BLE001 - 归因块降级为诚实空态
+        logging.getLogger(__name__).warning("[thesis-evidence] SHAP 归因失败: %s", exc)
+        shap["reason"] = f"归因不可用：{exc}"
+
+    data = {
+        "findings": findings,
+        "ch6": ch6,
+        "shap_attribution": shap,
+        "note": "三算法为对照实验证据而非生产信号；modest/负向结果如实记录，不包装为碾压式领先。缺失数据 null 不补 0。",
+    }
+    return ok(data=_sanitize(data), message="thesis-evidence")

@@ -51,6 +51,7 @@ import {
   StockEventSchema,
   EventFactorSignalSchema,
   EventLongListSchema,
+  ThesisEvidenceSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -103,6 +104,7 @@ import {
   type StockEvent,
   type EventFactorSignal,
   type EventLongList,
+  type ThesisEvidence,
 } from './schemas/read'
 
 /**
@@ -490,4 +492,9 @@ export function getEventFactorSignal(code: string): Promise<EventFactorSignal> {
 /** GET /api/v2/read/event-long-list —— 事件驱动看多榜（P1 EV top_long 真实信号） */
 export function getEventLongList(limit = 20): Promise<EventLongList> {
   return readValidated(`event-long-list?limit=${encodeURIComponent(String(limit))}`, EventLongListSchema)
+}
+
+/** GET /api/v2/read/thesis-evidence —— 毕设证据聚合（三算法/评估/归因/非对称发现） */
+export function getThesisEvidence(): Promise<ThesisEvidence> {
+  return readValidated('thesis-evidence', ThesisEvidenceSchema)
 }
