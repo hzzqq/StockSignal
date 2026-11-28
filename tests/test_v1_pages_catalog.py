@@ -106,13 +106,23 @@ def test_data_mapping_paths_are_real_read_endpoints():
     mapping = MAPPING.read_text(encoding="utf-8")
     routes = READ_ROUTES.read_text(encoding="utf-8")
     registered = set(re.findall(r'@bp\.get\("([^"]+)"\)', routes))
-    paths_all = re.findall(r"path: '(/api/v2/read/[^']+)'", mapping)
-    paths = set(paths_all)
     assert len(registered) >= 20, f"后端只扫到 {len(registered)} 个 GET 端点，正则疑似失效"
-    # 数据层（DATA 档）在 50/62/70 升 native 后已清零（全部转为 native 真页面）；
-    # 保留守卫以钉死「若将来再有 data 条目，必须指向真实只读端点」。DATA 档允许为空。
-    assert len(paths_all) >= 0, f"映射只扫到 {len(paths_all)} 条 data 条目"
-    assert len(paths) >= 0, f"映射只扫到 {len(paths)} 个去重 data 端点"
+    # DATA 档自 50/62/70 升 native 后已清零。原两条 `>= 0` 恒真断言让守卫在
+    # 「DATA 档被悄悄塞入假端点」时静默通过——改为交叉核对两路来源：
+    # ① 从 DATA 常量体逐条抽 path；② 从全文件抽 data path。两路必须一致。
+    data_m = re.search(r'const DATA:\s*Record<[^>]*>\s*=\s*\{([^}]*)\}', mapping)
+    assert data_m, "v2Mapping.ts 缺 `const DATA` 声明，结构漂移需人工核对"
+    data_body = data_m.group(1)
+    data_entries = re.findall(r"path:\s*'(/api/v2/read/[^']+)'", data_body)
+    paths_all = re.findall(r"path: '(/api/v2/read/[^']+)'", mapping)
+    assert data_entries == paths_all, (
+        f"DATA 档条目 {data_entries} 与全文件 data path {paths_all} 不一致："
+        "正则失效或 DATA 档声明与映射不同步"
+    )
+    if not data_entries:
+        # 空档现状必须名副其实：body 里不能藏非标准写法的条目绕过上面两个正则。
+        assert data_body.strip() == "", "DATA 档 body 非空却扫不到标准 path 条目，写法疑似漂移"
+    paths = set(paths_all)
     missing = {
         p for p in paths
         if p.removeprefix("/api/v2/read") not in registered
