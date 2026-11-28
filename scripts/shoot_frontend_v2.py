@@ -87,8 +87,9 @@ CHROME_CANDIDATES = (
 
 THEMES = ("dark", "light")
 
-# (SPA 路由, 截图文件名)。与 src/nav/nav.ts 的 AppPath **严格对齐**：覆盖全部 43 条路由，
-# 另保留 1 条多状态变体（/stock/compare?codes=...）。/login 单独保留未登录门禁形态。
+# (SPA 路由, 截图文件名)。与 src/nav/nav.ts 的 AppPath **严格对齐**：覆盖全部 AppPath
+# 路由（条目数随导航演进，勿在此写死数字；守卫 test_routes_cover_all_app_paths 动态校验），
+# 另保留多状态变体（/stock/compare?codes=...）。/login 单独保留未登录门禁形态。
 # 改 nav.ts 新增/删除路由时，本元组必须同步，否则视觉审计会漏页（守卫见
 # tests/test_frontend_v2_route_coverage.py）。
 # 2026-11-09 补记：Tier1/Tier2 迁移新增的 14 页（factor/backtest/.../quote-board）
@@ -154,6 +155,7 @@ ROUTES = (
     ("/stock-events", "stock_events"),          # 23 个股事件追踪（补齐 AppPath 覆盖，与 nav.ts 对齐）
     ("/policy-transmission", "policy_transmission"),  # 政策传导（政策上下文批次补齐 AppPath 覆盖）
     ("/stock/screener", "screener"),            # 31/33/81 选股框架（底部固定入口）
+    ("/thesis", "thesis"),                      # 毕设证据（v2 /thesis，2026-11-28 新增）
 )
 
 # W4-B 深链专项：/legacy 走客户端 history.replace（不是新 document），
