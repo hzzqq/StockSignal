@@ -482,16 +482,14 @@ def capture_sixdim_partial(cdp: CDP, theme: str, out_dir: Path,
     rec: dict = {"route": "/stock/six-dim#partial", "theme": theme,
                  "kind": "sixdim_partial", "ok": False}
     try:
-        # React controlled input: native prototype setter + input event only
-        set_expr = """(() => {
-          const el = document.getElementById('six-dim-code');
-          if (!el) return {ok: false, err: 'six-dim-code input missing'};
-          const setter = Object.getOwnPropertyDescriptor(
-              HTMLInputElement.prototype, 'value').set;
-          setter.call(el, '000001');
-          el.dispatchEvent(new Event('input', {bubbles: true}));
-          return {ok: true, value: el.value};
-        })()"""
+        # React19 受控组件：原生 setter + dispatchEvent 不触发 onChange，
+        # 必须用 CDP Input.insertText 发真实输入事件（先聚焦并清空）。
+        focused = cdp.js('(() => {\n  const label = Array.from(document.querySelectorAll(\'label\')).find(\n    l => (l.textContent || \'\').includes(\'搜索股票\'));\n  const el = label ? document.getElementById(label.htmlFor) : null;\n  if (!el) return {ok: false, err: \'stock search input missing\'};\n  el.focus();\n  const setter = Object.getOwnPropertyDescriptor(\n      HTMLInputElement.prototype, \'value\').set;\n  setter.call(el, \'\');\n  el.dispatchEvent(new Event(\'input\', {bubbles: true}));\n  return {ok: true};\n})()')
+        if not (isinstance(focused, dict) and focused.get("ok")):
+            rec["error"] = "cannot focus code input: %s" % (focused,)
+            return rec
+        cdp.call("Input.insertText", {"text": "000001"})
+        set_expr = '(() => {\n  return new Promise(resolve => {\n    const deadline = Date.now() + 5000;\n    const tick = () => {\n      const btn = Array.from(document.querySelectorAll(\'button\')).find(\n        b => (b.textContent || \'\').includes(\'直接按代码 000001 查询\'));\n      if (btn) {\n        btn.click();\n        const label = Array.from(document.querySelectorAll(\'label\')).find(\n          l => (l.textContent || \'\').includes(\'搜索股票\'));\n        const el = label ? document.getElementById(label.htmlFor) : null;\n        resolve({ok: true, value: el ? el.value : null, via: \'rawCodeButton\'});\n        return;\n      }\n      if (Date.now() > deadline) {\n        resolve({ok: false, err: \'rawCode button timeout\'});\n        return;\n      }\n      setTimeout(tick, 120);\n    };\n    setTimeout(tick, 120);\n  });\n})()'
         set_out = cdp.js(set_expr)
         if not (isinstance(set_out, dict) and set_out.get("ok")):
             rec["error"] = "cannot drive code input: %s" % (set_out,)
@@ -506,7 +504,12 @@ def capture_sixdim_partial(cdp: CDP, theme: str, out_dir: Path,
           return {
             theme: document.documentElement.getAttribute('data-theme'),
             path: location.pathname,
-            inputValue: q('#six-dim-code') ? q('#six-dim-code').value : null,
+            inputValue: (() => {
+              const label = Array.from(document.querySelectorAll('label')).find(
+                l => (l.textContent || '').includes('搜索股票'));
+              const el = label ? document.getElementById(label.htmlFor) : null;
+              return el ? el.value : null;
+            })(),
             dimCapital: txt('[data-testid="dim-capital"]'),
             dimGrowth: txt('[data-testid="dim-growth"]'),
             dimTechnical: txt('[data-testid="dim-technical"]'),
