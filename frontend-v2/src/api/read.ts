@@ -49,6 +49,8 @@ import {
   MarketSentimentSchema,
   MarketTemperatureSchema,
   StockEventSchema,
+  EventFactorSignalSchema,
+  EventLongListSchema,
   type DailySnapshot,
   type P1Signal,
   type DailyRecommendation,
@@ -99,6 +101,8 @@ import {
   type PublicIndexIntraday,
   type PublicPicks,
   type StockEvent,
+  type EventFactorSignal,
+  type EventLongList,
 } from './schemas/read'
 
 /**
@@ -476,4 +480,14 @@ export function getStockEvents(code: string, limit = 50): Promise<StockEvent> {
     `stock-events?code=${encodeURIComponent(code)}&limit=${encodeURIComponent(String(limit))}`,
     StockEventSchema,
   )
+}
+
+/** GET /api/v2/read/event-factor —— 个股真实事件因子（五源融合，v1 event_factor 适配器） */
+export function getEventFactorSignal(code: string): Promise<EventFactorSignal> {
+  return readValidated(`event-factor?code=${encodeURIComponent(code)}`, EventFactorSignalSchema)
+}
+
+/** GET /api/v2/read/event-long-list —— 事件驱动看多榜（P1 EV top_long 真实信号） */
+export function getEventLongList(limit = 20): Promise<EventLongList> {
+  return readValidated(`event-long-list?limit=${encodeURIComponent(String(limit))}`, EventLongListSchema)
 }

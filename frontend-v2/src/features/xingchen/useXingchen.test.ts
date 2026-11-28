@@ -363,7 +363,7 @@ describe('useXingchen 自动保存失败留痕', () => {
     // ① 留痕被调用，且参数含 sid/convId（Error 用 message 取值，对象走 JSON）
     expect(warnSpy).toHaveBeenCalledTimes(1)
     const warnText = warnSpy.mock.calls[0]
-      .map((a) => (a instanceof Error ? a.message : typeof a === 'string' ? a : JSON.stringify(a)))
+      .map((a: unknown) => (a instanceof Error ? a.message : typeof a === 'string' ? a : JSON.stringify(a)))
       .join(' ')
     expect(warnText).toContain('s-g1')
     expect(warnText).toContain('42')

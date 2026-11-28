@@ -57,6 +57,8 @@ import type {
   DecisionLoopHealth,
   EventBacktest,
   StockEvent,
+  EventFactorSignal,
+  EventLongList,
 } from '@/api/schemas/read'
 
 /**
@@ -649,5 +651,24 @@ export function useStockEvents(code: string | null, limit = 50): UseQueryResult<
     queryFn: () => api.getStockEvents(code!, limit),
     enabled: !!code && /^\d{6}$/.test(code),
     staleTime: THIRTY_MIN,
+  })
+}
+
+/** I3 事件因子五源信号：仅合法 6 位代码发请求，低频数据 30min 缓存。 */
+export function useEventFactorSignal(code: string | null): UseQueryResult<EventFactorSignal> {
+  return useQuery({
+    queryKey: ['event-factor', code],
+    queryFn: () => api.getEventFactorSignal(code!),
+    enabled: !!code && /^\d{6}$/.test(code),
+    staleTime: THIRTY_MIN,
+  })
+}
+
+/** I3 事件驱动看多榜：P1 EV 真实信号，低频 5min 缓存。 */
+export function useEventLongList(limit = 20): UseQueryResult<EventLongList> {
+  return useQuery({
+    queryKey: ['event-long-list', limit],
+    queryFn: () => api.getEventLongList(limit),
+    staleTime: FIVE_MIN,
   })
 }

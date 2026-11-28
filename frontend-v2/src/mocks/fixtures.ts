@@ -3732,6 +3732,58 @@ export const publicIndexIntraday = {
   }),
 }
 
+/**
+ * I2 个股事件 MSW 空态（诚实）：演示环境不发真实网络爬虫，因此事件一律空数组，
+ * 不编造任何新闻/公告条目。note 逐字对齐后端 _STOCK_EVENTS_NOTE。
+ */
+export const stockEventsEmpty = {
+  code: '600519',
+  name: null,
+  date: null,
+  available: false,
+  events: [],
+  distribution: { 正面: 0, 负面: 0, 中性: 0 },
+  count: 0,
+  note: '个股事件来自公开公告与新闻，情感判定为词典/SnowNLP 启发式结果，仅供参考、未经因果验证，不构成投资建议；数据缺失时字段为 null 未做任何填充。',
+}
+
+/**
+ * I3 事件因子 / 看多榜 MSW 夹具：数值为演示，非真实事件因子，
+ * note 显式标注「演示数据」，UI 原样透出，绝不冒充真实信号。
+ */
+export const eventFactorSignal = {
+  available: true,
+  symbol: '600519',
+  score: 72.5,
+  signal: '看多',
+  rank: 0.92,
+  date: '2026-10-16',
+  source: 'P1-ev-top_long',
+  horizon: { label: '1-2 周（10 交易日）', days: 10 },
+  hard_logic: { label: '订单/中标', matched: true },
+  reason: null,
+  note: '演示数据（MSW），非真实事件因子；真值以后端 /event-factor 为准。',
+}
+export const eventFactorSignalUnavailable = {
+  available: false,
+  symbol: '600519',
+  reason: '演示：模型 ev 无信号文件',
+  note: '演示数据（MSW），非真实事件因子。',
+}
+export const eventLongList = {
+  items: [
+    { symbol: '600519', score: 92.0, raw_rank: 0.92, raw_pred: 1.4, signal: '看多', source: 'P1-ev-top_long' },
+    { symbol: '000001', score: 88.5, raw_rank: 0.885, raw_pred: 1.1, signal: '看多', source: 'P1-ev-top_long' },
+  ],
+  count: 2,
+  note: '演示数据（MSW），非真实事件驱动看多榜；真值以后端 /event-long-list 为准。',
+}
+export const eventLongListEmpty = {
+  items: [],
+  count: 0,
+  note: '演示数据（MSW）：无信号即空榜，未做任何填充。',
+}
+
 export const publicPicks = {
   stocks: [
     { code: '688519', name: '演示半导体A', pred: 0.1 },

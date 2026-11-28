@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import type { EChartsOption } from 'echarts'
-import type { StockEvent, StockEventItem } from '@/api/schemas/read'
-import { useStockEvents } from '@/lib/queries'
+import type { StockEvent, StockEventItem, EventFactorSignal } from '@/api/schemas/read'
+import { useStockEvents, useEventFactorSignal } from '@/lib/queries'
+import { useTheme } from '@/app/providers'
+import type { Theme } from '@/lib/theme'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
@@ -30,19 +32,38 @@ const LEVEL_WEIGHT: Record<string, number> = {
   大利空: -2,
 }
 
-/** A 股语义：利好=红、利空=绿、中性=灰。 */
-function levelColor(level: string): string {
-  if (level.includes('利好')) return CHART.up
-  if (level.includes('利空')) return CHART.down
-  return CHART.ink3
+/**
+ * 事件五档标签色 —— 单一真理源锚定 modules/event_levels.py::DIR_COLOR（T-287）。
+ *
+ * 语义与交易屏涨跌色（CHART.up/down）是两件事：这里是「事件好坏档位」，
+ * A 股语义利好=红、利空=绿、中性=灰，且「大」档比「小」档深一档。
+ * 禁止再借 CHART.up/down 渲染档位——那会随主题/涨跌语义漂移。
+ * 色值逐字对齐 Python DIR_COLOR；light 主题按同色相提亮一档（深红→亮红、深绿→亮绿），
+ * 保证小字号对比度；未知档位一律中性灰，不臆造。
+ */
+export const EVENT_LEVEL_COLORS: Readonly<Record<string, string>> = {
+  大利好: '#b91c1c', 小利好: '#dc2626', 中性: '#94a3b8',
+  小利空: '#16a34a', 大利空: '#15803d',
+  利好: '#dc2626', 利空: '#16a34a',
+}
+export const EVENT_LEVEL_COLORS_LIGHT: Readonly<Record<string, string>> = {
+  大利好: '#b91c1c', 小利好: '#dc2626', 中性: '#64748b',
+  小利空: '#16a34a', 大利空: '#15803d',
+  利好: '#dc2626', 利空: '#16a34a',
+}
+const NEUTRAL_COLOR = '#94a3b8'
+
+export function levelColor(level: string, theme: Theme = 'dark'): string {
+  const palette = theme === 'light' ? EVENT_LEVEL_COLORS_LIGHT : EVENT_LEVEL_COLORS
+  return palette[level] ?? NEUTRAL_COLOR
 }
 
 function hasDate(e: StockEventItem): e is StockEventItem & { date: string } {
   return typeof e.date === 'string' && e.date.length > 0
 }
 
-function LevelBadge({ level, isMajor }: { level: string; isMajor: boolean }) {
-  const color = levelColor(level)
+function LevelBadge({ level, isMajor, theme }: { level: string; isMajor: boolean; theme: Theme }) {
+  const color = levelColor(level, theme)
   return (
     <span
       className={`inline-flex items-center rounded-tile border px-1.5 py-0.5 text-label ${isMajor ? 'font-bold ring-1' : ''}`}
@@ -55,12 +76,12 @@ function LevelBadge({ level, isMajor }: { level: string; isMajor: boolean }) {
 }
 
 /** 按 date 升序排布；未知档位权重为 null（不画点、不伪造成中性 0）。 */
-function buildTimelineOption(events: StockEventItem[]): EChartsOption {
+function buildTimelineOption(events: StockEventItem[], theme: Theme): EChartsOption {
   const dated = events.filter(hasDate).slice().sort((a, b) => a.date.localeCompare(b.date))
   const points = dated.map((e) => ({
     value: LEVEL_WEIGHT[e.level] ?? null,
     name: e.title,
-    itemStyle: { color: levelColor(e.level) },
+    itemStyle: { color: levelColor(e.level, theme) },
   }))
   return {
     backgroundColor: 'transparent',
@@ -113,6 +134,8 @@ function buildTimelineOption(events: StockEventItem[]): EChartsOption {
 export function StockEventTracker() {
   const [code, setCode] = useState<string | null>(null)
   const q = useStockEvents(code)
+  const ef = useEventFactorSignal(code)
+  const { theme } = useTheme()
 
   return (
     <div className="flow">
@@ -140,22 +163,81 @@ export function StockEventTracker() {
       </Card>
 
       {code && (
-        <QueryState
-          isLoading={q.isLoading}
-          isError={q.isError}
-          error={q.error}
-          isEmpty={!q.data?.available || !q.data.events.length}
-          emptyLabel="暂无事件数据"
-          emptyHint="暂未抓取到该个股的公开事件，未做任何填充"
-        >
-          {q.data ? <StockEventBody data={q.data} /> : null}
-        </QueryState>
+        <>
+          <EventFactorCard data={ef.data} isLoading={ef.isLoading} isError={ef.isError} error={ef.error} />
+          <QueryState
+            isLoading={q.isLoading}
+            isError={q.isError}
+            error={q.error}
+            isEmpty={!q.data?.available || !q.data.events.length}
+            emptyLabel="暂无事件数据"
+            emptyHint="暂未抓取到该个股的公开事件，未做任何填充"
+          >
+            {q.data ? <StockEventBody data={q.data} theme={theme} /> : null}
+          </QueryState>
+        </>
       )}
     </div>
   )
 }
 
-function StockEventBody({ data }: { data: StockEvent }) {
+/**
+ * 事件因子（五源融合）区块：接 GET /event-factor 真实适配器结果。
+ * 诚实红线：available=false 时只显示 reason，不显示任何伪评分；
+ * 字段缺失一律 fmtNum → '—'，note 原样透出（MSW 演示夹具自带「演示数据」标注）。
+ */
+function EventFactorCard({
+  data, isLoading, isError, error,
+}: {
+  data?: EventFactorSignal
+  isLoading: boolean
+  isError: boolean
+  error: unknown
+}) {
+  return (
+    <Card title="事件因子（五源融合）">
+      <QueryState
+        isLoading={isLoading}
+        isError={isError}
+        error={error}
+        isEmpty={!data}
+        emptyLabel="无可用事件因子"
+        emptyHint="未选中标的或五源均无信号，未做任何填充"
+      >
+        {data ? (
+          data.available ? (
+            <div className="flow">
+              <div className="flex flex-wrap gap-x-8 gap-y-2 text-body">
+                <span>代码 <b className="font-mono">{data.symbol}</b></span>
+                <span>信号 {fmtNum(data.signal)}</span>
+                <span>评分 {fmtNum(data.score)}</span>
+                <span>排名 {fmtNum(data.rank)}</span>
+                <span>数据日 {fmtNum(data.date)}</span>
+                <span>来源 {fmtNum(data.source)}</span>
+              </div>
+              {data.hard_logic != null && (
+                <p className="text-label text-sf-ink-3">硬逻辑 {fmtNum(
+                  typeof data.hard_logic === 'object'
+                    ? (data.hard_logic as Record<string, unknown>).label ?? data.hard_logic
+                    : data.hard_logic,
+                )}</p>
+              )}
+              {data.note ? <p className="text-label text-sf-ink-3">{data.note}</p> : null}
+            </div>
+          ) : (
+            <p className="text-body text-sf-ink-3">
+              {fmtNum(data.reason) === '—'
+                ? '无可用事件因子，未做任何填充'
+                : `无可用事件因子：${data.reason}（未做任何填充）`}
+            </p>
+          )
+        ) : null}
+      </QueryState>
+    </Card>
+  )
+}
+
+function StockEventBody({ data, theme }: { data: StockEvent; theme: Theme }) {
   const events = data.events
   const datedCount = events.filter(hasDate).length
   const skipped = events.length - datedCount
@@ -193,7 +275,7 @@ function StockEventBody({ data }: { data: StockEvent }) {
           <>
             <div data-testid="stock-event-timeline">
               <EChart
-                option={buildTimelineOption(events)}
+                option={buildTimelineOption(events, theme)}
                 height={280}
                 ariaLabel="个股事件时间轴：利好在上、利空在下、中性居中"
               />
@@ -244,7 +326,7 @@ function StockEventBody({ data }: { data: StockEvent }) {
                     </td>
                     <td className="py-2 pr-3">{fmtNum(e.source)}</td>
                     <td className="py-2 pr-3">
-                      <LevelBadge level={e.level} isMajor={e.is_major} />
+                      <LevelBadge level={e.level} isMajor={e.is_major} theme={theme} />
                     </td>
                     <td className="py-2 tabular-nums">{fmtNum(e.score)}</td>
                   </tr>

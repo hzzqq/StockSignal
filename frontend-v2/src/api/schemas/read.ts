@@ -1843,3 +1843,50 @@ export const StockEventSchema = z
   })
   .catchall(z.unknown())
 export type StockEvent = z.infer<typeof StockEventSchema>
+
+/**
+ * I3 事件因子五源适配器（GET /event-factor）—— 与上方 DailySnapshot.event_factor
+ * 的 `EventFactorSchema` 是两个不同契约，勿混用。字段逐字对齐后端 event_factor()。
+ * 缺失数值一律 nullable（None），不补 0；失败态 available=false + reason 原样透出。
+ */
+export const EventFactorSignalSchema = z
+  .object({
+    available: z.boolean(),
+    symbol: z.string(),
+    score: z.number().nullable().optional(),
+    signal: z.string().nullable().optional(),
+    rank: z.number().nullable().optional(),
+    date: z.string().nullable().optional(),
+    source: z.string().nullable().optional(),
+    horizon: z.unknown().optional(),
+    hard_logic: z.unknown().optional(),
+    reason: z.string().nullable().optional(),
+    note: z.string().optional(),
+  })
+  .catchall(z.unknown())
+export type EventFactorSignal = z.infer<typeof EventFactorSignalSchema>
+
+/** I3 事件驱动看多榜单项（GET /event-long-list items[]）。 */
+export const EventLongItemSchema = z
+  .object({
+    symbol: z.string().nullable().optional(),
+    score: z.number().nullable().optional(),
+    raw_rank: z.number().nullable().optional(),
+    raw_pred: z.unknown().optional(),
+    signal: z.string().nullable().optional(),
+    source: z.string().nullable().optional(),
+    horizon: z.unknown().optional(),
+    hard_logic: z.unknown().optional(),
+  })
+  .catchall(z.unknown())
+export type EventLongItem = z.infer<typeof EventLongItemSchema>
+
+/** I3 事件驱动看多榜信封 data。 */
+export const EventLongListSchema = z
+  .object({
+    items: z.array(EventLongItemSchema).default([]),
+    count: z.number().default(0),
+    note: z.string().optional(),
+  })
+  .catchall(z.unknown())
+export type EventLongList = z.infer<typeof EventLongListSchema>

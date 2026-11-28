@@ -3,12 +3,15 @@ import type { ReactElement } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EChartsOption } from 'echarts'
-import { StockEventTracker } from './StockEventTracker'
+import { StockEventTracker, EVENT_LEVEL_COLORS, EVENT_LEVEL_COLORS_LIGHT, levelColor } from './StockEventTracker'
 
 /** 捕获 EChart 收到的 option，用于证明无日期事件确实被时间轴排除。 */
 const chartState = vi.hoisted(() => ({ latestOption: null as EChartsOption | null }))
 
-vi.mock('@/api/read', () => ({ getStockEvents: vi.fn() }))
+vi.mock('@/api/read', () => ({
+  getStockEvents: vi.fn(),
+  getEventFactorSignal: vi.fn(),
+}))
 vi.mock('@/api/stockSearch', () => ({ getStockSearch: vi.fn() }))
 vi.mock('@/shared/charts/EChart', () => ({
   EChart: (props: { option: EChartsOption; ariaLabel?: string }) => {
@@ -17,10 +20,11 @@ vi.mock('@/shared/charts/EChart', () => ({
   },
 }))
 
-import { getStockEvents } from '@/api/read'
+import { getStockEvents, getEventFactorSignal } from '@/api/read'
 import { getStockSearch } from '@/api/stockSearch'
 
 const mockedEvents = vi.mocked(getStockEvents)
+const mockedFactor = vi.mocked(getEventFactorSignal)
 const mockedSearch = vi.mocked(getStockSearch)
 
 function renderWithClient(ui: ReactElement) {
@@ -69,10 +73,19 @@ const okData = {
   note: '事件来自公开渠道，仅供参考，不构成投资建议。',
 }
 
+const factorUnavailable = {
+  available: false,
+  symbol: '600519',
+  reason: '演示：五源无信号',
+}
+
 beforeEach(() => {
   mockedEvents.mockReset()
+  mockedFactor.mockReset()
   mockedSearch.mockReset()
   mockedSearch.mockResolvedValue([])
+  // 默认因子走诚实降级态，避免既有事件用例被假评分干扰。
+  mockedFactor.mockResolvedValue(factorUnavailable as never)
   chartState.latestOption = null
 })
 
@@ -119,7 +132,8 @@ describe('StockEventTracker · 个股事件时间轴诚实渲染', () => {
     renderWithClient(<StockEventTracker />)
     pickCode()
 
-    expect(await screen.findByText(/未做任何填充/)).toBeTruthy()
+    // 因子区块与事件区块各有一次「未做任何填充」提示（新增 I3 区块）
+    expect((await screen.findAllByText(/未做任何填充/)).length).toBeGreaterThanOrEqual(1)
     expect(screen.queryByText('茅台提价公告')).toBeNull()
     expect(screen.queryByTestId('stock-event-timeline')).toBeNull()
     expect(screen.queryByText('情感分布')).toBeNull()
@@ -173,5 +187,75 @@ describe('StockEventTracker · 个股事件时间轴诚实渲染', () => {
     // 伪协议 URL 不渲染成链接；distribution 整体缺失不得补 0
     expect(screen.queryByRole('link', { name: '无日期事件' })).toBeNull()
     expect(within(screen.getByTestId('dist-正面')).getByText('—')).toBeTruthy()
+  })
+})
+
+describe('StockEventTracker · I1 事件五档色真理源', () => {
+  it('五档色逐字锚定 Python DIR_COLOR，不借交易屏涨跌色 CHART.up/down', () => {
+    expect(EVENT_LEVEL_COLORS['大利好']).toBe('#b91c1c')
+    expect(EVENT_LEVEL_COLORS['小利好']).toBe('#dc2626')
+    expect(EVENT_LEVEL_COLORS['中性']).toBe('#94a3b8')
+    expect(EVENT_LEVEL_COLORS['小利空']).toBe('#16a34a')
+    expect(EVENT_LEVEL_COLORS['大利空']).toBe('#15803d')
+    // 「大」档比「小」档深一档：两者不可同色
+    expect(EVENT_LEVEL_COLORS['大利好']).not.toBe(EVENT_LEVEL_COLORS['小利好'])
+    expect(EVENT_LEVEL_COLORS['大利空']).not.toBe(EVENT_LEVEL_COLORS['小利空'])
+    // 未知档位一律中性灰，不臆造
+    expect(levelColor('未定义档位')).toBe('#94a3b8')
+  })
+
+  it('light 主题：中性灰提亮一档，红/绿保持同色相语义', () => {
+    expect(EVENT_LEVEL_COLORS_LIGHT['大利好']).toBe('#b91c1c')
+    expect(EVENT_LEVEL_COLORS_LIGHT['小利空']).toBe('#16a34a')
+    // 中性档在亮色下加深，保证小字号对比度
+    expect(EVENT_LEVEL_COLORS_LIGHT['中性']).not.toBe(EVENT_LEVEL_COLORS['中性'])
+    expect(levelColor('大利好', 'light')).toBe('#b91c1c')
+  })
+})
+
+describe('StockEventTracker · I3 事件因子五源区块', () => {
+  it('available=true：真实字段与 note 原样展示，缺失显示 —', async () => {
+    mockedEvents.mockResolvedValue(okData)
+    mockedFactor.mockResolvedValue({
+      available: true,
+      symbol: '600519',
+      score: 72.5,
+      signal: '看多',
+      rank: 0.92,
+      date: '2026-10-16',
+      source: 'P1-ev-top_long',
+      reason: null,
+      note: '演示数据（MSW），非真实事件因子',
+    } as never)
+    renderWithClient(<StockEventTracker />)
+    pickCode()
+
+    // await 真正的数据文本（Card 标题同步渲染，不能作为到达标志）；
+    // 字段与标签在同一 span 内被拆成多节点，用 textContent 包含断言。
+    const factorCard = await screen.findByRole('region', { name: '事件因子（五源融合）' })
+    await vi.waitFor(() => {
+      expect(factorCard.textContent).toContain('72.50')
+      expect(factorCard.textContent).toContain('看多')
+    })
+    expect(factorCard.textContent).toContain('2026-10-16')
+    expect(factorCard.textContent).toContain('P1-ev-top_long')
+    expect(factorCard.textContent).toContain('演示数据（MSW），非真实事件因子')
+    expect(mockedFactor).toHaveBeenCalledWith('600519')
+  })
+
+  it('available=false：只显示 reason，无伪评分', async () => {
+    mockedEvents.mockResolvedValue(okData)
+    mockedFactor.mockResolvedValue(factorUnavailable as never)
+    renderWithClient(<StockEventTracker />)
+    pickCode()
+
+    expect(await screen.findByText(/演示：五源无信号/)).toBeTruthy()
+    expect(screen.queryByText('72.5')).toBeNull()
+  })
+
+  it('未选中标的：不发任何事件因子请求', () => {
+    renderWithClient(<StockEventTracker />)
+    expect(mockedFactor).not.toHaveBeenCalled()
+    expect(mockedEvents).not.toHaveBeenCalled()
   })
 })

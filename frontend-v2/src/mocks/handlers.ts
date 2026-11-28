@@ -257,6 +257,24 @@ export const handlers = [
   // p1-sync-status 的 fixture 刻意不含 target_dir，与后端递归脱敏行为一致。
   http.get('/api/v2/read/event-pool', () => ok(fixtures.eventPool)),
   http.get('/api/v2/read/prediction-log', () => ok(fixtures.predictionLog)),
+  // 个股事件 / 事件因子（I1-I3）：stock-events 演示态走诚实空态，绝不编造新闻条目。
+  http.get('/api/v2/read/stock-events', ({ request }) => {
+    const code = new URL(request.url).searchParams.get('code') || ''
+    if (!/^\d{6}$/.test(code)) return invalidParam('code 非法（须为 6 位数字股票代码）')
+    return ok({ ...fixtures.stockEventsEmpty, code })
+  }),
+  http.get('/api/v2/read/event-factor', ({ request }) => {
+    const code = new URL(request.url).searchParams.get('code') || ''
+    if (!/^\d{6}$/.test(code)) return invalidParam('code 非法（须为 6 位数字股票代码）')
+    return ok({ ...fixtures.eventFactorSignal, symbol: code })
+  }),
+  http.get('/api/v2/read/event-long-list', ({ request }) => {
+    const raw = new URL(request.url).searchParams.get('limit')
+    if (raw !== null && raw !== '' && ![10, 20, 30, 50].includes(Number(raw))) {
+      return invalidParam('limit 非法（仅支持 10/20/30/50）')
+    }
+    return ok(fixtures.eventLongList)
+  }),
   // 64 投研圆桌静态交付物：meta + md/html 原文（夹具为演示片段，非真实研报）
   http.get('/api/v2/read/roundtable-report', ({ request }) => {
     const fmt = new URL(request.url).searchParams.get('format') || 'meta'

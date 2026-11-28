@@ -1,6 +1,6 @@
 import type { EChartsOption } from 'echarts'
-import type { EventPool } from '@/api/schemas/read'
-import { useEventPool } from '@/lib/queries'
+import type { EventPool, EventLongList } from '@/api/schemas/read'
+import { useEventPool, useEventLongList } from '@/lib/queries'
 import { Card } from '@/shared/ui/Card'
 import { Stat } from '@/shared/ui/Stat'
 import { QueryState } from '@/shared/ui/States'
@@ -19,6 +19,7 @@ import { SectionTitle } from '@/shared/ui/EmphasisText'
  */
 export function EventPoolView() {
   const pool = useEventPool()
+  const longList = useEventLongList(20)
   return (
     <div className="flow">
       <div className="flex flex-wrap items-center gap-3">
@@ -44,7 +45,59 @@ export function EventPoolView() {
       >
         {pool.data ? <EventPoolBody data={pool.data} /> : null}
       </QueryState>
+
+      <QueryState
+        isLoading={longList.isLoading}
+        isError={longList.isError}
+        error={longList.error}
+        isEmpty={!longList.data?.items?.length}
+        emptyLabel="无信号"
+        emptyHint="P1 榜单不可用或为空，未做任何填充"
+        onRetry={() => longList.refetch()}
+        retrying={longList.isRefetching}
+      >
+        {longList.data ? <EventLongListBody data={longList.data} /> : null}
+      </QueryState>
     </div>
+  )
+}
+
+/**
+ * 事件驱动看多榜（I3）：GET /event-long-list 的 P1 EV top_long 真实来源。
+ * 空榜由外层 QueryState 显示「无信号」；note 原样透出（含 MSW 演示标注），
+ * 缺失字段 fmtNum → '—'，不补 0、不包装成荐股。
+ */
+function EventLongListBody({ data }: { data: EventLongList }) {
+  const rows = data.items ?? []
+  return (
+    <Card title="事件驱动看多榜（P1 EV top_long）">
+      <div className="overflow-x-auto">
+        <table className="w-full text-body">
+          <caption className="sr-only">事件驱动看多榜，含代码、评分、原始排名、信号与来源</caption>
+          <thead>
+            <tr className="text-label text-sf-ink-3 border-b border-sf-line">
+              <th scope="col" className="text-left py-2 pr-3 font-normal">代码</th>
+              <th scope="col" className="text-right py-2 pr-3 font-normal">评分</th>
+              <th scope="col" className="text-right py-2 pr-3 font-normal">原始排名</th>
+              <th scope="col" className="text-left py-2 pr-3 font-normal">信号</th>
+              <th scope="col" className="text-left py-2 font-normal">来源</th>
+            </tr>
+          </thead>
+          <tbody className="text-sf-ink-2">
+            {rows.map((r, i) => (
+              <tr key={`${r.symbol ?? 'none'}-${i}`} className="border-b border-sf-line last:border-0 hover:bg-sf-surface-2">
+                <td className="py-1.5 pr-3 font-mono">{fmtNum(r.symbol)}</td>
+                <td className="py-1.5 pr-3 text-right tabular-nums">{fmtNum(r.score)}</td>
+                <td className="py-1.5 pr-3 text-right tabular-nums">{fmtNum(r.raw_rank)}</td>
+                <td className="py-1.5 pr-3">{fmtNum(r.signal)}</td>
+                <td className="py-1.5 text-label text-sf-ink-3">{fmtNum(r.source)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-label text-sf-ink-3 mt-2">共 {fmtNum(data.count)} 条；{data.note ?? '未提供口径说明'}</p>
+    </Card>
   )
 }
 

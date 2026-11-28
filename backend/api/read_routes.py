@@ -5830,3 +5830,78 @@ def stock_events():
         data.update({"date": None, "available": False,
                      "events": [], "count": 0, "distribution": dist})
     return ok(data=_sanitize(data), message="stock-events")
+
+
+# ───────────────────── 事件因子五源适配器（v2 个股事件 / 事件池，只读）─────────────────────
+_EVENT_FACTOR_LIMITS = {10, 20, 30, 50}
+
+
+@bp.get("/event-factor")
+@jwt_required
+def event_factor():
+    """GET /api/v2/read/event-factor?code=600519 —— 个股真实事件因子（五源融合）。
+
+    复用 modules.event_factor.get_event_factor（P1 EV / 新闻情感 / 龙虎榜 / 事件主表 /
+    用户语音五源兜底），不新造爬虫、不造合成数据。字段逐字：
+    available/symbol/score/signal/rank/date/source/horizon/hard_logic/reason。
+    失败/异常一律 200 + available=False + reason，绝不 500；缺失数值由适配器保持 None，
+    本层不补 0、不伪造评分。默认不传 voice_user（隐私闸门）、不带 macro（不触发联网）。
+    """
+    code = request.args.get("code", "")
+    if not re.fullmatch(r"\d{6}", code or ""):
+        return fail(message="code 非法（须为 6 位数字股票代码）",
+                    code="invalid_param", http_status=400)
+
+    fields = ("available", "symbol", "score", "signal", "rank",
+              "date", "source", "horizon", "hard_logic", "reason")
+    try:
+        from modules.event_factor import get_event_factor
+        data = get_event_factor(symbol=code)
+        if not isinstance(data, dict):
+            raise ValueError("事件因子适配器返回非 dict")
+    except Exception as exc:  # noqa: BLE001 - 取数链整体降级，不把异常抛成 500
+        logging.getLogger(__name__).warning("[event-factor] 取数失败，走降级态: %s", exc)
+        data = {"available": False, "symbol": code,
+                "reason": f"事件因子暂不可用：{exc}"}
+    # 契约字段补齐：缺失一律 None，不补 0、不臆造（诚实红线）。
+    for key in fields:
+        data.setdefault(key, None)
+    return ok(data=_sanitize(data), message="event-factor")
+
+
+@bp.get("/event-long-list")
+@jwt_required
+def event_long_list():
+    """GET /api/v2/read/event-long-list?limit=20 —— 事件驱动看多榜（P1 EV top_long）。
+
+    复用 modules.event_factor.event_driven_long_list，来源即真实 P1 top_long 信号，
+    不重排全市场、不补 0。每项字段逐字：symbol/score/raw_rank/raw_pred/signal/source/
+    horizon/hard_logic。空榜 items=[] + count=0 仍 200；异常降级为空榜，绝不 500。
+    """
+    raw_limit = request.args.get("limit")
+    if raw_limit is None or raw_limit == "":
+        limit = 20
+    else:
+        try:
+            limit = int(raw_limit)
+        except (TypeError, ValueError):
+            return fail(message="limit 非法（仅支持 10/20/30/50）",
+                        code="invalid_param", http_status=400)
+        if limit not in _EVENT_FACTOR_LIMITS:
+            return fail(message="limit 非法（仅支持 10/20/30/50）",
+                        code="invalid_param", http_status=400)
+
+    try:
+        from modules.event_factor import event_driven_long_list
+        rows = event_driven_long_list(top_n=limit)
+        if not isinstance(rows, list):
+            raise ValueError("看多榜适配器返回非 list")
+    except Exception as exc:  # noqa: BLE001 - 榜单取数失败降级为空榜，绝不 500
+        logging.getLogger(__name__).warning("[event-long-list] 取数失败，走空榜: %s", exc)
+        rows = []
+    data = {
+        "items": rows,
+        "count": len(rows),
+        "note": "事件驱动看多榜来自 P1 EV 模型真实 top_long 信号；无信号即空榜，未做任何填充",
+    }
+    return ok(data=_sanitize(data), message="event-long-list")
